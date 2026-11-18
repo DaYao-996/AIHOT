@@ -97,15 +97,18 @@ export function cumulativeEvidenceHash(input: {
   bodyText: string | null;
   quotedText: string | null;
   xPost: XPostData | null;
+  aside?: { links: unknown[]; charts: unknown[] } | null;
 }): string {
   const raw = input.raw !== undefined ? input.raw : input.rawVersions?.at(-1) ?? null;
-  return sha256(stableJson({
+  const snapshot: Record<string, unknown> = {
     title: input.title ?? "",
     raw,
     bodyText: input.bodyText,
     quotedText: input.quotedText,
     xPost: input.xPost,
-  }));
+  };
+  if (input.aside && (input.aside.links.length > 0 || input.aside.charts.length > 0)) snapshot.aside = input.aside;
+  return sha256(stableJson(snapshot));
 }
 
 /** 只接受本机上名字以 _test 或 _ci 结尾的库。生产地址和 private24 直接拒绝。 */
@@ -617,6 +620,8 @@ export interface ControlledImportItem {
   rawCanonicalSha256?: string | null;
   bodyText?: string | null;
   quotedText?: string | null;
+  /** Links and chart axes from the page parse. Stored beside the prose, not inside it. */
+  contentAside?: { links: unknown[]; charts: unknown[] } | null;
   xPost?: XPostData | null;
   /** 原始文件字节的 base64。给出时写入 bytea，并必须对上 rawFileSha256。jsonb 不是这份字节。 */
   rawFileBase64?: string | null;
@@ -775,6 +780,7 @@ export function mapControlledImport(item: ControlledImportItem): MappedMaterial 
       bodyText,
       quotedText,
       xPost: item.xPost ?? null,
+      aside: item.contentAside,
     }),
     bodyText,
     quotedText,

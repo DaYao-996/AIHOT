@@ -15,6 +15,7 @@ import { articleUtcOffset, readPublicationDate, type PublicationDate } from "../
 import type { SourceRow } from "../sources/types.ts";
 import { onlyXArticleLink, xArticleText } from "../sources/x.ts";
 import { sanitizeBody, trimTrailingChrome } from "./sanitize.ts";
+import { contentAside, type ContentAside } from "../sources/saved-supplements.ts";
 import { contentHash, fillPublicationTime, reviseMaterial, updatePresentation, type MediaItem } from "./materials.ts";
 import { markdownBody } from "./markdown.ts";
 import { articleCover, declaredCover, hasPicture, type Cover } from "./cover.ts";
@@ -32,6 +33,8 @@ export interface ExtractedBody {
    * the body where it is shown. A caller that fetched the page checks it against the site's own (articleCover).
    */
   cover?: Cover | null;
+  /** Links and chart axes from the original page. Not part of the prose, and the linked page was not read. */
+  aside?: ContentAside;
 }
 
 const MIN_BODY_CHARS = 200;
@@ -320,7 +323,10 @@ export function pagePublicationDate(document: Doc, utcOffset?: string): Publicat
 /** The page's article, read under its source's rules (pageRules); null for an error page or no article. */
 export function readable(html: string, url: string, rules: PageRules = {}): ExtractedBody | null {
   if (isVideoPageUrl(url)) return null;
-  try { return readableDocument(contentDocument(html), url, rules); }
+  try {
+    const body = readableDocument(contentDocument(html), url, rules);
+    return body ? { ...body, aside: contentAside(html, url, body.text) } : null;
+  }
   catch (error) {
     if (error instanceof UnavailablePageError) return null;
     throw error;

@@ -2,6 +2,7 @@
 // 采集和模型开关只约束 CLI。这里不读那些开关，调用方要自己守住入口。
 // 导入把 processing_state 收成 skipped，content.sweep 只捡 new，所以之后即使 worker 起来也不会把这些行入队。
 import { contentHash, fillPublicationTime, identityKeyFor, reviseMaterial, upsertMaterial, type XPostData } from "./content/materials.ts";
+import { asideFromGate } from "./sources/saved-supplements.ts";
 import { sql, type Db } from "./db.ts";
 import { sha256, stableJson } from "./lib/ids.ts";
 import { type BodyGate, type ModelFileItem } from "./body-gate.ts";
@@ -179,7 +180,7 @@ export async function writeEvidence(tx: Db, item: ControlledImportItem): Promise
   const bodyText = item.bodyText === undefined ? (latest?.body_text ?? null) : explicitText(item.bodyText);
   const quotedText = item.quotedText === undefined ? (latest?.quoted_text ?? null) : explicitText(item.quotedText);
   const xPost = item.xPost === undefined ? (latest?.x_post ?? null) : item.xPost;
-  const evidenceHash = cumulativeEvidenceHash({ title: item.title, raw: item.raw, bodyText, quotedText, xPost });
+  const evidenceHash = cumulativeEvidenceHash({ title: item.title, raw: item.raw, bodyText, quotedText, xPost, aside: item.contentAside });
   await tx`UPDATE articles SET raw = ${tx.json(item.raw as never)}
     WHERE id = ${saved.articleId} AND raw IS DISTINCT FROM ${tx.json(item.raw as never)}::jsonb`;
   // 正文只经 upsertMaterial / reviseMaterial 写入。直接改 body_text 会让修订号和 content_hash 停在旧文本上。
@@ -220,10 +221,12 @@ export async function writeEvidence(tx: Db, item: ControlledImportItem): Promise
     };
   }
   const version = (latest?.version ?? 0) + 1;
+  const aside = item.contentAside && (item.contentAside.links.length > 0 || item.contentAside.charts.length > 0) ? item.contentAside : null;
   await tx`
-    INSERT INTO own_evidence_versions (article_id, version, article_revision, raw, body_text, quoted_text, x_post, evidence_hash, raw_identity, raw_file)
+    INSERT INTO own_evidence_versions (article_id, version, article_revision, raw, body_text, quoted_text, x_post, evidence_hash, raw_identity, raw_file, body_gate)
     VALUES (${saved.articleId}, ${version}, ${article!.revision}, ${tx.json(item.raw as never)},
-            ${bodyText}, ${quotedText}, ${xPost ? tx.json(xPost as never) : null}, ${evidenceHash}, ${tx.json(rawIdentity as never)}, ${bytes})`;
+            ${bodyText}, ${quotedText}, ${xPost ? tx.json(xPost as never) : null}, ${evidenceHash}, ${tx.json(rawIdentity as never)}, ${bytes},
+            ${aside ? tx.json({ aside } as never) : null})`;
   await tx`UPDATE own_judgments SET stale = true
     WHERE article_id = ${saved.articleId} AND stale = false
       AND (evidence_hash <> ${evidenceHash} OR input_revision <> ${article!.revision})`;
@@ -526,13 +529,16 @@ export async function appendLocatedSupplement(articleId: string, supplement: {
 }
 
 /** 评分和抽取只读最新证据。文章列上留下的旧正文不能绕过这次显式撤回。身份键不在这里。 */
-export async function materialForScoring(articleId: string): Promise<{ bodyText: string | null; quotedText: string | null; xPost: unknown; evidenceHash: string } | null> {
+export async function materialForScoring(articleId: string): Promise<{
+  bodyText: string | null; quotedText: string | null; xPost: unknown; evidenceHash: string;
+  aside: { links: Array<{ label: string; href: string; absoluteUrl: string; byteStart: number; byteEnd: number; linkedPageRead: false }>; charts: Array<{ id: string; role: "chart_axis"; byteStart: number; byteEnd: number; text: string }> };
+} | null> {
   databaseUrl();
-  const [row] = await sql<{ body_text: string | null; quoted_text: string | null; x_post: unknown; evidence_hash: string }[]>`
-    SELECT body_text, quoted_text, x_post, evidence_hash FROM own_evidence_versions
+  const [row] = await sql<{ body_text: string | null; quoted_text: string | null; x_post: unknown; evidence_hash: string; body_gate: unknown }[]>`
+    SELECT body_text, quoted_text, x_post, evidence_hash, body_gate FROM own_evidence_versions
     WHERE article_id = ${articleId} ORDER BY version DESC LIMIT 1`;
   if (!row) return null;
-  return { bodyText: row.body_text, quotedText: row.quoted_text, xPost: row.x_post, evidenceHash: row.evidence_hash };
+  return { bodyText: row.body_text, quotedText: row.quoted_text, xPost: row.x_post, evidenceHash: row.evidence_hash, aside: asideFromGate(row.body_gate) };
 }
 
 export async function listFeatureQueue(): Promise<Array<{ articleId: string; url: string; title: string; version: number; evidenceHash: string; gate: BodyGate }>> {

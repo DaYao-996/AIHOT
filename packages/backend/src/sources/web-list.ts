@@ -7,6 +7,7 @@ import { fetchListing } from "./listing-fetch.ts";
 import { identityKeyForUrl, normalizeUrl } from "../lib/url.ts";
 import { collapseWhitespace, stripTags } from "../lib/text.ts";
 import { isSignInRedirect, isSignInUrl, pagePublicationDate, pageRules, readableDocument, type ExtractedBody } from "../content/extract.ts";
+import { contentAside } from "./saved-supplements.ts";
 import { sanitizeBody } from "../content/sanitize.ts";
 import { articleCover } from "../content/cover.ts";
 import { JINA_PREFIX, jinaRead } from "../providers/jina.ts";
@@ -513,5 +514,6 @@ export async function fetchDetail(url: string, source: SourceRow, need: DetailNe
     // Outside it: a failure of the store while checking the cover fails the read, which is retried.
     if (body) body = { ...body, cover: await articleCover(body.cover ?? null, url, page.url) };
   }
+  if (body && html) body = { ...body, aside: contentAside(html, page?.url ?? url, body.text) };
   return { ...date, title, summary, body, response };
 }

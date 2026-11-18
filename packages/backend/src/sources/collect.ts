@@ -19,6 +19,7 @@ import { fetchXSearch, planXShards, readXSearch, shardHandle, shardQuery, SHARDA
 import { FetchError, type Candidate, type SourceRow } from "./types.ts";
 import { readsWhole, usePace } from "./uses.ts";
 import { pageFetchable } from "../content/extract.ts";
+import type { ContentAside } from "./saved-supplements.ts";
 import { fetchArticleCover, hasPicture, type Cover } from "../content/cover.ts";
 
 export interface CollectResult {
@@ -63,7 +64,11 @@ export async function storedDetails(identities: string[]): Promise<Map<string, S
 const DAY_MS = 86_400_000;
 
 /** `cover`: what the entry's detail page declared (null: none), when its body came from that page. */
-export type CollectionCandidate = Candidate & { detailRules?: string; cover?: Cover | null };
+export type CollectionCandidate = Candidate & {
+  detailRules?: string;
+  cover?: Cover | null;
+  contentAside?: ContentAside | null;
+};
 
 /** The detail rules in force; a page read under other rules is read again. */
 const detailRulesOf = (source: SourceRow) => (source.config.detail ? sha256(JSON.stringify(source.config.detail)) : null);
@@ -171,7 +176,7 @@ function detailNeed(c: CollectionCandidate, stored: StoredDetail | undefined, so
 }
 
 /** A detail page's findings. A body comes from the same Readability path as extraction, using bytes already fetched. */
-function applyDetail(c: CollectionCandidate, got: Awaited<ReturnType<typeof fetchDetail>>, rules: string): void {
+export function applyDetail(c: CollectionCandidate, got: Awaited<ReturnType<typeof fetchDetail>>, rules: string): void {
   c.detailRules = rules;
   if (got.title) c.title = got.title;
   if (got.summary) c.excerpt = got.summary;
@@ -180,6 +185,7 @@ function applyDetail(c: CollectionCandidate, got: Awaited<ReturnType<typeof fetc
     c.bodyHtml = got.body.html;
     c.bodyText = got.body.text;
     c.bodyStatus = "ok";
+    c.contentAside = got.body.aside ?? null;
     if (!c.media?.length) c.media = got.body.images;
     c.cover = got.body.cover ?? null;
   }

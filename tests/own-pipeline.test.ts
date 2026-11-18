@@ -10,10 +10,12 @@ import path from "node:path";
 import { after, before, test } from "node:test";
 import { closeDb, sql } from "@aihot/backend/db";
 import { stableJson } from "@aihot/backend/lib/ids";
-import { HISTORICAL_RULESET, type JudgmentBody } from "../site/own-pipeline.ts";
+import { HISTORICAL_RULESET, cumulativeEvidenceHash, type JudgmentBody } from "../site/own-pipeline.ts";
 import { sweepUnprocessed } from "../packages/backend/src/jobs/content.ts";
 import { stopBoss } from "../packages/backend/src/jobs/queue.ts";
 import { contentHash } from "@aihot/backend/content/materials";
+import { readable } from "@aihot/backend/content/extract";
+import { applyDetail } from "@aihot/backend/sources/collect";
 import { activeJudgment, JudgmentConflict, alignEvidenceToArticleRevision, appendControlledEvidence, appendLocatedSupplement, commitControlledLoop, listPendingDrafts, listPendingSelections, materialForScoring, recordDateOnly, recordFileResult, recordJudgment, recordReviewDraft, recordSelectionDecision } from "../packages/backend/src/own-pipeline-store.ts";
 
 const SOURCE = `own-pipeline-${tag()}`;
@@ -990,6 +992,52 @@ test("a manuscript file imports as a real draft, repeats, and rejects an old rev
   const [published] = await sql<{ n: number }[]>`SELECT count(*)::int AS n FROM publications WHERE article_id = ${saved.articleId}`;
   assert.equal(parked!.processing_state, "skipped");
   assert.equal(published!.n, 0);
+});
+
+test("a normal page parse keeps the link and the chart axis in the scoring input", async () => {
+  const html = `<!doctype html><html><body><nav><a href="https://example.org/nav">Home</a></nav><article><p>${"The release note explains how to call the model and what the price table means. ".repeat(8)}</p><p>Read the <a href="https://example.org/paper.pdf">technical paper</a> before you start.</p><mistral-block-chart>{"title":"Frontier","type":"bar","value":{"label":"Score","suffix":"%","decimals":1,"max":20},"data":[{"label":"Model","value":19.7}]}</mistral-block-chart></article><footer><a href="https://example.org/privacy">Privacy</a></footer></body></html>`;
+  const url = `https://example.org/post-${tag()}`;
+  const parsed = readable(html, url);
+  assert.ok(parsed);
+  const candidate = { url, title: "Probe" } as Parameters<typeof applyDetail>[0];
+  applyDetail(candidate, { title: null, summary: null, publishedAt: null, publicationTime: null, body: parsed, response: null }, "rules");
+  assert.equal(candidate.bodyText?.includes("https://example.org/paper.pdf"), false);
+  assert.match(candidate.contentAside?.charts[0]?.text ?? "", /value\.suffix: %/);
+  const saved = await appendControlledEvidence({
+    sourceId: SOURCE, url, title: "Probe", raw: { kind: "chain" },
+    bodyText: candidate.bodyText, contentAside: candidate.contentAside,
+  });
+  const scored = await materialForScoring(saved.articleId);
+  assert.equal(scored?.bodyText, candidate.bodyText);
+  assert.equal(scored?.aside.links.some((link) => link.absoluteUrl === "https://example.org/paper.pdf" && link.linkedPageRead === false), true);
+  assert.match(scored?.aside.charts[0]?.text ?? "", /value\.suffix: %/);
+  assert.equal(scored?.aside.links.some((link) => link.absoluteUrl.includes("/nav") || link.absoluteUrl.includes("/privacy")), false);
+  const bodyOnlyHash = cumulativeEvidenceHash({ title: "Probe", raw: { kind: "chain" }, bodyText: candidate.bodyText ?? null, quotedText: null, xPost: null });
+  assert.notEqual(bodyOnlyHash, saved.evidenceHash);
+  const excerpt = "Read the technical paper";
+  await assert.rejects(recordFileResult({
+    articleId: saved.articleId, evidenceHash: bodyOnlyHash, evidenceVersion: saved.evidenceVersion,
+    inputRevision: saved.articleRevision, rulesetVersion: "rules@chain", promptVersion: "prompt@chain",
+    executionSource: "assistant-file", modelKnowledge: "unknown", knownModel: null,
+    output: {
+      narrowClaim: "正文提到技术论文", quoteLocation: { excerpt, start: (candidate.bodyText ?? "").indexOf(excerpt), end: (candidate.bodyText ?? "").indexOf(excerpt) + excerpt.length },
+      conditions: ["只看这一页"], time: "unknown", valueBasis: "页内写了论文入口", audience: ["复核的人"],
+      substantiveAddition: "给出了论文地址", clauses: [{ id: "scope", text: "这一页" }],
+    },
+  }, "2026-11-18T10:40:00.000Z"), /当前证据|当前文章修订|当前版本/);
+  const other = await appendControlledEvidence({ sourceId: SOURCE, url: `https://example.org/other-${tag()}`, title: "旁观", raw: { n: 1 }, bodyText: "旁观正文还在。" });
+  const otherFile = await recordFileResult({
+    articleId: other.articleId, evidenceHash: other.evidenceHash, evidenceVersion: other.evidenceVersion,
+    inputRevision: other.articleRevision, rulesetVersion: "rules@chain", promptVersion: "prompt@chain",
+    executionSource: "assistant-file", modelKnowledge: "unknown", knownModel: null,
+    output: {
+      narrowClaim: "旁观正文还在", quoteLocation: { excerpt: "旁观正文还在", start: 0, end: "旁观正文还在".length },
+      conditions: ["旁观"], time: "unknown", valueBasis: "旁观", audience: ["复核的人"],
+      substantiveAddition: "旁观", clauses: [{ id: "scope", text: "旁观" }],
+    },
+  }, "2026-11-18T10:40:01.000Z");
+  const [kept] = await sql<{ stale: boolean }[]>`SELECT stale FROM own_judgments WHERE id = ${otherFile.id}`;
+  assert.equal(kept!.stale, false);
 });
 
 test("three unblinded public samples go through the import command", { skip: existsSync(SAMPLES) ? false : "public samples are not in this checkout" }, () => {

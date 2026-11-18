@@ -1,4 +1,5 @@
 // Readings taken from a response that is already stored. They do not fetch the linked page.
+import type { Element } from "domhandler";
 import * as cheerio from "cheerio";
 
 export interface StoredLink {
@@ -27,15 +28,15 @@ function sameDocument(absolute: string, pageUrl: string): boolean {
   return a.origin === b.origin && a.pathname.replace(/\/$/, "") === b.pathname.replace(/\/$/, "") && a.search === b.search;
 }
 
-function inChrome(el: cheerio.Element, $: cheerio.CheerioAPI): boolean {
-  let node: cheerio.Element | null = el;
+function inChrome(el: Element, $: cheerio.CheerioAPI): boolean {
+  let node: Element | null = el;
   while (node) {
     const tag = node.tagName;
     if (!tag) break;
     const cls = String($(node).attr("class") ?? "");
     if (tag === "nav" || tag === "header" || tag === "footer" || $(node).attr("role") === "navigation") return true;
     if (/(^|\s)card(\s|$)/.test(cls) || tag === "article" && /(^|\s)card(\s|$)/.test(cls)) return true;
-    node = node.parent as cheerio.Element | null;
+    node = node.parent as Element | null;
   }
   return false;
 }
@@ -86,11 +87,90 @@ function axisLines(name: string, value: unknown): string[] {
   return lines;
 }
 
+export interface ContentAside {
+  links: StoredLink[];
+  charts: Array<{ id: string; role: "chart_axis"; byteStart: number; byteEnd: number; text: string }>;
+}
+
+function locateHref(bytes: Buffer, href: string, label: string): number {
+  const needle = Buffer.from(href);
+  let from = 0;
+  while (from < bytes.length) {
+    const at = bytes.indexOf(needle, from);
+    if (at < 0) return -1;
+    const around = bytes.subarray(Math.max(0, at - 200), Math.min(bytes.length, at + href.length + 500)).toString("utf8");
+    if (around.includes(label)) return at;
+    from = at + 1;
+  }
+  return -1;
+}
+
+/** Links and chart axes on the page itself. The caller does not name them. Linked pages are not read. */
+export function contentAside(html: string, pageUrl: string, bodyText: string): ContentAside {
+  const $ = cheerio.load(html);
+  const bytes = Buffer.from(html);
+  const links: StoredLink[] = [];
+  const seen = new Set<string>();
+  $("a[href]").each((_, el) => {
+    if (inChrome(el, $)) return;
+    const href = $(el).attr("href") ?? "";
+    if (!href || href.startsWith("#") || /^(?:mailto|javascript|data):/i.test(href)) return;
+    const absolute = absoluteHref(href, pageUrl);
+    if (!absolute || sameDocument(absolute, pageUrl)) return;
+    if (bodyText.includes(absolute)) return;
+    const label = $(el).text().replace(/\s+/g, " ").trim();
+    if (label.length < 2) return;
+    const at = locateHref(bytes, href, label);
+    if (at < 0) return;
+    const key = `${label}\0${absolute}`;
+    if (seen.has(key)) return;
+    seen.add(key);
+    links.push({ label, href, absoluteUrl: absolute, byteStart: at, byteEnd: at + Buffer.byteLength(href), linkedPageRead: false });
+  });
+  return { links, charts: chartAxisParts(html) };
+}
+
+function lineValue(text: string, name: string): string {
+  const match = new RegExp(`^${name}: (.*)$`, "m").exec(text);
+  return match?.[1]?.trim() ?? "";
+}
+
+/** What scoring can see: a parse-time aside, plus supplements already stored on the evidence gate. */
+export function asideFromGate(gate: unknown): ContentAside {
+  const links: StoredLink[] = [];
+  const charts: ContentAside["charts"] = [];
+  if (!gate || typeof gate !== "object") return { links, charts };
+  const row = gate as { aside?: ContentAside; supplements?: Array<{ parts?: Array<Record<string, unknown>> }> };
+  for (const link of row.aside?.links ?? []) links.push({ ...link, linkedPageRead: false });
+  for (const chart of row.aside?.charts ?? []) charts.push(chart);
+  for (const supplement of row.supplements ?? []) {
+    for (const part of supplement.parts ?? []) {
+      const role = String(part.role ?? "");
+      const text = String(part.text ?? "");
+      if (role === "content_link") {
+        const label = lineValue(text, "label");
+        const absoluteUrl = lineValue(text, "absoluteUrl");
+        if (!label || !absoluteUrl) continue;
+        links.push({
+          label, href: absoluteUrl, absoluteUrl,
+          byteStart: Number(part.byteStart ?? 0), byteEnd: Number(part.byteEnd ?? 0), linkedPageRead: false,
+        });
+      } else if (role === "chart_axis" || role === "chart") {
+        charts.push({
+          id: String(part.id ?? "chart"), role: "chart_axis",
+          byteStart: Number(part.byteStart ?? 0), byteEnd: Number(part.byteEnd ?? 0), text,
+        });
+      }
+    }
+  }
+  return { links, charts };
+}
+
 /** Chart rows plus the axis fields the page stored. A bare number keeps its suffix and decimals. */
 export function chartAxisParts(html: string): Array<{ id: string; role: "chart_axis"; byteStart: number; byteEnd: number; text: string }> {
   const $ = cheerio.load(html);
   const bytes = Buffer.from(html);
-  const parts = [];
+  const parts: ContentAside["charts"] = [];
   let n = 0;
   $("mistral-block-chart").each((_, el) => {
     n += 1;

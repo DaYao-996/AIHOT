@@ -13,7 +13,7 @@ import { config } from "@aihot/backend/config";
 import { extractFromUrl, pageRules } from "@aihot/backend/content/extract";
 import { sanitizeBody, trimTrailingChrome } from "@aihot/backend/content/sanitize";
 import { unsupportedConfig } from "@aihot/backend/sources/config-keys";
-import { chartAxisParts, storedContentLink } from "@aihot/backend/sources/saved-supplements";
+import { chartAxisParts, contentAside, storedContentLink } from "@aihot/backend/sources/saved-supplements";
 import { fetchDetail, fetchWebList, fromHtml, fromMarkdown, locateArticleText } from "@aihot/backend/sources/web-list";
 import { fetchRss } from "@aihot/backend/sources/rss";
 import { fetchJsonList } from "@aihot/backend/sources/json-list";
@@ -293,7 +293,8 @@ test("a stored content link keeps its label and absolute address, and a chart ke
     assert.equal(paper.linkedPageRead, false);
   }
   const selfAt = html.indexOf("https://example.org/blog/post");
-  assert.equal("skipped" in storedContentLink(html, page, "", { label: "this page", href: "https://example.org/blog/post", absoluteUrl: page, byteOffset: selfAt }) && storedContentLink(html, page, "", { label: "this page", href: "https://example.org/blog/post", absoluteUrl: page, byteOffset: selfAt }).skipped, "指向本页，不是外链");
+  const selfLink = storedContentLink(html, page, "", { label: "this page", href: "https://example.org/blog/post", absoluteUrl: page, byteOffset: selfAt });
+  assert.equal("skipped" in selfLink && selfLink.skipped, "指向本页，不是外链");
   const socialAt = html.indexOf("https://example.org/social");
   const social = storedContentLink(html, page, "the address is already https://example.org/social here", { label: "social", href: "https://example.org/social", absoluteUrl: "https://example.org/social", byteOffset: socialAt });
   assert.equal("skipped" in social && social.skipped, "地址已经在正文里");
@@ -302,6 +303,16 @@ test("a stored content link keeps its label and absolute address, and a chart ke
   assert.match(chart.text, /value\.suffix: %/);
   assert.match(chart.text, /value\.decimals: 1/);
   assert.match(chart.text, /label=Model value=19\.7/);
+});
+
+test("a page parse keeps the article link and the chart unit without being told the anchor", () => {
+  const html = `<!doctype html><html><body><nav><a href="https://example.org/nav">Home</a></nav><article><p>${"The release note explains how to call the model and what the price table means. ".repeat(8)}</p><p>Read the <a href="https://example.org/paper.pdf">technical paper</a> before you start.</p><mistral-block-chart>{"title":"Frontier","type":"bar","value":{"label":"Score","suffix":"%","decimals":1,"max":20},"data":[{"label":"Model","value":19.7}]}</mistral-block-chart></article><footer><a href="https://example.org/privacy">Privacy</a></footer></body></html>`;
+  const aside = contentAside(html, "https://example.org/post", "Read the technical paper before you start.");
+  assert.deepEqual(aside.links.map((link) => link.absoluteUrl), ["https://example.org/paper.pdf"]);
+  assert.equal(aside.links[0]!.label, "technical paper");
+  assert.equal(aside.links[0]!.linkedPageRead, false);
+  assert.ok(aside.links[0]!.byteStart >= 0);
+  assert.match(aside.charts[0]!.text, /value\.suffix: %/);
 });
 
 test("a long article stays the article, and the navigation and chart payload stay out", () => {
