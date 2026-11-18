@@ -114,10 +114,15 @@ export function packageSha256(bytes: Buffer | string): string {
   return sha256(bytes);
 }
 
-/** Structural notes from a fetched section. Not a semantic score and not a debug label file. */
+/**
+ * Mechanical slice of a fetched section: first and last sentence plus the hashes.
+ * This is not a model extraction and not a semantic narrow claim.
+ */
 export function actualSectionRecord(input: { url: string; title: string; completeness: string; sectionText: string; pageSha256: string; sectionSha256: string }): {
-  fieldSource: "actual_extract";
-  structuralSource: "fetched_page";
+  schema: "mechanical-section-v1";
+  fieldSource: "mechanical_slice";
+  structuralSource: "dom_or_feed_boundary";
+  extraction: "mechanical_slice";
   scored: false;
   url: string;
   title: string;
@@ -129,8 +134,10 @@ export function actualSectionRecord(input: { url: string; title: string; complet
 } {
   const sentences = input.sectionText.split(/(?<=[.!?。])\s+/).filter(Boolean);
   return {
-    fieldSource: "actual_extract",
-    structuralSource: "fetched_page",
+    schema: "mechanical-section-v1",
+    fieldSource: "mechanical_slice",
+    structuralSource: "dom_or_feed_boundary",
+    extraction: "mechanical_slice",
     scored: false,
     url: input.url,
     title: input.title,

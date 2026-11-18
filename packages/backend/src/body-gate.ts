@@ -42,15 +42,37 @@ function plain(value: string): string {
     .replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim();
 }
 
-function elementText(html: string, id: string): string | null {
+function elementSpan(html: string, id: string): { tag: string; contentFrom: number; end: number } | null {
   const open = new RegExp(`<([a-z0-9]+)\\b[^>]*\\bid=["']${id.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}["'][^>]*>`, "i").exec(html);
-  if (!open) return null;
-  const tag = open[1]!;
-  const from = (open.index ?? 0) + open[0].length;
-  const close = html.slice(from).search(new RegExp(`</${tag}>`, "i"));
-  if (close < 0) return null;
-  const text = plain(html.slice(from, from + close));
-  return text || null;
+  if (!open || open.index === undefined) return null;
+  const tag = open[1]!.toLowerCase();
+  const contentFrom = open.index + open[0].length;
+  const token = new RegExp(`<(/?)${tag}\\b[^>]*>`, "gi");
+  token.lastIndex = contentFrom;
+  let depth = 1;
+  for (let match = token.exec(html); match; match = token.exec(html)) {
+    depth += match[1] === "/" ? -1 : 1;
+    if (depth === 0) return { tag, contentFrom, end: match.index };
+  }
+  return null;
+}
+
+/** From the fragment through later subheadings, stopping before the next update at the same level. */
+function fragmentSection(html: string, id: string): { text: string; start: number; end: number; subheadings: string[] } | null {
+  const span = elementSpan(html, id);
+  if (!span) return null;
+  const after = html.slice(span.end);
+  let boundary = html.length;
+  if (span.tag === "li") {
+    const sibling = /<li\b[^>]*\bid=["'][^"']+["'][^>]*>/i.exec(after);
+    if (sibling?.index !== undefined) boundary = Math.min(boundary, span.end + sibling.index);
+  }
+  const heading = /<h[1-3]\b[^>]*>/i.exec(after);
+  if (heading?.index !== undefined) boundary = Math.min(boundary, span.end + heading.index);
+  const region = html.slice(span.contentFrom, boundary);
+  const subheadings = [...region.matchAll(/<h([1-6])\b[^>]*>([\s\S]*?)<\/h\1>/gi)].map((match) => plain(match[2] ?? "")).filter(Boolean);
+  const text = plain(region);
+  return text ? { text, start: span.contentFrom, end: boundary, subheadings } : null;
 }
 
 function norm(value: string): string {
@@ -116,18 +138,37 @@ export function cutHtmlSection(html: string, opts: { fragment?: string | null; t
   };
 }
 
-/** Official Atom content is the release note when it is present. A short page scrape does not prove truncation. */
-export function atomReleaseNote(xml: string, title: string): { body: BodyState; text: string | null; updated: string | null; reason: string } {
-  const entries = [...xml.matchAll(/<entry\b[\s\S]*?<\/entry>/gi)].map((match) => match[0]);
-  const hits = entries.filter((entry) => plain(entry).includes(title));
-  if (hits.length === 0) return { body: "missing", text: null, updated: null, reason: "atom entry for this title is not in the stored feed" };
-  if (hits.length > 1) return { body: "ambiguous", text: null, updated: null, reason: "more than one atom entry contains this title" };
-  const entry = hits[0]!;
+function releaseKind(title: string): "prerelease" | "stable" {
+  return /(?:^|[^a-z0-9])(?:alpha|beta|rc|pre)(?:[^a-z0-9]|$)/i.test(title) ? "prerelease" : "stable";
+}
+
+function versionLine(text: string): boolean {
+  return /^release\s+\S+$/i.test(text.trim());
+}
+
+/** One Atom entry. The release kind comes from that entry's title. Other entries are not joined. */
+export function atomReleaseNote(xml: string, title: string): {
+  body: BodyState; text: string | null; updated: string | null; reason: string;
+  releaseKind: "prerelease" | "stable" | null; start: number | null; end: number | null;
+} {
+  const entries = [...xml.matchAll(/<entry\b[\s\S]*?<\/entry>/gi)];
+  const hits = entries.filter((entry) => plain(entry[0]).includes(title));
+  if (hits.length === 0) return { body: "missing", text: null, updated: null, reason: "atom entry for this title is not in the stored feed", releaseKind: null, start: null, end: null };
+  if (hits.length > 1) return { body: "ambiguous", text: null, updated: null, reason: "more than one atom entry contains this title", releaseKind: null, start: null, end: null };
+  const hit = hits[0]!;
+  const entry = hit[0];
   const updated = /<updated>([^<]*)<\/updated>/i.exec(entry)?.[1] ?? null;
   const content = /<content\b[^>]*>([\s\S]*?)<\/content>/i.exec(entry)?.[1] ?? "";
   const text = plain(decodeEntities(content).replace(/<!\[CDATA\[([\s\S]*?)\]\]>/, "$1"));
-  if (!text) return { body: "missing", text: null, updated, reason: "atom content is empty; a short detail page is not evidence of truncation" };
-  return { body: "attributed", text, updated, reason: "atom content element is the release note" };
+  const kind = releaseKind(title);
+  if (!text) return { body: "missing", text: null, updated, reason: "atom content is empty; a short detail page is not evidence of truncation", releaseKind: kind, start: hit.index ?? null, end: hit.index === undefined ? null : hit.index + entry.length };
+  const thin = versionLine(text);
+  return {
+    body: "attributed", text, updated, releaseKind: kind, start: hit.index ?? null, end: hit.index === undefined ? null : hit.index + entry.length,
+    reason: thin
+      ? `one atom entry; release kind is ${kind}; content is only the version line; other entries were not joined`
+      : `one atom entry; release kind is ${kind}; content is that entry's note; other entries were not joined`,
+  };
 }
 
 const TRUNCATION = /(?:\bread more\b|\bcontinue reading\b|\[\s*(?:…|\.\.\.)\s*\]|…)\s*$/i;
@@ -174,6 +215,114 @@ export function classifyProse(title: string, text: string): { completeness: Comp
   };
 }
 
+export interface DomSlice {
+  text: string;
+  headings: string[];
+  missing: string[];
+  start: number;
+  end: number | null;
+  source: string;
+  gap: string | null;
+}
+
+function headingAt(html: string, label: string): number {
+  for (const match of html.matchAll(/<h([1-4])\b[^>]*>([\s\S]*?)<\/h\1>/gi)) {
+    if (plain(match[2] ?? "") === label && match.index !== undefined) return match.index;
+  }
+  return -1;
+}
+
+function googleSlice(html: string): DomSlice {
+  const marker = html.indexOf("uni-article-body");
+  const from = html.indexOf(">", marker) + 1;
+  const rest = html.slice(from);
+  let rel = -1;
+  for (const match of rest.matchAll(/<h2\b[^>]*>([\s\S]*?)<\/h2>/gi)) {
+    if (/^(?:get the latest news from google|about the author|related stories)\b/i.test(plain(match[1] ?? "")) && match.index !== undefined) {
+      rel = match.index;
+      break;
+    }
+  }
+  if (rel < 0) {
+    return { text: "", headings: [], missing: [], start: from, end: null, source: "uni-article-body", gap: "uni-article-body has no following chrome heading" };
+  }
+  const slice = rest.slice(0, rel);
+  const headings = [...slice.matchAll(/<h2\b[^>]*>([\s\S]*?)<\/h2>/gi)].map((match) => plain(match[1] ?? "")).filter((text) => text && !/explore other styles/i.test(text));
+  const text = plain(slice);
+  const missing = headings.filter((heading) => !text.includes(heading));
+  const gap = text.startsWith("Skip to main content") ? "slice still starts at site navigation" : missing.length ? `missing heading: ${missing.join(" | ")}` : null;
+  return { text, headings, missing, start: from, end: from + rel, source: "uni-article-body until the next chrome h2", gap };
+}
+
+function outlineLabels(html: string): string[] | null {
+  const raw = /data-target="SideNavigation" data-props="([^"]+)"/.exec(html)?.[1];
+  if (!raw) return null;
+  try {
+    const props = JSON.parse(raw.replace(/&quot;/g, "\"").replace(/&#39;/g, "'").replace(/&amp;/g, "&").replace(/&lt;/g, "<").replace(/&gt;/g, ">")) as { titleTree?: { label?: string; children?: unknown[] }[] };
+    const labels: string[] = [];
+    const walk = (nodes: { label?: string; children?: unknown[] }[] | undefined) => {
+      for (const node of nodes ?? []) {
+        if (node.label) labels.push(node.label);
+        walk(node.children as { label?: string; children?: unknown[] }[] | undefined);
+      }
+    };
+    walk(props.titleTree);
+    return labels;
+  } catch {
+    return null;
+  }
+}
+
+function hfSlice(html: string): DomSlice {
+  const labels = outlineLabels(html) ?? [];
+  if (labels.length === 0) {
+    return { text: "", headings: [], missing: [], start: 0, end: null, source: "titleTree", gap: "side navigation outline could not be read" };
+  }
+  const firstAt = headingAt(html, labels[0]!);
+  if (firstAt < 0) {
+    return { text: "", headings: labels, missing: [labels[0]!], start: 0, end: null, source: "titleTree", gap: `outline heading is not in the page: ${labels[0]}` };
+  }
+  const navEnd = html.lastIndexOf("</nav>", firstAt);
+  const leadFrom = navEnd >= 0 ? navEnd : Math.max(0, firstAt - 4000);
+  const lead = html.slice(leadFrom, firstAt);
+  const paragraph = lead.lastIndexOf("<p");
+  const start = paragraph >= 0 ? leadFrom + paragraph : firstAt;
+  const lastAt = headingAt(html, labels[labels.length - 1]!);
+  const lastClose = lastAt >= 0 ? html.slice(lastAt).search(/<\/h[1-4]>/i) : -1;
+  const after = lastAt >= 0 && lastClose >= 0 ? lastAt + lastClose : firstAt;
+  let end = -1;
+  const headings = /<h2\b[^>]*>([\s\S]*?)<\/h2>/gi;
+  headings.lastIndex = after;
+  for (let match = headings.exec(html); match; match = headings.exec(html)) {
+    if (!labels.includes(plain(match[1] ?? "")) && match.index !== undefined) {
+      end = match.index;
+      break;
+    }
+  }
+  if (end < 0) {
+    return { text: "", headings: labels, missing: labels, start, end: null, source: "titleTree", gap: "no heading after the outline marks the end of the post" };
+  }
+  const text = plain(html.slice(start, end));
+  let cursor = 0;
+  const missing = labels.filter((label) => {
+    const at = text.indexOf(label, cursor);
+    if (at < 0) return true;
+    cursor = at + label.length;
+    return false;
+  });
+  return {
+    text, headings: labels, missing, start, end, source: "lede through the titleTree, stopping before the next heading outside it",
+    gap: missing.length ? `missing heading: ${missing.join(" | ")}` : null,
+  };
+}
+
+/** Article region taken from the saved DOM. Null when this page has neither marker. */
+export function domArticle(html: string): DomSlice | null {
+  if (html.includes("uni-article-body")) return googleSlice(html);
+  if (html.includes('data-target="SideNavigation"')) return hfSlice(html);
+  return null;
+}
+
 export function classifyFetched(input: {
   title: string;
   url: string;
@@ -199,25 +348,48 @@ export function classifyFetched(input: {
   if (input.atomXml && input.url.includes("/releases/")) {
     const note = atomReleaseNote(input.atomXml, input.title);
     if (note.body !== "attributed" || !note.text) {
-      return { ...base, fetch: "feed_stored", body: note.body, completeness: note.body === "ambiguous" ? "ambiguous" : "partial", queue: "held", reason: note.reason };
+      return { ...base, fetch: "feed_stored", body: note.body, completeness: note.body === "ambiguous" ? "ambiguous" : "partial", queue: "held", reason: note.reason, start: note.start, end: note.end };
     }
-    const truncated = TRUNCATION.test(note.text);
+    const thin = versionLine(note.text) || TRUNCATION.test(note.text);
     return {
-      ...base, fetch: "feed_stored", body: "attributed", completeness: truncated ? "partial" : "complete",
-      queue: "ready_for_features", reason: truncated
-        ? "atom content ends in a continuation mark"
-        : "atom content is the official release note; a short page render is not treated as truncation",
-      sectionText: note.text, sectionSha256: sha256(note.text), dateLabel: note.updated,
+      ...base, fetch: "feed_stored", body: "attributed", completeness: thin ? "partial" : "complete",
+      queue: thin ? "held" : "ready_for_features", reason: note.reason,
+      sectionText: note.text, sectionSha256: sha256(note.text), dateLabel: note.updated, start: note.start, end: note.end,
     };
   }
   if (fragment && input.html) {
-    const text = elementText(input.html, fragment);
-    if (!text) return { ...base, fetch: "feed_stored", body: "missing", completeness: "ambiguous", queue: "held", reason: "fragment id is not on an element of the saved page" };
+    const cut = fragmentSection(input.html, fragment);
+    if (!cut) return { ...base, fetch: "feed_stored", body: "missing", completeness: "ambiguous", queue: "held", reason: "fragment id is not on an element of the saved page" };
+    const dropped = cut.subheadings.filter((heading) => !cut.text.includes(heading));
+    if (dropped.length > 0) {
+      return {
+        ...base, fetch: "feed_stored", body: "ambiguous", completeness: "partial", queue: "held", start: cut.start, end: cut.end,
+        reason: `subheading dropped before the next update: ${dropped.join(" | ")}`, sectionText: cut.text, sectionSha256: sha256(cut.text),
+      };
+    }
+    const thin = TRUNCATION.test(cut.text);
     return {
-      ...base, fetch: "feed_stored", body: "attributed", completeness: TRUNCATION.test(text) ? "partial" : "complete",
-      queue: "ready_for_features", reason: "the fragment id is one element; the cut is that element, not the overview",
-      sectionText: text, sectionSha256: sha256(text),
+      ...base, fetch: "feed_stored", body: "attributed", completeness: thin ? "partial" : "complete",
+      queue: thin ? "held" : "ready_for_features", start: cut.start, end: cut.end,
+      reason: cut.subheadings.length
+        ? "fragment runs to the next same-level update and keeps the subheadings inside that span"
+        : "fragment runs to the next same-level update; the span has no later subheading",
+      sectionText: cut.text, sectionSha256: sha256(cut.text),
     };
+  }
+  if (input.html) {
+    const dom = domArticle(input.html);
+    if (dom) {
+      const ready = !dom.gap && !!dom.text && !/document\.head|<\/script>/.test(dom.text);
+      return {
+        ...base, fetch: "feed_stored", body: ready ? "attributed" : "ambiguous", completeness: ready ? "complete" : dom.text ? "partial" : "ambiguous",
+        queue: ready ? "ready_for_features" : "held",
+        reason: dom.gap ?? (dom.headings.length
+          ? `DOM slice ${dom.source}; ${dom.headings.length} heading(s) stay inside the slice`
+          : `DOM slice ${dom.source}; the body element has no internal heading, and the slice runs from that element to the chrome heading`),
+        sectionText: ready ? dom.text : null, sectionSha256: ready ? sha256(dom.text) : null, start: dom.start, end: dom.end,
+      };
+    }
   }
   if (input.prose) {
     const prose = classifyProse(input.title, input.prose);
@@ -274,12 +446,14 @@ export function gateStoredSample(sample: StoredSample): BodyGate {
   }
   if (sample.feedXml && sample.url.includes("github.com") && sample.url.includes("/releases/")) {
     const note = atomReleaseNote(sample.feedXml, sample.title);
-    const ready = note.body === "attributed" && !!note.text;
+    const thin = !!note.text && versionLine(note.text);
+    const ready = note.body === "attributed" && !!note.text && !thin;
     return {
       fetch: "feed_stored", body: note.body, fact: "unchecked", queue: ready ? "ready_for_features" : "held",
+      completeness: note.body !== "attributed" ? "ambiguous" : thin ? "partial" : "complete",
       reason: note.reason, fragment, title: sample.title, dateLabel: note.updated ?? dateLabel,
       pageSha256: sha256(sample.feedXml), sectionSha256: note.text ? sha256(note.text) : null,
-      start: null, end: null, sectionText: ready ? note.text : null,
+      start: note.start, end: note.end, sectionText: note.text,
     };
   }
   if (!sample.detailHtml && !sample.bodyHtml) {

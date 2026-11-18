@@ -1,8 +1,9 @@
 // One plain GET for each of the 15 detail targets. Saves response bytes. No Jina, no model.
-import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { mkdirSync, readFileSync, readdirSync, writeFileSync, rmSync } from "node:fs";
+import { spawnSync } from "node:child_process";
 import { closeDb, sql } from "@aihot/backend/db";
 import { guardedFetch } from "@aihot/backend/lib/http-fetch";
-import { sha256 } from "@aihot/backend/lib/ids";
+import { sha256, stableJson } from "@aihot/backend/lib/ids";
 import { classifyFetched } from "@aihot/backend/body-gate";
 import { readableDocument } from "@aihot/backend/content/extract";
 import { contentDocument } from "@aihot/backend/lib/page-content";
@@ -60,12 +61,13 @@ async function main() {
         ? { status: previous.httpStatus, finalUrl: previous.finalUrl, fetchedAt: previous.fetchedAt, body: load(previous.rawSha256), contentType: previous.contentType }
         : await get(item.url.split("#")[0]);
     if (!item.url.includes("#")) writeFileSync(`/tmp/detail-bytes/${sha256(page.body)}.bin`, page.body);
-    const html = page.status === 200 ? page.body.toString("utf8") : null;
-    const prose = html && !item.url.includes("#") && item.sourceId !== "openai_codex_github_releases"
+    const codex = item.sourceId === "openai_codex_github_releases";
+    const html = page.status === 200 && !codex ? page.body.toString("utf8") : null;
+    const prose = html && !item.url.includes("#") && !codex
       ? readableDocument(contentDocument(html), item.url)?.text ?? null : null;
     const gate = classifyFetched({
       title: row?.title ?? item.url, url: item.url, httpStatus: page.status, html,
-      atomXml: item.sourceId === "openai_codex_github_releases" && atom.status === 200 ? atom.body.toString("utf8") : null,
+      atomXml: codex && atom.status === 200 ? atom.body.toString("utf8") : null,
       feedExcerpt: row?.excerpt ?? null,
       prose,
     });
@@ -75,34 +77,91 @@ async function main() {
         sourceId: item.sourceId, url: item.url, title: row.title,
         raw: row.raw && typeof row.raw === "object" ? row.raw : { guid: null },
         rawFileBase64: page.body.toString("base64"), rawFileSha256: sha256(page.body),
-        ...(gate.sectionText && gate.queue === "ready_for_features" ? { bodyText: gate.sectionText } : {}),
+        bodyText: gate.queue === "ready_for_features" ? gate.sectionText ?? null : null,
       });
       await recordBodyGate(row.id, gate);
     }
-    const feature = gate.sectionText && gate.sectionSha256 && gate.pageSha256
+    const pageSha = codex ? sha256(atom.body) : gate.pageSha256;
+    const feature = gate.sectionText && gate.sectionSha256 && pageSha
       ? actualSectionRecord({
         url: item.url, title: row?.title ?? item.url, completeness: gate.completeness ?? "ambiguous",
-        sectionText: gate.sectionText, pageSha256: gate.pageSha256, sectionSha256: gate.sectionSha256,
+        sectionText: gate.sectionText, pageSha256: pageSha, sectionSha256: gate.sectionSha256,
       }) : null;
-    items.push({
-      url: item.url, sourceId: item.sourceId, httpStatus: page.status, finalUrl: page.finalUrl, fetchedAt: page.fetchedAt,
-      contentType: page.contentType, byteLength: page.body.length, rawSha256: sha256(page.body),
-      completeness: gate.completeness, reason: gate.reason, queue: gate.queue, fact: gate.fact,
-      sectionSha256: gate.sectionSha256, tail: gate.sectionText?.slice(-80) ?? null,
-      evidenceHash: evidence?.evidenceHash ?? null,
+    const fragment = item.url.includes("#") ? decodeURIComponent(item.url.slice(item.url.indexOf("#") + 1)) : null;
+    const input = {
+      url: item.url, finalUrl: page.finalUrl, fragment, fetchedAt: previous?.fetchedAt ?? page.fetchedAt,
+      httpStatus: page.status, rawSha256: sha256(page.body), byteLength: page.body.length,
+      source: gate.reason, start: gate.start, end: gate.end,
+      sectionByteSource: item.url.includes("github.com") ? "shared-atom" : item.url.includes("overview#") ? "shared-overview" : "detail-response",
+    };
+    const output = {
+      schema: "mechanical-section-v1",
+      extraction: feature ? "mechanical_slice" : null,
+      completeness: gate.completeness, queue: gate.queue, fact: gate.fact, reason: gate.reason,
+      sectionText: gate.sectionText, sectionSha256: gate.sectionSha256, headingsInReason: gate.reason,
       feature,
+    };
+    items.push({
+      url: item.url, sourceId: item.sourceId, httpStatus: page.status, finalUrl: page.finalUrl,
+      fetchedAt: input.fetchedAt, fragment, contentType: page.contentType, byteLength: page.body.length,
+      rawSha256: input.rawSha256, completeness: gate.completeness, reason: gate.reason, queue: gate.queue, fact: gate.fact,
+      source: gate.reason, start: gate.start, end: gate.end, sectionText: gate.sectionText,
+      sectionSha256: gate.sectionSha256, evidenceHash: evidence?.evidenceHash ?? null,
+      evidenceVersion: evidence?.evidenceVersion ?? null, articleRevision: evidence?.articleRevision ?? null,
+      input, output, inputSha256: sha256(stableJson(input)), outputSha256: sha256(stableJson(output)),
+      feature, bytes: page.body,
     });
   }
   const queue = await listFeatureQueue();
+  const pack = "/tmp/own-evidence-v12";
+  rmSync(pack, { recursive: true, force: true });
+  mkdirSync(`${pack}/shared`, { recursive: true });
+  writeFileSync(`${pack}/shared/overview.bin`, overview.body);
+  writeFileSync(`${pack}/shared/atom.bin`, atom.body);
+  const publicItems = items.map((item, index) => {
+    const dir = `${pack}/items/${String(index + 1).padStart(2, "0")}`;
+    mkdirSync(dir, { recursive: true });
+    writeFileSync(`${dir}/response.bin`, item.bytes);
+    if (item.sectionText) writeFileSync(`${dir}/section.txt`, item.sectionText);
+    const feature = {
+      schema: "mechanical-section-v1",
+      extraction: item.feature ? "mechanical_slice" : null,
+      note: item.feature ? "first and last sentence only; not a semantic claim" : "no section was stored as a feature",
+      input: item.input,
+      output: item.output,
+      inputSha256: item.inputSha256,
+      outputSha256: item.outputSha256,
+    };
+    writeFileSync(`${dir}/feature.json`, JSON.stringify(feature, null, 2));
+    const { bytes, ...rest } = item;
+    return rest;
+  });
   const report = {
-    generated_at: new Date().toISOString(), paid: false, bypass403: false,
+    generated_at: new Date().toISOString(), paid: false, refetch: false, bypass403: false,
+    checkedMeans: "checked is a human claim against a stored excerpt, not an automatic proof",
     overview: { status: overview.status, finalUrl: overview.finalUrl, sha256: sha256(overview.body), bytes: overview.body.length },
     atom: { status: atom.status, finalUrl: atom.finalUrl, sha256: sha256(atom.body), bytes: atom.body.length },
     openaiFeed: saved?.openaiFeed ?? { status: openaiFeed.status, sha256: sha256(openaiFeed.body) },
-    ready: queue.length, items,
+    ready: queue.length,
+    counts: publicItems.reduce<Record<string, number>>((acc, item) => ({ ...acc, [item.completeness ?? "none"]: (acc[item.completeness ?? "none"] ?? 0) + 1 }), {}),
+    items: publicItems,
   };
-  writeFileSync("docs/own-pipeline/DETAIL_REFETCH_v11.json", JSON.stringify(report, null, 2));
-  console.log(JSON.stringify({ ready: queue.length, counts: items.reduce<Record<string, number>>((acc, item) => ({ ...acc, [item.completeness ?? "none"]: (acc[item.completeness ?? "none"] ?? 0) + 1 }), {}) }));
+  writeFileSync(`${pack}/INDEX.json`, JSON.stringify(report, null, 2));
+  writeFileSync("docs/own-pipeline/DETAIL_EVIDENCE_v12.json", JSON.stringify(report, null, 2));
+  const files: string[] = [];
+  const walk = (dir: string) => {
+    for (const entry of readdirSync(dir, { withFileTypes: true })) {
+      const path = `${dir}/${entry.name}`;
+      if (entry.isDirectory()) walk(path);
+      else if (entry.name !== "HASHES.txt") files.push(path);
+    }
+  };
+  walk(pack);
+  const hashes = files.sort().map((file) => `${sha256(readFileSync(file))}  ${file.slice(pack.length + 1)}`).join("\n") + "\n";
+  writeFileSync(`${pack}/HASHES.txt`, hashes);
+  const packed = spawnSync("tar", ["-czf", "/tmp/own-pipeline-evidence-v12.tar.gz", "-C", "/tmp", "own-evidence-v12"], { encoding: "utf8" });
+  if (packed.status !== 0) throw new Error(packed.stderr || "tar failed");
+  console.log(JSON.stringify({ ready: queue.length, counts: report.counts, pack: "/tmp/own-pipeline-evidence-v12.tar.gz" }));
 }
 
 try { await main(); } finally { await closeDb(); }
