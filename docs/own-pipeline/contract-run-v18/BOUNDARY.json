@@ -1,0 +1,105 @@
+{
+  "contractPassed": false,
+  "workerStarted": false,
+  "modelCalls": 0,
+  "unchangedDrafts": [
+    {
+      "url": "https://research.meta.ai/blog/muse-ember",
+      "draftId": "2eb99ee503adfa548a5a1189bc974fed50644de9d4e06515d118a46386ca6586"
+    },
+    {
+      "url": "https://research.meta.ai/blog/specialized-models-for-muse-and-metaai",
+      "draftId": "8c8ad501c334c85dcdb5fe4803d7631234c4cd9c473f87d4654686360018129c"
+    },
+    {
+      "url": "https://thinkingmachines.ai/news/inkling-2-small/",
+      "draftId": "6155d0ffb975c272bc980828194f02f0fd2734eb56a5e57e1f2597da8098fad7"
+    },
+    {
+      "url": "https://thinkingmachines.ai/news/one-year-of-tinker/",
+      "draftId": "1e9dead3e7045be2224d911b276263c0cf76978a420aa838ce19ea5f18aa5b02"
+    },
+    {
+      "url": "https://www.anthropic.com/news/public-benefit-fund",
+      "draftId": "4a807e81907b7aed14cfb305887dedb115bd97ee436110a0ee9566b93f370ed4"
+    }
+  ],
+  "earnings": {
+    "previousBytes": 20335,
+    "previousRevision": 1,
+    "revised": {
+      "status": "revised",
+      "revision": 2,
+      "bodyBytes": 25269,
+      "extractedBytes": 25269,
+      "staled": 3,
+      "evidenceHash": "93f453eafdb35deb31b02b61acebcc069e66adc85c292f178bac478123e87d95"
+    },
+    "closing": {
+      "url": "https://nvidianews.nvidia.com/news/nvidia-announces-financial-results-for-third-quarter-fiscal-2027",
+      "semanticId": "e77d3e6511b0a0b665c899bd35f03c551bde769f5ad6981fbdd0b1465d2587db",
+      "selectionId": "8a03390239501cda88a0eaa59fa621a0e439dfbead5814171ad3a06ddae34e8e",
+      "draftId": "621e03e0c4c1b7edffcec130a1972221845a99130b51241ca4dcfd2b5cd25d4e",
+      "idempotent": true,
+      "excerpt": "mputing. Certain statements in this press release including,",
+      "bodyBytes": 25269
+    },
+    "publishedAt": null,
+    "about": 1,
+    "footerIncluded": false,
+    "secondRead": "unchanged"
+  },
+  "fixture": {
+    "technicalFixture": true,
+    "officialTopic": false,
+    "created": 1,
+    "recovered": 1,
+    "publishedAt": "2026-11-16T16:00:00.000Z",
+    "analyzeBefore": [
+      {
+        "state": "created",
+        "n": 1
+      }
+    ],
+    "analyzeAfter": [],
+    "chain": {
+      "url": "http://127.0.0.1:34727/article/local-fixture-v18/recovered",
+      "semanticId": "1ff4e0a6c349f9404b0d5ffee254586d12775067a574c32a90b0c050198e0afd",
+      "selectionId": "14c6470e1088a31f0bed039dda07f4514b59d300e5e8ec9a77022acb29190de6",
+      "draftId": "af2da4f25b5219364509f5d2d1a7238926b28a897f201f73a212e17e97f90f3f",
+      "idempotent": true,
+      "excerpt": "full article paragraph. A full article paragraph. A full art",
+      "bodyBytes": 1055
+    },
+    "processingState": "skipped",
+    "setupJobsLeft": 0
+  },
+  "supply": {
+    "url": "https://nvidianews.nvidia.com/news/nvidia-expands-commitments-with-supply-chain-partners-to-support-ai-infrastructure-buildout",
+    "status": 200,
+    "rawBytes": 79599,
+    "sha256": "55241972e6e3303b873f8ff4803b6174d96111e4c6a4b4ad31eb8db98cb2fc1e",
+    "extractedBytes": 10876,
+    "revise": "revised",
+    "bodyBytes": 10876,
+    "publishedAt": null,
+    "dateFromPageMetadata": false,
+    "retried": false
+  },
+  "fable": {
+    "url": "https://www.anthropic.com/claude-fable-and-mythos-5-2",
+    "status": 200,
+    "rawBytes": 413190,
+    "sha256": "6770e650b2aa18fb6066c75f3c66fe48f38f7f5027c7513570f3390da6671ced",
+    "extractedBytes": 28073,
+    "revise": "unchanged",
+    "bodyBytes": 28073,
+    "publishedAt": null,
+    "dateFromPageMetadata": false,
+    "retried": false
+  },
+  "publications": 0,
+  "receipts": 0,
+  "judgments": 24,
+  "staleJudgments": 3
+}

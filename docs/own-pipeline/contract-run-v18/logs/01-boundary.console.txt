@@ -1,0 +1,8 @@
+UNCHANGED drafts 5
+EARNINGS 1 -> 2 bytes 20335 -> 25269 staled 3
+FIXTURE analyze created:1 -> 0
+GET https://nvidianews.nvidia.com/news/nvidia-expands-commitments-with-supply-chain-partners-to-support-ai-infrastructure-buildout status=200 raw=79599 revise=revised dated=false
+GET https://www.anthropic.com/claude-fable-and-mythos-5-2 status=200 raw=413190 revise=unchanged dated=false
+{"ok":true,"publications":0,"receipts":0,"judgments":24,"stale":3}
+{"level":"info","msg":"queue drain","phase":"start","elapsedMs":0,"count":0,"jobs":[]}
+{"level":"info","msg":"queue drain","phase":"complete","elapsedMs":12,"count":0,"jobs":[]}

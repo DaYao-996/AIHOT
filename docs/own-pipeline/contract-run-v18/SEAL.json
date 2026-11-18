@@ -1,0 +1,17 @@
+{
+  "version": "body-boundary-v18",
+  "code": {
+    "HEAD": "bd3b710ef5ef2b8a7e65dd46670b7e6dcbd10343",
+    "parent": "5292f6c5513c513f9fbb2dd643ff2fe3742178ae",
+    "tree": "872538a722fced4cb58ebce23206e752d39f11e5"
+  },
+  "files": {
+    "scripts/own-body-boundary.ts": "ca85fd92928ceec42c2921304626b8a5ded56f9c91e1700b8d96f8d9dcdc58ec",
+    "packages/backend/src/content/extract.ts": "6507699875251e4679cf53f08d00a0599020d8a46214f3c36c0334f1a4a75cbc",
+    "packages/backend/src/own-pipeline-store.ts": "d0530eab1b70d09ef0e919c48191b29ea67fadbf4dacd5906eb036fdde4478b1",
+    "docs/own-pipeline/contract-run-v18/CONFIG.json": "7574e231bb693e4d5083ef7fe10dacb73368330a683cace73ec4838b3410afa9",
+    "docs/own-pipeline/contract-run-v18/COMMAND.txt": "2f2a5477d70b9f3fbf65822d9ffab9ebbf97e3d1a1fee3c0386ed07658c2503f",
+    "docs/own-pipeline/contract-run-v18/dumps/before.dump": "e5356add66b2294107542e7ee9283427c6616ee07a7e34ac06c2fb9edb251d7d"
+  },
+  "startedFrom": "v17 after.dump restored as before.dump; earnings detail response already stored; no second GET of that page"
+}

@@ -1,0 +1,42 @@
+{
+  "version": "body-boundary-v18",
+  "frozen": true,
+  "network": "no second GET for the stored NVIDIA earnings page; one GET each for the supply-chain page and the undated Fable page",
+  "earningsUrl": "https://nvidianews.nvidia.com/news/nvidia-announces-financial-results-for-third-quarter-fiscal-2027",
+  "supplyUrl": "https://nvidianews.nvidia.com/news/nvidia-expands-commitments-with-supply-chain-partners-to-support-ai-infrastructure-buildout",
+  "fableUrl": "https://www.anthropic.com/claude-fable-and-mythos-5-2",
+  "unchangedDrafts": [
+    {
+      "url": "https://research.meta.ai/blog/muse-ember",
+      "draftId": "2eb99ee503adfa548a5a1189bc974fed50644de9d4e06515d118a46386ca6586"
+    },
+    {
+      "url": "https://research.meta.ai/blog/specialized-models-for-muse-and-metaai",
+      "draftId": "8c8ad501c334c85dcdb5fe4803d7631234c4cd9c473f87d4654686360018129c"
+    },
+    {
+      "url": "https://thinkingmachines.ai/news/inkling-2-small/",
+      "draftId": "6155d0ffb975c272bc980828194f02f0fd2734eb56a5e57e1f2597da8098fad7"
+    },
+    {
+      "url": "https://thinkingmachines.ai/news/one-year-of-tinker/",
+      "draftId": "1e9dead3e7045be2224d911b276263c0cf76978a420aa838ce19ea5f18aa5b02"
+    },
+    {
+      "url": "https://www.anthropic.com/news/public-benefit-fund",
+      "draftId": "4a807e81907b7aed14cfb305887dedb115bd97ee436110a0ee9566b93f370ed4"
+    }
+  ],
+  "fileChain": {
+    "rulesetVersion": "file-read-v18",
+    "truncatedPrompt": "assistant-file-semantics-v18-truncated-v1",
+    "truncatedSelection": "assistant-selection-v18-truncated-v1",
+    "truncatedDraft": "real-draft-v18-truncated-v1",
+    "closingPrompt": "assistant-file-semantics-v18-closing-v1",
+    "closingSelection": "assistant-selection-v18-closing-v1",
+    "closingDraft": "real-draft-v18-closing-v1",
+    "fixturePrompt": "assistant-file-semantics-v18-local-fixture-v1",
+    "fixtureSelection": "assistant-selection-v18-local-fixture-v1",
+    "fixtureDraft": "real-draft-v18-local-fixture-v1"
+  }
+}
