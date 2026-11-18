@@ -424,6 +424,48 @@ export async function recordBodyGate(articleId: string, gate: BodyGate): Promise
   });
 }
 
+/** 追加一版证据，正文保持原样，补料单独放在 body_gate.supplements。文章修订号不动。旧判断因哈希变化失效。 */
+export async function appendLocatedSupplement(articleId: string, supplement: {
+  kind: string;
+  sourceUrl: string;
+  httpStatus: number;
+  responseSha256: string;
+  parts: Array<{ id: string; role: string; byteStart: number; byteEnd: number; text: string }>;
+}): Promise<{ version: number; evidenceHash: string; previousHash: string; articleRevision: number; staled: number }> {
+  databaseUrl();
+  return sql.begin(async (tx) => {
+    const [article] = await tx<{ title: string; revision: number }[]>`SELECT title, revision FROM articles WHERE id = ${articleId}`;
+    if (!article) throw new Error("文章不存在");
+    const [latest] = await tx<{
+      version: number; evidence_hash: string; article_revision: number; body_text: string | null; quoted_text: string | null;
+      x_post: unknown; raw_file: Buffer | null; raw_identity: unknown; body_gate: Record<string, unknown> | null;
+    }[]>`SELECT version, evidence_hash, article_revision, body_text, quoted_text, x_post, raw_file, raw_identity, body_gate
+      FROM own_evidence_versions WHERE article_id = ${articleId} ORDER BY version DESC LIMIT 1`;
+    if (!latest) throw new Error("没有持久证据，不能补料");
+    const version = latest.version + 1;
+    const located = {
+      kind: supplement.kind, sourceUrl: supplement.sourceUrl, httpStatus: supplement.httpStatus,
+      responseSha256: supplement.responseSha256,
+      parts: supplement.parts.map((part) => ({ id: part.id, role: part.role, text: part.text })),
+    };
+    const evidenceHash = cumulativeEvidenceHash({
+      title: article.title,
+      raw: { previousEvidenceHash: latest.evidence_hash, supplement: located },
+      bodyText: latest.body_text, quotedText: latest.quoted_text, xPost: latest.x_post as never,
+    });
+    const gate = { ...(latest.body_gate ?? {}), supplements: [...((latest.body_gate?.supplements as unknown[]) ?? []), { ...supplement, mainBodyUnchanged: true }] };
+    await tx`INSERT INTO own_evidence_versions
+      (article_id, version, article_revision, body_text, quoted_text, x_post, evidence_hash, raw_identity, raw_file, body_gate)
+      VALUES (${articleId}, ${version}, ${latest.article_revision}, ${latest.body_text}, ${latest.quoted_text},
+        ${latest.x_post ? tx.json(latest.x_post as never) : null}, ${evidenceHash},
+        ${latest.raw_identity ? tx.json(latest.raw_identity as never) : null}, ${latest.raw_file}, ${tx.json(gate as never)})`;
+    const staled = await tx<{ id: string }[]>`UPDATE own_judgments SET stale = true
+      WHERE article_id = ${articleId} AND stale = false AND evidence_hash <> ${evidenceHash}
+      RETURNING id`;
+    return { version, evidenceHash, previousHash: latest.evidence_hash, articleRevision: Number(latest.article_revision), staled: staled.length };
+  });
+}
+
 /** 评分和抽取只读最新证据。文章列上留下的旧正文不能绕过这次显式撤回。身份键不在这里。 */
 export async function materialForScoring(articleId: string): Promise<{ bodyText: string | null; quotedText: string | null; xPost: unknown; evidenceHash: string } | null> {
   databaseUrl();

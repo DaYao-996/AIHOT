@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { classifyFetched, classifyProse, cutHtmlSection, gateStoredSample, parseModelOutputFile } from "../packages/backend/src/body-gate.ts";
+import { classifyFetched, classifyProse, cutHtmlSection, gateStoredSample, parseModelOutputFile, samePageFootnotes } from "../packages/backend/src/body-gate.ts";
 
 const page = `<article>
 <h2 id="linked-billing">Linked billing</h2>
@@ -143,6 +143,19 @@ test("a newsletter footer is not part of the article", () => {
   assert.equal(judged.completeness, "complete");
   assert.equal(judged.text.includes("newsletter"), false);
   assert.match(judged.text, /list is ready\.$/);
+});
+
+test("a same-page footnote stays outside the body and points at its note", () => {
+  const html = `é<p>Call Gemini<sup><a id="footnote-source-1">1</a></sup> now.</p><div id="footnote-1"><p>Not available in Indiana.</p></div>`;
+  const notes = samePageFootnotes(html);
+  assert.equal(notes.length, 1);
+  assert.equal(notes[0]!.n, 1);
+  assert.match(notes[0]!.text, /Not available in Indiana/);
+  assert.equal(notes[0]!.text.includes("Call Gemini"), false);
+  const bytes = Buffer.from(html);
+  assert.match(bytes.subarray(notes[0]!.noteByte, notes[0]!.noteByte + 20).toString("utf8"), /footnote-1/);
+  assert.ok(notes[0]!.citationByte >= 0);
+  assert.notEqual(notes[0]!.citationByte, html.indexOf("footnote-source-1"));
 });
 
 test("a model file is accepted only without route labels", () => {

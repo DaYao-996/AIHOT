@@ -225,6 +225,43 @@ export interface DomSlice {
   gap: string | null;
 }
 
+/** Footnotes in the same response as the article. The body citation and the note stay separate. */
+export function samePageFootnotes(html: string): Array<{
+  n: number;
+  citationByte: number;
+  noteByte: number;
+  noteEndByte: number;
+  text: string;
+}> {
+  const notes = [];
+  for (const match of html.matchAll(/<([a-z0-9]+)\b[^>]*\bid=["']footnote-(\d+)["'][^>]*>/gi)) {
+    const n = Number(match[2]);
+    const tag = match[1]!.toLowerCase();
+    const openAt = match.index ?? 0;
+    const contentFrom = openAt + match[0].length;
+    const token = new RegExp(`<(/?)${tag}\\b[^>]*>`, "gi");
+    token.lastIndex = contentFrom;
+    let depth = 1;
+    let end = -1;
+    for (let next = token.exec(html); next; next = token.exec(html)) {
+      depth += next[1] === "/" ? -1 : 1;
+      if (depth === 0) { end = next.index + next[0].length; break; }
+    }
+    if (end < 0) continue;
+    const cite = html.search(new RegExp(`id=["']footnote-source-${n}["']`, "i"));
+    const text = plain(html.slice(openAt, end));
+    if (!text) continue;
+    notes.push({
+      n,
+      citationByte: cite < 0 ? -1 : utf8ByteOffset(html, cite),
+      noteByte: utf8ByteOffset(html, openAt),
+      noteEndByte: utf8ByteOffset(html, end),
+      text,
+    });
+  }
+  return notes.sort((a, b) => a.n - b.n);
+}
+
 /** UTF-16 index in the HTML string, as a byte offset into that string's UTF-8 bytes. */
 export function utf8ByteOffset(text: string, index: number): number {
   return Buffer.byteLength(text.slice(0, Math.max(0, index)));
