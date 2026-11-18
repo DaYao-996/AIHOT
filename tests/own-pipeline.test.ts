@@ -204,14 +204,19 @@ test("judgement hashes must be the current stored evidence, including under a co
     }, { ...gapBody(["只有版本字符串"]), origin: "model" }, "2026-11-18T04:00:03.000Z"),
     /回执/,
   );
+  const tracedBody = { ...gapBody(["带来源"]), origin: "model" as const };
   const [receipt] = await sql<{ id: number }[]>`
-    INSERT INTO receipts (logical_key, service, model, purpose, subject, status, request)
+    INSERT INTO receipts (logical_key, service, model, purpose, subject, status, request, response)
     VALUES (${`own-${tag()}`}, 'llm', 'stub-model', 'own-judgment', ${`article:${saved.evidence.articleId}`}, 'completed',
-      ${sql.json({ articleId: saved.evidence.articleId, evidenceHash: saved.evidence.evidenceHash, promptVersion: "prefilter@abc" } as never)})
+      ${sql.json({ articleId: saved.evidence.articleId, evidenceHash: saved.evidence.evidenceHash, promptVersion: "prefilter@abc" } as never)},
+      ${sql.json({
+        schema: "own-model-output-v1", articleId: saved.evidence.articleId, evidenceHash: saved.evidence.evidenceHash, promptVersion: "prefilter@abc",
+        output: { materialStatus: tracedBody.materialStatus, factStatus: tracedBody.factStatus, valueStatus: tracedBody.valueStatus, releaseStatus: tracedBody.releaseStatus, reasons: tracedBody.reasons },
+      } as never)})
     RETURNING id`;
   const traced = await recordJudgment({
     ...saved.judgment.identity, promptVersion: "prefilter@abc", modelVersion: "stub-model",
-  }, { ...gapBody(["带来源"]), origin: "model", modelReceiptId: receipt!.id }, "2026-11-18T04:00:03.000Z");
+  }, { ...tracedBody, modelReceiptId: receipt!.id }, "2026-11-18T04:00:03.000Z");
   assert.equal(traced.idempotent, false);
   const raced = await Promise.allSettled([
     appendControlledEvidence({ sourceId: SOURCE, url, title: "绑定", raw: { n: 1 }, bodyText: "补上的正文" }),
@@ -484,21 +489,48 @@ test("a receipt must name this evidence, and checked facts need a human excerpt"
     valueStatus: "incomplete_material", releaseStatus: "not_licensed", origin: "model", reasons: ["未完成"],
     modelReceiptId: pending!.id,
   }, "2026-11-18T05:00:07.000Z"), /尚未完成/);
+  const accepted = {
+    informationTypeId: null, contentLine: null, materialStatus: "complete" as const, factStatus: "unchecked" as const,
+    valueStatus: "incomplete_material" as const, releaseStatus: "not_licensed" as const, origin: "model" as const, reasons: ["未核但回执对得上"],
+  };
+  const acceptedResponse = {
+    schema: "own-model-output-v1", articleId: withQuote.articleId, evidenceHash: withQuote.evidenceHash, promptVersion: "prefilter@probe",
+    output: { materialStatus: accepted.materialStatus, factStatus: accepted.factStatus, valueStatus: accepted.valueStatus, releaseStatus: accepted.releaseStatus, reasons: accepted.reasons },
+  };
   const [bound] = await sql<{ id: number }[]>`
-    INSERT INTO receipts (logical_key, service, model, purpose, subject, status, request)
+    INSERT INTO receipts (logical_key, service, model, purpose, subject, status, request, response)
     VALUES (${`bound-${tag()}`}, 'llm', 'stub-no-call', 'own-judgment', ${`article:${withQuote.articleId}`}, 'completed',
-      ${sql.json({ articleId: withQuote.articleId, evidenceHash: withQuote.evidenceHash, promptVersion: "prefilter@probe" } as never)})
+      ${sql.json({ articleId: withQuote.articleId, evidenceHash: withQuote.evidenceHash, promptVersion: "prefilter@probe" } as never)},
+      ${sql.json(acceptedResponse as never)})
     RETURNING id`;
   const modelUnchecked = await recordJudgment({
     articleId: withQuote.articleId, inputRevision: withQuote.articleRevision, evidenceHash: withQuote.evidenceHash,
     rulesetVersion: HISTORICAL_RULESET, promptVersion: "prefilter@probe", modelVersion: "stub-no-call",
-  }, {
-    informationTypeId: null, contentLine: null, materialStatus: "complete", factStatus: "unchecked",
-    valueStatus: "incomplete_material", releaseStatus: "not_licensed", origin: "model", reasons: ["未核但回执对得上"],
-    modelReceiptId: bound!.id,
-  }, "2026-11-18T05:00:08.000Z");
+  }, { ...accepted, modelReceiptId: bound!.id }, "2026-11-18T05:00:08.000Z");
   assert.equal(modelUnchecked.body.factStatus, "unchecked");
+  assert.equal(modelUnchecked.body.releaseStatus, "not_licensed");
   assert.equal(modelUnchecked.body.origin, "model");
+  const [unrelated] = await sql<{ id: number }[]>`
+    INSERT INTO receipts (logical_key, service, model, purpose, subject, status, request, response)
+    VALUES (${`unrelated-response-${tag()}`}, 'llm', 'stub-no-call', 'own-judgment', ${`article:${withQuote.articleId}`}, 'completed',
+      ${sql.json({ articleId: withQuote.articleId, evidenceHash: withQuote.evidenceHash, promptVersion: "prefilter@probe" } as never)},
+      ${sql.json({ output: "not a judgment" } as never)})
+    RETURNING id`;
+  await assert.rejects(() => recordJudgment({
+    articleId: withQuote.articleId, inputRevision: withQuote.articleRevision, evidenceHash: withQuote.evidenceHash,
+    rulesetVersion: "unrelated-response", promptVersion: "prefilter@probe", modelVersion: "stub-no-call",
+  }, { ...accepted, reasons: ["另一份"], modelReceiptId: unrelated!.id }, "2026-11-18T05:00:09.000Z"), /格式无法解析/);
+  const tampered = { ...acceptedResponse, output: { ...acceptedResponse.output, reasons: ["被改过的输出"] } };
+  const [tamperedRow] = await sql<{ id: number }[]>`
+    INSERT INTO receipts (logical_key, service, model, purpose, subject, status, request, response)
+    VALUES (${`tampered-${tag()}`}, 'llm', 'stub-no-call', 'own-judgment', ${`article:${withQuote.articleId}`}, 'completed',
+      ${sql.json({ articleId: withQuote.articleId, evidenceHash: withQuote.evidenceHash, promptVersion: "prefilter@probe" } as never)},
+      ${sql.json(tampered as never)})
+    RETURNING id`;
+  await assert.rejects(() => recordJudgment({
+    articleId: withQuote.articleId, inputRevision: withQuote.articleRevision, evidenceHash: withQuote.evidenceHash,
+    rulesetVersion: "tampered-output", promptVersion: "prefilter@probe", modelVersion: "stub-no-call",
+  }, { ...accepted, modelReceiptId: tamperedRow!.id }, "2026-11-18T05:00:10.000Z"), /不能背书另一份输出/);
   await assert.rejects(() => appendControlledEvidence({
     sourceId: SOURCE, url: `https://example.com/hash-only-${tag()}`, title: "只声明", raw: { not: "the file" }, rawFileSha256: "a".repeat(64),
   }), /没有原件字节/);

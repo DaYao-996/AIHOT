@@ -11,6 +11,8 @@ import {
   canonicalIdentity,
   cumulativeEvidenceHash,
   mapControlledImport,
+  ownModelOutput,
+  parseOwnModelOutput,
   type ControlledImportItem,
   type JudgmentBody,
   type JudgmentIdentity,
@@ -252,8 +254,8 @@ async function writeJudgment(tx: Db, identity: JudgmentIdentity, body: JudgmentB
   if (body.materialStatus !== derived) throw new JudgmentConflict(`持久证据是${derived}，不能写成${body.materialStatus}`);
   if (body.origin === "model") {
     if (!body.modelReceiptId) throw new JudgmentConflict("模型判断必须带可追溯回执");
-    const [receipt] = await tx<{ id: number; model: string | null; status: string; subject: string | null; request: Record<string, unknown> | null }[]>`
-      SELECT id, model, status, subject, request FROM receipts WHERE id = ${body.modelReceiptId}`;
+    const [receipt] = await tx<{ id: number; model: string | null; status: string; subject: string | null; request: Record<string, unknown> | null; response: unknown }[]>`
+      SELECT id, model, status, subject, request, response FROM receipts WHERE id = ${body.modelReceiptId}`;
     if (!receipt) throw new JudgmentConflict("模型回执不存在");
     if (receipt.status !== "received" && receipt.status !== "completed") throw new JudgmentConflict("模型回执尚未完成");
     if (!receipt.model || receipt.model !== canonical.modelVersion) throw new JudgmentConflict("模型判断的回执模型与 modelVersion 不一致");
@@ -263,6 +265,15 @@ async function writeJudgment(tx: Db, identity: JudgmentIdentity, body: JudgmentB
       && request.evidenceHash === canonical.evidenceHash
       && request.promptVersion === canonical.promptVersion;
     if (!bound) throw new JudgmentConflict("回执没有绑到这篇文章的当前证据");
+    let parsed: ReturnType<typeof parseOwnModelOutput>;
+    try {
+      parsed = parseOwnModelOutput(receipt.response, {
+        articleId: canonical.articleId, evidenceHash: canonical.evidenceHash, promptVersion: canonical.promptVersion,
+      });
+    } catch (error) {
+      throw new JudgmentConflict(error instanceof Error ? error.message : String(error));
+    }
+    if (stableJson(parsed.output) !== stableJson(ownModelOutput(body))) throw new JudgmentConflict("回执不能背书另一份输出");
   }
   if (body.valueStatus === "reference_only") {
     if (!body.comparison || !body.comparison.algorithm.trim() || body.comparison.algorithm === "none") {

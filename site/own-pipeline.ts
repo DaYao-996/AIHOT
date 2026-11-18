@@ -133,6 +133,67 @@ export interface ComparisonEvidence {
   algorithm: string;
   inputHash: string;
 }
+
+/** 回执 response 里必须有的判断字段。调用者另外写一个哈希字符串不算绑定。 */
+export interface OwnModelOutput {
+  materialStatus: MaterialStatus;
+  factStatus: FactStatus;
+  valueStatus: ValueStatus;
+  releaseStatus: ReleaseStatus;
+  reasons: string[];
+}
+
+export const OWN_MODEL_OUTPUT_SCHEMA = "own-model-output-v1";
+
+const MATERIAL_STATUS = new Set<MaterialStatus>(["complete", "missing_body", "missing_quote", "missing_article_body"]);
+const FACT_STATUS = new Set<FactStatus>(["unchecked", "source_claim", "checked"]);
+const VALUE_STATUS = new Set<ValueStatus>(["incomplete_material", "reference_only"]);
+const RELEASE_STATUS = new Set<ReleaseStatus>(["not_licensed"]);
+
+export function ownModelOutput(body: Pick<JudgmentBody, "materialStatus" | "factStatus" | "valueStatus" | "releaseStatus" | "reasons">): OwnModelOutput {
+  return {
+    materialStatus: body.materialStatus,
+    factStatus: body.factStatus,
+    valueStatus: body.valueStatus,
+    releaseStatus: body.releaseStatus,
+    reasons: [...body.reasons],
+  };
+}
+
+/**
+ * 解析回执 response。
+ * 规范化对象是 output 的五个字段，按 stableJson 排序后做 sha256。
+ * 未知结构、缺字段、枚举以外的值都拒绝。哈希由解析结果计算，不读取调用者声称的哈希。
+ */
+export function parseOwnModelOutput(response: unknown, expected: { articleId: string; evidenceHash: string; promptVersion: string }): { output: OwnModelOutput; outputSha256: string } {
+  if (!response || typeof response !== "object" || Array.isArray(response)) throw new Error("回执 response 格式无法解析");
+  const row = response as Record<string, unknown>;
+  if (row.schema !== OWN_MODEL_OUTPUT_SCHEMA || !row.output || typeof row.output !== "object" || Array.isArray(row.output)) {
+    throw new Error("回执 response 格式无法解析");
+  }
+  if (row.articleId !== expected.articleId || row.evidenceHash !== expected.evidenceHash || row.promptVersion !== expected.promptVersion) {
+    throw new Error("回执 response 没有对上这次调用");
+  }
+  const output = row.output as Record<string, unknown>;
+  for (const key of ["materialStatus", "factStatus", "valueStatus", "releaseStatus", "reasons"]) {
+    if (!(key in output)) throw new Error("回执 response 格式无法解析");
+  }
+  if (!Array.isArray(output.reasons) || output.reasons.some((reason) => typeof reason !== "string")) throw new Error("回执 response 格式无法解析");
+  if (!MATERIAL_STATUS.has(output.materialStatus as MaterialStatus)
+    || !FACT_STATUS.has(output.factStatus as FactStatus)
+    || !VALUE_STATUS.has(output.valueStatus as ValueStatus)
+    || !RELEASE_STATUS.has(output.releaseStatus as ReleaseStatus)) {
+    throw new Error("回执 response 格式无法解析");
+  }
+  const parsed = ownModelOutput({
+    materialStatus: output.materialStatus as MaterialStatus,
+    factStatus: output.factStatus as FactStatus,
+    valueStatus: output.valueStatus as ValueStatus,
+    releaseStatus: output.releaseStatus as ReleaseStatus,
+    reasons: output.reasons as string[],
+  });
+  return { output: parsed, outputSha256: sha256(stableJson(parsed)) };
+}
 export type ReleaseStatus = "not_licensed";
 /** 确定性规则可以没有模型版本。模型提取或判断必须带上可追溯版本，空字符串不能代替来源。 */
 export type JudgmentOrigin = "deterministic" | "model";
