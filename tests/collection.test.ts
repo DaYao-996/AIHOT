@@ -496,9 +496,12 @@ interface Listing {
   requests: Array<{ etag?: string; status: number }>;
 }
 const listings = new Map<string, Listing>();
+const articlePages = new Map<string, string>();
 const escape = (value: string) => value.replaceAll("&", "&amp;").replaceAll('"', "&quot;").replaceAll("<", "&lt;").replaceAll(">", "&gt;");
 const tailServer = http.createServer((req, res) => {
   const path = req.url ?? "/";
+  const page = articlePages.get(path);
+  if (page !== undefined) { res.writeHead(200, { "content-type": "text/html; charset=utf-8" }); res.end(page); return; }
   const listing = listings.get(path);
   if (!listing) { res.writeHead(404); res.end(); return; }
   const etag = `"v${listing.version}"`;
@@ -661,6 +664,39 @@ test("an initialized source does not create the rest of an undated listing", asy
     SELECT status, new_count, (detail->>'undatedNotStored')::int AS undated FROM fetch_runs WHERE source_id = ${id} ORDER BY id`;
   assert.deepEqual(runs.map((run) => run.status), ["ok", "ok", "ok"]);
   assert.equal(runs[1]!.undated, 3);
+  const [retry] = await sql<{ n: number }[]>`SELECT jsonb_array_length(detail->'undatedRetry')::int AS n FROM fetch_runs WHERE source_id = ${id} ORDER BY id OFFSET 1 LIMIT 1`;
+  assert.equal(retry!.n, 3);
+});
+
+test("a new undated listing entry stays retryable and is stored only after its page has a time", async () => {
+  const rows = items("undated-retry", 2).map((row) => ({ ...row, date: null }));
+  const { id, listing } = await tailSource("undated-retry", "web_list", rows, {
+    publishedAtSelector: "time",
+    _aihot: { initialBackfillLimit: 2 },
+    detail: { maxFetches: 0 },
+  }, false);
+  assert.equal((await collectSource(id, { force: true })).created, 2);
+  const fresh = { ...items("undated-retry-new", 1)[0]!, date: null };
+  listing.items = [fresh, ...rows];
+  listing.version += 1;
+  const path = new URL(fresh.url).pathname;
+  articlePages.set(path, `<html><head><meta name="original-publication" content="${new Date().toISOString()}"></head><body><article><p>${"A full article paragraph. ".repeat(40)}</p><p>See <a href="https://example.org/paper.pdf">the paper</a>.</p></article></body></html>`);
+  await sql`UPDATE sources SET config = config || ${sql.json({ detail: { maxFetches: 0 } })} WHERE id = ${id}`;
+  const held = await collectSource(id, { force: true });
+  assert.equal(held.created, 0);
+  assert.equal(await count(id), 2);
+  const [marked] = await sql<{ state: string }[]>`
+    SELECT item->>'state' AS state FROM fetch_runs, jsonb_array_elements(detail->'undatedRetry') item
+    WHERE source_id = ${id} AND item->>'url' = ${fresh.url} ORDER BY id DESC LIMIT 1`;
+  assert.equal(marked!.state, "retryable");
+  await sql`UPDATE sources SET config = jsonb_set(config, '{detail}', ${sql.json({ maxFetches: 1, publishedAtSelector: 'meta[name="original-publication"]' })}) WHERE id = ${id}`;
+  const opened = await collectSource(id, { force: true });
+  assert.equal(opened.created, 1);
+  const [saved] = await sql<{ published_at: Date | null; body_status: string; n: number }[]>`
+    SELECT published_at, body_status, octet_length(body_text)::int AS n FROM articles WHERE source_id = ${id} AND url = ${fresh.url}`;
+  assert.ok(saved!.published_at);
+  assert.equal(saved!.body_status, "ok");
+  assert.ok(saved!.n > 200);
 });
 
 test("the first import keeps its count and age limits; later runs take what was published since, and undated entries, before accepting 304", async () => {

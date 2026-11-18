@@ -443,12 +443,16 @@ export async function collectSource(sourceId: string, opts: { force?: boolean; x
     // cursor must not release the rest of an undated listing on the next run.
     const datedOut: DatedOut = {};
     let undatedNotStored = 0;
+    const undatedRetry: { url: string; state: "retryable" | "page_has_no_time" }[] = [];
     candidates = candidates.filter((c) => {
       const already = known.get(c.identityKey!);
       if (!firstImport && !c.publishedAt && !(already && already.source_id === source.id)) {
         undatedNotStored += 1;
         const listed = reads.listed.get(c.identityKey!);
+        // A page that was opened and still has no time stays marked for another look.
+        // One that the budget did not reach stays retryable. Neither is stored, and neither is forgotten.
         if (listed !== undefined) datedOut[c.identityKey!] = listed;
+        undatedRetry.push({ url: c.url, state: listed !== undefined ? "page_has_no_time" : "retryable" });
         return false;
       }
       if (admits(c)) return true;
@@ -460,7 +464,9 @@ export async function collectSource(sourceId: string, opts: { force?: boolean; x
     });
     // Kept while the listing offers them; a 304 offers no entries and keeps the last ones.
     if (found) { nextCursor.detailDatedOut = datedOut; nextCursor.detailRetries = reads.retries; }
-    detail = { ...(detail ?? {}), undatedNotStored };
+    if (undatedRetry.length) nextCursor.undatedRetry = undatedRetry;
+    else delete nextCursor.undatedRetry;
+    detail = { ...(detail ?? {}), undatedNotStored, undatedRetry };
     if (!d || !Object.keys(nextCursor.detailDatedOut ?? {}).length) delete nextCursor.detailDatedOut;
     if (!d || !Object.keys(nextCursor.detailRetries ?? {}).length) delete nextCursor.detailRetries;
     const stored = await storeCollected(sourceId, source.kind, candidates, firstImport ? "first-import" : null);

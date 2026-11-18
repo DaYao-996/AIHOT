@@ -1,8 +1,10 @@
 // Runnable contract entry. Reads the frozen config. Does not enable disabled roles or fetch X.
+import { createHash } from "node:crypto";
 import { appendFileSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { closeDb, sql } from "@aihot/backend/db";
 import { stopBoss } from "@aihot/backend/jobs/queue";
 import { HttpStatusError, guardedFetch } from "@aihot/backend/lib/http-fetch";
+import { materialForScoring } from "@aihot/backend/own-pipeline-store";
 import { collectSource } from "@aihot/backend/sources/collect";
 import { assertThrowawayDatabase } from "../site/own-pipeline.ts";
 
@@ -10,6 +12,7 @@ const FROZEN = new Set([
   "own_public_sample_v6_test", "own_public_sample_v9_test", "own_public_sample_v9_change_test",
   "own_chain_aside_v10_test", "own_chain_store_v11_test", "own_chain_bind_v12_test",
   "own_collect_branches_v13_test", "own_contract_run_v13_test", "own_review_hold_v14_test",
+  "own_contract_entry_v14_test", "own_contract_entry_v15_test", "own_contract_entry_v15_run_test",
 ]);
 type Row = Record<string, unknown>;
 type Connect = {
@@ -132,6 +135,29 @@ try {
   const roleHeld = (row: Row) => frozen.doNotEnableRoles.includes(String(row.historical_role ?? ""));
   const disabled = contract.sources.filter((row) => row.roster_family !== "X174_historical" && roleHeld(row));
   const xRolesInsideNotRun = contract.sources.filter((row) => row.roster_family === "X174_historical" && roleHeld(row));
+  mkdirSync(`${outDir}/responses`, { recursive: true });
+  const responseIndex = [];
+  const runs = await sql<{ id: string; source_id: string; status: string; response: Buffer | null }[]>`SELECT id, source_id, status, response FROM fetch_runs ORDER BY id`;
+  for (const run of runs) {
+    const bytes = run.response ? Buffer.from(run.response) : null;
+    const file = `fetch-run-${String(run.id).padStart(2, "0")}-${run.source_id}.bin`;
+    if (bytes) writeFileSync(`${outDir}/responses/${file}`, bytes);
+    responseIndex.push({ id: Number(run.id), sourceId: run.source_id, status: run.status, bytes: bytes?.length ?? 0, sha256: bytes ? createHash("sha256").update(bytes).digest("hex") : null, file: bytes ? `responses/${file}` : null });
+  }
+  const storedArticles = inserted.length ? await sql<{ id: string; source_id: string; url: string; published_at: Date | null; body_status: string; body_text: string | null; evidence: number }[]>`
+    SELECT id, source_id, url, published_at, body_status, body_text, (SELECT count(*)::int FROM own_evidence_versions v WHERE v.article_id = articles.id) AS evidence
+    FROM articles WHERE source_id IN ${sql(inserted)} ORDER BY source_id, url` : [];
+  const scoring = [];
+  for (const article of storedArticles) {
+    const view = await materialForScoring(article.id);
+    const body = article.body_text ?? "";
+    scoring.push({
+      sourceId: article.source_id, url: article.url, publishedAt: article.published_at ? new Date(article.published_at).toISOString() : null,
+      bodyStatus: article.body_status, bodyBytes: Buffer.byteLength(body), bodySha256: body ? createHash("sha256").update(body).digest("hex") : null,
+      scoringSeesSameBody: view?.bodyText === article.body_text, scoringBodyBytes: Buffer.byteLength(view?.bodyText ?? ""),
+      evidenceRows: article.evidence, evidenceHash: view?.evidenceHash ?? null, poolEntered: false,
+    });
+  }
   const priorQualified = prior.map((row) => ({ ...row, refetched: false, ...qualify({
     articles: Number(row.articles), bodyOk: Number(row.bodyOk), pending: Number(row.pending),
     unconfirmed: Number(row.unconfirmed), evidence: Number(row.evidenceRows), found: Number(row.found),
@@ -144,6 +170,8 @@ try {
     xRolesInsideNotRun: xRolesInsideNotRun.length,
     prior17: priorQualified,
     connected,
+    responses: responseIndex,
+    scoring,
   };
   writeFileSync(`${outDir}/LEDGER.json`, JSON.stringify(report, null, 2));
   log(JSON.stringify({ ok: true, contractPassed: false, x: report.x, disabledNotEnabled: report.disabledNotEnabled, xRolesInsideNotRun: report.xRolesInsideNotRun, connected: connected.map((row) => ({ id: row.sourceId, reason: row.reason })) }));
