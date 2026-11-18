@@ -2,7 +2,7 @@
 // 采集和模型开关只约束 CLI。这里不读那些开关，调用方要自己守住入口。
 // 导入把 processing_state 收成 skipped，content.sweep 只捡 new，所以之后即使 worker 起来也不会把这些行入队。
 import { contentHash, fillPublicationTime, identityKeyFor, reviseMaterial, upsertMaterial, type XPostData } from "./content/materials.ts";
-import { asideFromGate } from "./sources/saved-supplements.ts";
+import { asideFromGate, asideQuoteFits, type ContentAside } from "./sources/saved-supplements.ts";
 import { sql, type Db } from "./db.ts";
 import { sha256, stableJson } from "./lib/ids.ts";
 import { type BodyGate, type ModelFileItem } from "./body-gate.ts";
@@ -528,6 +528,34 @@ export async function appendLocatedSupplement(articleId: string, supplement: {
   });
 }
 
+/** 采集入库时把候选上的旁路写入当前证据。正文用库里已经存下的字节，不另收一份正文。 */
+export async function recordCollectedEvidence(articleId: string, aside: ContentAside | null | undefined): Promise<{ version: number; evidenceHash: string; articleRevision: number; idempotent: boolean } | null> {
+  if (!aside || (aside.links.length === 0 && aside.charts.length === 0)) return null;
+  databaseUrl();
+  return sql.begin(async (tx) => {
+    const [article] = await tx<{ title: string; body_text: string | null; revision: number; raw: unknown }[]>`
+      SELECT title, body_text, revision, raw FROM articles WHERE id = ${articleId} FOR UPDATE`;
+    if (!article) throw new JudgmentConflict("文章不存在");
+    const evidenceHash = cumulativeEvidenceHash({
+      title: article.title, raw: article.raw, bodyText: article.body_text, quotedText: null, xPost: null, aside,
+    });
+    const [latest] = await tx<{ version: number; evidence_hash: string; article_revision: number }[]>`
+      SELECT version, evidence_hash, article_revision FROM own_evidence_versions
+      WHERE article_id = ${articleId} ORDER BY version DESC LIMIT 1`;
+    if (latest && latest.evidence_hash === evidenceHash && Number(latest.article_revision) === Number(article.revision)) {
+      return { version: Number(latest.version), evidenceHash, articleRevision: Number(article.revision), idempotent: true };
+    }
+    const version = (latest?.version ?? 0) + 1;
+    await tx`INSERT INTO own_evidence_versions
+      (article_id, version, article_revision, raw, body_text, quoted_text, x_post, evidence_hash, body_gate)
+      VALUES (${articleId}, ${version}, ${article.revision}, ${article.raw === null ? null : tx.json(article.raw as never)},
+        ${article.body_text}, null, null, ${evidenceHash}, ${tx.json({ aside } as never)})`;
+    await tx`UPDATE own_judgments SET stale = true
+      WHERE article_id = ${articleId} AND stale = false AND evidence_hash <> ${evidenceHash}`;
+    return { version, evidenceHash, articleRevision: Number(article.revision), idempotent: false };
+  });
+}
+
 /** 评分和抽取只读最新证据。文章列上留下的旧正文不能绕过这次显式撤回。身份键不在这里。 */
 export async function materialForScoring(articleId: string): Promise<{
   bodyText: string | null; quotedText: string | null; xPost: unknown; evidenceHash: string;
@@ -814,8 +842,8 @@ export async function listPendingDrafts(): Promise<Array<{
 /** 把一份文件推理记到当前证据上。不写外部回执，不把事实标成已核，不发放许可。 */
 export async function recordFileResult(item: FileResultItem, recordedAt: string, options?: { write?: boolean }): Promise<JudgmentWrite & { fileReceipt: { kind: "file-output"; vendorReceipt: false; outputSha256: string } }> {
   databaseUrl();
-  const [current] = await sql<{ version: number; evidence_hash: string; article_revision: number; body_text: string | null; quoted_text: string | null }[]>`
-    SELECT version, evidence_hash, article_revision, body_text, quoted_text FROM own_evidence_versions
+  const [current] = await sql<{ version: number; evidence_hash: string; article_revision: number; body_text: string | null; quoted_text: string | null; body_gate: unknown }[]>`
+    SELECT version, evidence_hash, article_revision, body_text, quoted_text, body_gate FROM own_evidence_versions
     WHERE article_id = ${item.articleId} ORDER BY version DESC LIMIT 1`;
   if (!current) throw new JudgmentConflict("没有持久证据，拒绝判断");
   assertCurrentArticleRevision(await currentArticleRevision(sql, item.articleId), Number(current.article_revision), item.inputRevision);
@@ -823,9 +851,9 @@ export async function recordFileResult(item: FileResultItem, recordedAt: string,
     throw new JudgmentConflict("输入证据不是当前版本");
   }
   const quote = item.output.quoteLocation;
-  if (!quoteFits(current.body_text, quote.excerpt, quote.start, quote.end) && !quoteFits(current.quoted_text, quote.excerpt, quote.start, quote.end)) {
-    throw new JudgmentConflict("引文不在当前正文或引用里");
-  }
+  const inProse = quoteFits(current.body_text, quote.excerpt, quote.start, quote.end) || quoteFits(current.quoted_text, quote.excerpt, quote.start, quote.end);
+  const inAside = asideQuoteFits(asideFromGate(current.body_gate), quote.excerpt, quote.start, quote.end);
+  if (!inProse && !inAside) throw new JudgmentConflict("引文不在当前正文或引用里");
   const derived = !current.body_text ? "missing_body" as const : current.quoted_text ? "complete" as const : "missing_quote" as const;
   const fileResult: FileResultRecord = {
     executionSource: item.executionSource,

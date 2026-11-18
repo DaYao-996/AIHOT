@@ -166,6 +166,29 @@ export function asideFromGate(gate: unknown): ContentAside {
   return { links, charts };
 }
 
+/** The stored supplement as its own text. Offsets below are into this text, not the prose. */
+export function asideDocument(aside: ContentAside): string {
+  const blocks: string[] = [];
+  for (const link of aside.links) {
+    blocks.push([
+      `label: ${link.label}`,
+      `absoluteUrl: ${link.absoluteUrl}`,
+      `href: ${link.href}`,
+      "linkedPageRead: false",
+      `location: ${link.byteStart}-${link.byteEnd}`,
+    ].join("\n"));
+  }
+  for (const chart of aside.charts) blocks.push(chart.text);
+  return blocks.join("\n\n");
+}
+
+/** A supplement quote must be an exact slice of the stored aside. A missing range is not a match. */
+export function asideQuoteFits(aside: ContentAside, excerpt: string, start: number | null, end: number | null): boolean {
+  if (start === null || end === null || !Number.isInteger(start) || !Number.isInteger(end) || end <= start) return false;
+  const text = asideDocument(aside);
+  return text.slice(start, end) === excerpt;
+}
+
 /** Chart rows plus the axis fields the page stored. A bare number keeps its suffix and decimals. */
 export function chartAxisParts(html: string): Array<{ id: string; role: "chart_axis"; byteStart: number; byteEnd: number; text: string }> {
   const $ = cheerio.load(html);

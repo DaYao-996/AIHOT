@@ -19,6 +19,7 @@ import { fetchXSearch, planXShards, readXSearch, shardHandle, shardQuery, SHARDA
 import { FetchError, type Candidate, type SourceRow } from "./types.ts";
 import { readsWhole, usePace } from "./uses.ts";
 import { pageFetchable } from "../content/extract.ts";
+import { recordCollectedEvidence } from "../own-pipeline-store.ts";
 import type { ContentAside } from "./saved-supplements.ts";
 import { fetchArticleCover, hasPicture, type Cover } from "../content/cover.ts";
 
@@ -282,7 +283,7 @@ async function storeCover(articleId: string, created: boolean, c: CollectionCand
   if (cover) await sql`UPDATE articles SET cover = ${sql.json(cover as never)} WHERE id = ${articleId} AND cover IS NULL`;
 }
 
-async function store(sourceId: string, kind: string, candidates: CollectionCandidate[], backfill: string | null) {
+export async function storeCollected(sourceId: string, kind: string, candidates: CollectionCandidate[], backfill: string | null) {
   let created = 0;
   let revised = 0;
   for (const c of candidates) {
@@ -300,6 +301,7 @@ async function store(sourceId: string, kind: string, candidates: CollectionCandi
     if (c.detailRules) await sql`UPDATE articles SET raw = jsonb_set(
       CASE WHEN jsonb_typeof(raw) = 'object' THEN raw ELSE '{}'::jsonb END,
       '{collectionDetail}', ${sql.json({ rules: c.detailRules })}) WHERE id = ${res.articleId} AND source_id = ${sourceId}`;
+    await recordCollectedEvidence(res.articleId, c.contentAside);
     await storeCover(res.articleId, res.created, c, kind);
     if (res.created) created += 1;
     if (res.revised) revised += 1;
@@ -448,7 +450,7 @@ export async function collectSource(sourceId: string, opts: { force?: boolean; x
     if (found) { nextCursor.detailDatedOut = datedOut; nextCursor.detailRetries = reads.retries; }
     if (!d || !Object.keys(nextCursor.detailDatedOut ?? {}).length) delete nextCursor.detailDatedOut;
     if (!d || !Object.keys(nextCursor.detailRetries ?? {}).length) delete nextCursor.detailRetries;
-    const stored = await store(sourceId, source.kind, candidates, firstImport ? "first-import" : null);
+    const stored = await storeCollected(sourceId, source.kind, candidates, firstImport ? "first-import" : null);
     ({ created, revised } = stored);
     for (const id of await fillScheduledPublications(sourceId)) await queueProcessing(id);
 
@@ -520,7 +522,7 @@ export async function collectXShard(key: string, sourceIds: string[]): Promise<{
     for (const m of members) {
       const handle = shardHandle(m)!.toLowerCase();
       const mine = read.tweets.filter((t) => t.user.screen_name.toLowerCase() === handle);
-      const stored = await store(m.id, m.kind, admitListing(mine.map(tweetToCandidate), m), null);
+      const stored = await storeCollected(m.id, m.kind, admitListing(mine.map(tweetToCandidate), m), null);
       found += mine.length;
       created += stored.created;
       const newest = mine.reduce((a, t) => (BigInt(t.id_str) > BigInt(a) ? t.id_str : a), String(m.cursor!.lastTweetId));
@@ -537,7 +539,7 @@ export async function collectXShard(key: string, sourceIds: string[]): Promise<{
       for (const owner of owners) {
         const handle = shardHandle(owner)?.toLowerCase();
         const mine = strays.filter((t) => t.user.screen_name.toLowerCase() === handle);
-        if (mine.length) created += (await store(owner.id, owner.kind, admitListing(mine.map(tweetToCandidate), owner), null)).created;
+        if (mine.length) created += (await storeCollected(owner.id, owner.kind, admitListing(mine.map(tweetToCandidate), owner), null)).created;
       }
     }
     // Only a fully stored search advances coverage. A failed write can replay every paid page;
