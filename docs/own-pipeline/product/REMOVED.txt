@@ -1,0 +1,5 @@
+v2 源码包只保留能安装并跑本机回放的文件。v1 原 tar 没有改。
+
+留下：package.json、package-lock.json、scripts、database/migrations、packages、apps、industry、site、modules、docs/own-pipeline/product（三份原页、PRIOR17.json、配置和安装说明）。
+
+没有放入：node_modules、.git、docs/own-pipeline 里的历史合同运行、库 dump、git bundle、补丁和样本恢复大文件，以及网页用的 assets/og-fonts 与 docs/assets 截图。这些不是这条回放入口的运行依赖。

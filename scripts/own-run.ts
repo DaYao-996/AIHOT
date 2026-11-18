@@ -80,10 +80,12 @@ if (step === "schedule") {
     kind: "launchd-oneshot", timerRunning: false, loadedIntoLaunchd: false, launchctlInvoked: false,
     workerStarted: false, publish: false, collect: false,
     installedAt: new Date().toISOString(), plist: plistPath, trigger, onceCommand,
-    note: "plist 可供 Mac 验收时装载。这个沙盒不调用 launchctl，也不改用户的 Mac。触发脚本只跑一次 --step once。",
+    macSchedulePassed: false,
+    note: "plist 可供以后的 Mac 验收。这次没有调用 launchctl，Mac 定时运行尚未通过。同一轮再次触发不重复采集。新的一轮会再跑，没有全局永久跳过。",
   };
+  writeFileSync(join(dir, "current-round"), "round-1\n");
   writeFileSync(installedPath, JSON.stringify(record, null, 2) + "\n");
-  console.log(JSON.stringify({ step: "schedule", installed: true, timerRunning: false, loadedIntoLaunchd: false, plist: plistPath, trigger }));
+  console.log(JSON.stringify({ step: "schedule", installed: true, timerRunning: false, loadedIntoLaunchd: false, macSchedulePassed: false, plist: plistPath, trigger }));
   process.exit(0);
 }
 if (step === "stop") {
@@ -427,30 +429,36 @@ function launchdPlist(paths: { root: string; trigger: string; stdout: string; st
 function onceTriggerScript(dir: string, root: string): string {
   const quote = (value: string) => `'${value.replaceAll("'", "'\\''")}'`;
   return `#!/bin/sh
-# One local replay. A second start while this run holds the lock exits 75. After success, later starts exit 0 and do not collect again.
+# The current round runs once. Replaying that same round does not collect again. A new round may run later. A second start while the lock is held exits 75.
 set -eu
 cd ${quote(root)}
 lock=${quote(resolve(dir, "once.lock"))}
 log=${quote(resolve(dir, "once.log"))}
-complete=${quote(resolve(dir, "once-complete"))}
+current=${quote(resolve(dir, "current-round"))}
 if ! mkdir "$lock" 2>/dev/null; then
   echo "已有一次任务在跑" >> "$log"
   exit 75
 fi
 cleanup() { rmdir "$lock" 2>/dev/null || true; }
 trap cleanup EXIT
+if [ "\${1:-}" = "--new-round" ]; then
+  printf 'round-%s-%s\\n' "$(date -u +%Y%m%dT%H%M%SZ)" "$$" > "$current"
+fi
+round=$(tr -d '[:space:]' < "$current")
+complete=${quote(resolve(dir, "rounds"))}/"$round"/complete
+mkdir -p ${quote(resolve(dir, "rounds"))}/"$round"
 if [ -f "$complete" ]; then
-  echo "这一次已经跑完，不再进入" >> "$log"
+  echo "这一轮 $round 已经跑完，不重复采集" >> "$log"
   exit 0
 fi
 set +e
-node scripts/own-run.ts --step once --config docs/own-pipeline/product/config.example.json --out-dir var/once-out --schedule-dir ${quote(dir)}
+OWN_ROUND="$round" node scripts/own-run.ts --step once --config docs/own-pipeline/product/config.example.json --out-dir "var/schedule-rounds/$round" --schedule-dir ${quote(dir)}
 status=$?
 set -e
 if [ "$status" -eq 0 ]; then
   date -u +%Y-%m-%dT%H:%M:%SZ > "$complete"
 fi
-echo "exit $status" >> "$log"
+echo "round $round exit $status" >> "$log"
 exit "$status"
 `;
 }
@@ -613,15 +621,18 @@ async function runAccept() {
   });
   await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
   const port = (server.address() as { port: number }).port;
-  const sourceId = "accept-replay";
+  const roundName = (process.env.OWN_ROUND || "round-1").replace(/[^A-Za-z0-9-]/g, "").slice(0, 48) || "round-1";
+  const sourceId = `accept-${roundName}`;
   try {
     const boundaries = cfg.items.map((item) => boundaryOf(join(dir, item.file), item.url, item.container));
+    const sourceConfig = {
+      url: `http://127.0.0.1:${port}/listing`, itemSelector: "article", linkSelector: "a", titleSelector: "a",
+      publishedAtSelector: "time", allowUrlPrefixes: [`http://127.0.0.1:${port}/`],
+      detail: { maxFetches: 0 },
+    };
     await sql`INSERT INTO sources (id, name, kind, config, tier, participation_mode, enabled, next_fetch_at)
-      VALUES (${sourceId}, '本地回放', 'web_list', ${sql.json({
-        url: `http://127.0.0.1:${port}/listing`, itemSelector: "article", linkSelector: "a", titleSelector: "a",
-        publishedAtSelector: "time", allowUrlPrefixes: [`http://127.0.0.1:${port}/`],
-        detail: { maxFetches: 0 },
-      })}, 'T1', 'editorial', false, '2100-01-01')`;
+      VALUES (${sourceId}, '本地回放', 'web_list', ${sql.json(sourceConfig)}, 'T1', 'editorial', false, '2100-01-01')
+      ON CONFLICT (id) DO UPDATE SET config = EXCLUDED.config`;
     const collected = await collectSource(sourceId, { force: true });
     log(`COLLECT found=${collected.found} created=${collected.created}`);
     const refusal = await proveRefusalIsOneRow();
