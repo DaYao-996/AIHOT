@@ -1,0 +1,532 @@
+[
+  {
+    "id": "81b6ed0f5259609db344e70e73529ccd63349d76550440ddcd42926bd3514901",
+    "article_id": "alf3bq5qqyrkjph0p7wycqtia",
+    "input_revision": 5,
+    "evidence_hash": "94bb29d48eece1d4f07015a05d1967db8eb59fdeeae08ad147064048e6621c99",
+    "ruleset_version": "17-选题打分推荐-v2.3#sha256:45c5a6a0105268a6ecf887c8bc7611595e9626fe0a25b7ce76ca48ee64e3e43e",
+    "prompt_version": "assistant-semantic-extract-v13-to-import-v1",
+    "model_version": "file:assistant-file",
+    "information_type_id": null,
+    "content_line": null,
+    "material_status": "missing_quote",
+    "fact_status": "unchecked",
+    "value_status": "incomplete_material",
+    "release_status": "not_licensed",
+    "reasons": [
+      "文件结果，事实未核，未许可"
+    ],
+    "stale": false,
+    "recorded_at": "2026-11-18T07:42:19.670Z",
+    "created_at": "2026-11-18T07:42:19.670Z",
+    "origin": "file",
+    "comparison": {
+      "fileResult": {
+        "output": {
+          "time": "页面发布 2026-11-13T18:00:39.000Z（DOM 为 18:00:39.078Z，毫秒截断；dateModified 在 DOM 为 2026-11-13T18:57:45.621Z，不在正文）。正文是教程步骤，没有另给截止日期。as_of 2026-11-18 15:36 Asia/Taipei。",
+          "clauses": [
+            {
+              "id": "17s158-useful-software-or-hardware-tools",
+              "text": "电子产品、好用的软硬件工具（含跟 AI 无关的，例如 iOS 系统工具）"
+            }
+          ],
+          "audience": [
+            "Robotics developers working in Isaac Sim",
+            "Users of SimReady Central assets on Hugging Face"
+          ],
+          "conditions": [
+            "The example uses Isaac Sim 6.2.",
+            "The section says another agent/model may work if it can load the required skills and execute Python against Isaac Sim; generated code and results can vary. GPT-6 Sol is the example agent.",
+            "Scripted setup limits stated in the body: no vision, limited collision checks, can deformation/liquid not modeled, 2 N·m drive-effort cap chosen in simulation, results do not establish robustness to uncertain positions, different payloads, or real hardware."
+          ],
+          "valueBasis": "有步骤的仿真工具教程，不是消费电子开箱实测，也不是独立复现报告。机器人资产出现在仿真语境，不把电子产品角度自动记为已证实。作者在 DOM（NVIDIA 相关），不在正文。未填分数。",
+          "narrowClaim": "This Hugging Face post is a walkthrough of a beverage-can pick-and-place task in Isaac Sim that uses SimReady UR17G arm, Robotiq 2F-140 gripper, and beverage can assets, including checks of behavior and an example run with agent-generated controls.",
+          "quoteLocation": {
+            "end": null,
+            "start": null,
+            "excerpt": "This walkthrough showcases a beverage can pick-and-place task that uses the UR17G arm , Robotiq 2F-140 gripper , and beverage can to compose a scene in Isaac Sim, check their behavior, and run a pick-and-place example with agent-generated controls."
+          },
+          "substantiveAddition": "v13 补入的首段把文章定位为可跟随的 walkthrough；后文步骤与限制与 v12 正文相同。公告博文、产品规格书、部分教程链接的外部正文不在本材料内。"
+        },
+        "knownModel": null,
+        "outputSha256": "be8536b593c4de735e97b21a11847b6dc27e88a1216eb43b210b20579ae3564f",
+        "vendorReceipt": false,
+        "modelKnowledge": "unknown",
+        "executionSource": "assistant-file"
+      }
+    },
+    "model_receipt_id": null
+  },
+  {
+    "id": "7ea7ed8488e4e050048e5693c0278bc607d4c964b6f3432902a22192eedebd43",
+    "article_id": "dx5k31vfb5cnwfgxqqb535v7v",
+    "input_revision": 2,
+    "evidence_hash": "ccf86ee64a4fd770be2dddc35d29800550a40fc0c4bce540710ae957c60eaf10",
+    "ruleset_version": "17-选题打分推荐-v2.3#sha256:45c5a6a0105268a6ecf887c8bc7611595e9626fe0a25b7ce76ca48ee64e3e43e",
+    "prompt_version": "assistant-semantic-extract-v13-to-import-v1",
+    "model_version": "file:assistant-file",
+    "information_type_id": null,
+    "content_line": null,
+    "material_status": "missing_quote",
+    "fact_status": "unchecked",
+    "value_status": "incomplete_material",
+    "release_status": "not_licensed",
+    "reasons": [
+      "文件结果，事实未核，未许可"
+    ],
+    "stale": true,
+    "recorded_at": "2026-11-18T07:42:19.675Z",
+    "created_at": "2026-11-18T07:42:19.676Z",
+    "origin": "file",
+    "comparison": {
+      "fileResult": {
+        "output": {
+          "time": "分组标题 November 16, 2026 在条目之前。输入 publishedAt 2026-11-16T00:00:00.000Z 为日期-only，时刻未知。as_of 2026-11-18 15:36 Asia/Taipei。",
+          "clauses": [
+            {
+              "id": "17s159-general-ai-info",
+              "text": "一般 AI 资讯"
+            }
+          ],
+          "audience": [
+            "Claude API users who need or check text watermarking"
+          ],
+          "conditions": [
+            "Only “supported platforms”; the section says How Claude marks AI-generated content lists those platforms — that linked page is not in this section.",
+            "If a request sets temperature, top_p, or top_k to a non-default value, the text might not carry the watermark."
+          ],
+          "valueBasis": "官方变更说明，核心是水印适用范围和采样参数限制，但平台清单要另页才有，本条材料不能单独核完「在哪些平台生效」。新增偏约束/文档，不宜因模型名出现而抬高。未填分数。",
+          "narrowClaim": "Anthropic says text generated by Claude Opus 4.6, Claude Opus 4.5, Claude Sonnet 4.5, and Claude Haiku 4.5 carries Anthropic’s text watermark on supported platforms.",
+          "quoteLocation": {
+            "end": null,
+            "start": null,
+            "excerpt": "Text generated by Claude Opus 4.6, Claude Opus 4.5, Claude Sonnet 4.5, and Claude Haiku 4.5 carries Anthropic’s text watermark on supported platforms."
+          },
+          "substantiveAddition": "列出四个模型在支持平台上带文本水印，并给出非默认采样可能无水印的条件。平台名单和 Text watermark 文档不在本材料，完整性对「支持平台」这一条件仍有缺口，但不把 quote 为 null 判成缺引用。"
+        },
+        "knownModel": null,
+        "outputSha256": "ed0cdcacef64fb93d6048762181603538fca3bfc926d90d0efc41f3914469902",
+        "vendorReceipt": false,
+        "modelKnowledge": "unknown",
+        "executionSource": "assistant-file"
+      }
+    },
+    "model_receipt_id": null
+  },
+  {
+    "id": "3c557a277cd9ee2cff97a5ea941804554de01a8234cdd7ad05726f8ad4717085",
+    "article_id": "flq60zrt5px7vyevuab583j6j",
+    "input_revision": 4,
+    "evidence_hash": "3411f74b7da8b30a3be87bc69fb3017408be1ce8d9db663e2e2253910586e3c5",
+    "ruleset_version": "17-选题打分推荐-v2.3#sha256:45c5a6a0105268a6ecf887c8bc7611595e9626fe0a25b7ce76ca48ee64e3e43e",
+    "prompt_version": "assistant-semantic-extract-v13-to-import-v1",
+    "model_version": "file:assistant-file",
+    "information_type_id": null,
+    "content_line": null,
+    "material_status": "missing_quote",
+    "fact_status": "unchecked",
+    "value_status": "incomplete_material",
+    "release_status": "not_licensed",
+    "reasons": [
+      "文件结果，事实未核，未许可"
+    ],
+    "stale": false,
+    "recorded_at": "2026-11-18T07:42:19.672Z",
+    "created_at": "2026-11-18T07:42:19.672Z",
+    "origin": "file",
+    "comparison": {
+      "fileResult": {
+        "output": {
+          "time": "发布 2026-11-13T17:02:35.000Z（DOM 17:02:35.607Z，毫秒截断）。获奖只写 EMNLP 2026，无更细日期，不推断会期。as_of 2026-11-18 15:36 Asia/Taipei。",
+          "clauses": [
+            {
+              "id": "17s159-general-ai-info",
+              "text": "一般 AI 资讯"
+            }
+          ],
+          "audience": [
+            "NLP / LLM evaluation researchers"
+          ],
+          "conditions": [
+            "The later section also gives source counts (1,557 Stack Overflow; 184 Stack Exchange; 102 manually curated; 6,272 from WikiHow) and states the benchmark currently covers English-language queries and mainly procedural problems.",
+            "A total of 8,115 questions and collaboration with Carnegie Mellon, NVIDIA, and Johns Hopkins appear in the v13 opening (now in the section).",
+            "Paper / Data / Code are named in the section; the URLs (arxiv.org/abs/2609.06842, huggingface.co/datasets/allenai/XYBench-dataset, github.com/allenai/XYBench) are in the raw DOM links, not spelled out as text in the section. Those linked bodies were not read."
+          ],
+          "valueBasis": "研究资源发布（基准、奖项、合作方）由该 HF 博文第一人称陈述，效果与奖项未在本任务中独立核对。面向研究者而非普通消费者产品更新。不能因为出现模型名就抬高选题价值。注意：正文相对 v12 有实质性首段增补，但 v13 索引 articleRevision 仍为 4，未随正文升高，只按索引绑定，不臆改版本号。未填分数。",
+          "narrowClaim": "The post says the authors are releasing XYBench, a benchmark of 8K+ questions on how assistants handle requests based on misconceptions, and that XYBench won the Best Resource Paper Award at EMNLP 2026.",
+          "quoteLocation": {
+            "end": null,
+            "start": null,
+            "excerpt": "We’re releasing XYBench , a benchmark of 8K+ questions that tests how AI assistants respond to requests based on misconceptions, such as asking how to thicken frosting that keeps sliding off cupcakes when the real problem is that the cupcakes are still too warm to frost. XYBench won the Best Resource Paper Award at EMNLP 2026."
+          },
+          "substantiveAddition": "v13 新首段补充了发布声明、8K+/8115 规模、XY problem 定义、EMNLP 2026 最佳资源论文奖、CMU/NVIDIA/JHU 合作，以及 Paper/Data/Code 入口。这些是相对 v12 输入的实质正文新增，已重读。"
+        },
+        "knownModel": null,
+        "outputSha256": "82ac155979df69dee229989b3e32906e6cba108061bbd51a573ce614150729f1",
+        "vendorReceipt": false,
+        "modelKnowledge": "unknown",
+        "executionSource": "assistant-file"
+      }
+    },
+    "model_receipt_id": null
+  },
+  {
+    "id": "1eb7f2bf1824627fe415b107ab5fc0208e88dbc6979981f4cc784c648ef7ba51",
+    "article_id": "i09dfayn3l2vrk8e99nkib9mo",
+    "input_revision": 5,
+    "evidence_hash": "81449751a22b1542bccba96443a568d3978386d8a38d4d82bc737e373b6dd101",
+    "ruleset_version": "17-选题打分推荐-v2.3#sha256:45c5a6a0105268a6ecf887c8bc7611595e9626fe0a25b7ce76ca48ee64e3e43e",
+    "prompt_version": "assistant-semantic-extract-v13-to-import-v1",
+    "model_version": "file:assistant-file",
+    "information_type_id": null,
+    "content_line": null,
+    "material_status": "missing_quote",
+    "fact_status": "unchecked",
+    "value_status": "incomplete_material",
+    "release_status": "not_licensed",
+    "reasons": [
+      "文件结果，事实未核，未许可"
+    ],
+    "stale": false,
+    "recorded_at": "2026-11-18T07:42:19.664Z",
+    "created_at": "2026-11-18T07:42:19.665Z",
+    "origin": "file",
+    "comparison": {
+      "fileResult": {
+        "output": {
+          "time": "today / today’s news 相对页面发布日 2026-11-16T14:00:00+00:00（与 DOM published_time / ld+json 一致）。as_of 2026-11-18 15:36 Asia/Taipei，非未来发布日。more regions coming soon 无具体日期，不推断。",
+          "clauses": [
+            {
+              "id": "17s158-useful-software-or-hardware-tools",
+              "text": "电子产品、好用的软硬件工具（含跟 AI 无关的，例如 iOS 系统工具）"
+            },
+            {
+              "id": "17s159-general-ai-info",
+              "text": "一般 AI 资讯"
+            }
+          ],
+          "audience": [
+            "Google Maps / Ask Maps users on Android and iOS",
+            "U.S. users for appointment finding and route tips",
+            "Users in the expanding European countries"
+          ],
+          "conditions": [
+            "Rollout stated for Android and iOS.",
+            "Itineraries and list search: wherever Ask Maps is offered.",
+            "Appointment finding and Know before you go: first in the U.S.; more regions coming soon.",
+            "Europe expansion named as 30 countries, examples Spain, Germany, and the U.K."
+          ],
+          "valueBasis": "官方 Maps 功能上线，平台和地域条件写在正文里，读者可据此判断自己能否用。不是实测对比，也不能因标题含 Ask Maps 自动抬高价值。未填分数。",
+          "narrowClaim": "Google says new Ask Maps features start rolling out today on Android and iOS: travel itineraries and list search are available everywhere Ask Maps is offered, while Ask Maps expands to 30 countries across Europe (including Spain, Germany, and the U.K.) to more than 200 countries and territories; “Know before you go” route tips and appointment-finding launch first in the U.S., with more regions coming soon.",
+          "quoteLocation": {
+            "end": null,
+            "start": null,
+            "excerpt": "These updates start rolling out today on Android and iOS just in time for the holidays. As part of today’s news, Ask Maps starts expanding to 30 countries across Europe — including Spain, Germany, and the U.K. — bringing Ask Maps to more than 200 countries and territories globally. Travel itineraries and list search are available everywhere Ask Maps is offered. \"Know before you go\" route tips and finding appointments are launching first in the U.S., with more regions coming soon."
+          },
+          "substantiveAddition": "明确了节日向的行程、预约、列表搜索，以及功能按地区分期。切片内未抓到超链，但不据此把正文主张判为缺失。"
+        },
+        "knownModel": null,
+        "outputSha256": "e48705bce0487e7ad919ab1b6313cb761917cf15b7b16b770d61d5256a1153e8",
+        "vendorReceipt": false,
+        "modelKnowledge": "unknown",
+        "executionSource": "assistant-file"
+      }
+    },
+    "model_receipt_id": null
+  },
+  {
+    "id": "7a53435dc8fb47285c821a0be3136b00d31256c62feeca97593c47e06ff3d5fc",
+    "article_id": "j990zr6w58a7lxqye639td6ch",
+    "input_revision": 5,
+    "evidence_hash": "2218f60dd21c55a73a114dc306dde755f1d4147e0203a2cc0daf117e899eae08",
+    "ruleset_version": "17-选题打分推荐-v2.3#sha256:45c5a6a0105268a6ecf887c8bc7611595e9626fe0a25b7ce76ca48ee64e3e43e",
+    "prompt_version": "assistant-semantic-extract-v13-to-import-v1",
+    "model_version": "file:assistant-file",
+    "information_type_id": null,
+    "content_line": null,
+    "material_status": "missing_quote",
+    "fact_status": "unchecked",
+    "value_status": "incomplete_material",
+    "release_status": "not_licensed",
+    "reasons": [
+      "文件结果，事实未核，未许可"
+    ],
+    "stale": true,
+    "recorded_at": "2026-11-18T07:42:19.646Z",
+    "created_at": "2026-11-18T07:42:19.660Z",
+    "origin": "file",
+    "comparison": {
+      "fileResult": {
+        "output": {
+          "time": "正文相对措辞 Starting now / Today / starting today（Wallet 到 iOS）相对页面发布日 2026-11-17T17:00:00+00:00（DOM meta/ld+json 与输入 publishedAt 一致）。评估 as_of 2026-11-18 15:36 Asia/Taipei，发布日不是未来日期。dateModified 2026-11-18T04:45:22.857704+00:00 只在 DOM、不在正文。不把 Last month / Recently / Earlier this week / coming soon（Amex）/ Up next（UCP）推断成未给出的绝对日期。",
+          "clauses": [
+            {
+              "id": "17s158-useful-software-or-hardware-tools",
+              "text": "电子产品、好用的软硬件工具（含跟 AI 无关的，例如 iOS 系统工具）"
+            },
+            {
+              "id": "17s159-general-ai-info",
+              "text": "一般 AI 资讯"
+            }
+          ],
+          "audience": [
+            "Gemini app users in the U.S., Japan, Korea, Canada, Australia, and India",
+            "U.S. users for advanced features and email/text setup",
+            "Developers who may apply to the Connected Apps Platform"
+          ],
+          "conditions": [
+            "Stated as free of charge for the named countries.",
+            "Advanced features start in the U.S.",
+            "Section text tells U.S. users they can forward email to gemini@google.com or set up text after flipping the home-screen toggle from Chat to Task.",
+            "Footnote markers 1 and 2 appear in the section, but the footnote texts (calling unavailable in some U.S. states; U.S. phone number and eligible carrier) sit in the raw page after the newsletter chrome and are not in the section text — those limits are a gap, not incorporated as checked conditions."
+          ],
+          "valueBasis": "官方 Google 博客的产品上线说明，带明确国家和免费表述，以及可做的操作（切到 Task；美国可邮件/短信）。这是官方第一手宣布，不是独立上手实测；个人轶事（如 389 美元电费、优惠码 10 美元）只是来源自称，未经核验。不能因为标题含 Gemini 就当作高价值。未填 A–F 或总分。",
+          "narrowClaim": "Google says a Gemini Tasks update is rolling out free of charge, starting now, to hundreds of millions of people in the U.S., Japan, Korea, Canada, Australia, and India, using Gemini 4 Hydrogen; a set of advanced features is also rolling out, starting in the U.S.",
+          "quoteLocation": {
+            "end": null,
+            "start": null,
+            "excerpt": "Starting now, this update is rolling out free of charge for hundreds of millions of people across the U.S., Japan, Korea, Canada, Australia, and India, using our new Gemini 4 Hydrogen model."
+          },
+          "substantiveAddition": "相对「又一篇官博提到产品名」，正文给出了 Task 切换、指定国家免费铺开、美国先上的高级能力，以及支付封顶、Wallet 于发布当日扩到 iOS、AP2 等机制。UCP 写的是 Up next，不能当成已上线。链接中的技术论文等外部正文不在本材料内。"
+        },
+        "knownModel": null,
+        "outputSha256": "331791012672384ac62cdf3402dca05c4fbf57db9713b580ad9e10339dcdf1a5",
+        "vendorReceipt": false,
+        "modelKnowledge": "unknown",
+        "executionSource": "assistant-file"
+      }
+    },
+    "model_receipt_id": null
+  },
+  {
+    "id": "bfa68654ea84cd3544dd2c244dbe2c20e543be5963a6e9c66d4f7499ade87e2e",
+    "article_id": "o1v7u089jaz03yrw77gyh3qau",
+    "input_revision": 2,
+    "evidence_hash": "d0ba902c14c1c0c7c4d207b7ed02d1dd8f7f169c96612ea67aecc8bcd50733d5",
+    "ruleset_version": "17-选题打分推荐-v2.3#sha256:45c5a6a0105268a6ecf887c8bc7611595e9626fe0a25b7ce76ca48ee64e3e43e",
+    "prompt_version": "assistant-semantic-extract-v13-to-import-v1",
+    "model_version": "file:assistant-file",
+    "information_type_id": null,
+    "content_line": null,
+    "material_status": "missing_quote",
+    "fact_status": "unchecked",
+    "value_status": "incomplete_material",
+    "release_status": "not_licensed",
+    "reasons": [
+      "文件结果，事实未核，未许可"
+    ],
+    "stale": false,
+    "recorded_at": "2026-11-18T07:42:19.677Z",
+    "created_at": "2026-11-18T07:42:19.677Z",
+    "origin": "file",
+    "comparison": {
+      "fileResult": {
+        "output": {
+          "time": "分组标题 November 12, 2026 在条目之前。输入 publishedAt 2026-11-12T00:00:00.000Z 为日期-only，时刻未知。as_of 2026-11-18 15:36 Asia/Taipei。下一条 November 9 的 Fable 5.2 在切点之后，不属于本条正文，未提取。",
+          "clauses": [
+            {
+              "id": "17s158-useful-software-or-hardware-tools",
+              "text": "电子产品、好用的软硬件工具（含跟 AI 无关的，例如 iOS 系统工具）"
+            }
+          ],
+          "audience": [
+            "Organizations that can contact an Anthropic account team"
+          ],
+          "conditions": [
+            "The server sends model requests to the provider the customer chooses, Anthropic by default.",
+            "To request access, contact your Anthropic account team — not described as generally self-serve."
+          ],
+          "valueBasis": "官方发布了自托管 Managed Agents，但是否对读者可及取决于能否联系 account team，不能当成已普遍开放。链接的 self-hosted 文档不在本材料。未填分数。",
+          "narrowClaim": "Anthropic says it has launched self-hosted Claude Managed Agents: the customer runs the whole Managed Agents service, not only self-hosted sandboxes, on their own infrastructure and stores agents, sessions, and session history there.",
+          "quoteLocation": {
+            "end": null,
+            "start": null,
+            "excerpt": "We’ve launched self-hosted Claude Managed Agents . You run the whole Managed Agents service, not only self-hosted sandboxes , on your own infrastructure, and you store agents, sessions, and session history there."
+          },
+          "substantiveAddition": "相对仅托管沙箱，声称可在自有基础设施上运行完整 Managed Agents 服务并本地保存会话。访问需申请，实质性可用范围不确定。DOM 核对后条目文本完整。"
+        },
+        "knownModel": null,
+        "outputSha256": "e59453256f9243bd29558b41e1acaf41c388bae6d869fd7f106c3a2541566067",
+        "vendorReceipt": false,
+        "modelKnowledge": "unknown",
+        "executionSource": "assistant-file"
+      }
+    },
+    "model_receipt_id": null
+  },
+  {
+    "id": "dae47709763c5236df6fc06093e4c7fae5c070ac9557d46f7c2b20457c0b7da0",
+    "article_id": "pxkn093ufh8t3fo7hayscfcd8",
+    "input_revision": 5,
+    "evidence_hash": "ed1dc7458823c967085b9e437816037de6e6ac7f61a41d107f9e4d67a31b52b0",
+    "ruleset_version": "17-选题打分推荐-v2.3#sha256:45c5a6a0105268a6ecf887c8bc7611595e9626fe0a25b7ce76ca48ee64e3e43e",
+    "prompt_version": "assistant-semantic-extract-v13-to-import-v1",
+    "model_version": "file:assistant-file",
+    "information_type_id": null,
+    "content_line": null,
+    "material_status": "missing_quote",
+    "fact_status": "unchecked",
+    "value_status": "incomplete_material",
+    "release_status": "not_licensed",
+    "reasons": [
+      "文件结果，事实未核，未许可"
+    ],
+    "stale": false,
+    "recorded_at": "2026-11-18T07:42:19.667Z",
+    "created_at": "2026-11-18T07:42:19.667Z",
+    "origin": "file",
+    "comparison": {
+      "fileResult": {
+        "output": {
+          "time": "Today / try out today 相对发布日 2026-11-12T18:00:00+00:00（DOM 一致）。as_of 2026-11-18 15:36 Asia/Taipei。按 17 快讯/产品更新口径此条发布已超过一天，但这不是评分，只记录时间范围。",
+          "clauses": [
+            {
+              "id": "17s159-general-ai-info",
+              "text": "一般 AI 资讯"
+            }
+          ],
+          "audience": [
+            "Google Search users"
+          ],
+          "conditions": [
+            "Stated as global and for all users.",
+            "Richer language understanding is said to cover all supported AI Mode languages; the language list is not in this section."
+          ],
+          "valueBasis": "官方「已在 Search 全球可用」是可核的来源主张，但其余能力描述（更好理解意图、fan-out、更视觉化等）无数字或可核对步骤，宣传口吻重。不能因为标题含 Gemini 4 Hydrogen 就给高价值。链接的模型介绍文不在本材料内。未填分数。",
+          "narrowClaim": "Google says Gemini 4 Hydrogen is now available globally in Google Search for all users, and asks readers to try it in Search today.",
+          "quoteLocation": {
+            "end": null,
+            "start": null,
+            "excerpt": "Hydrogen is now available globally in Google Search for all users"
+          },
+          "substantiveAddition": "可核实的新增主要是 Hydrogen 进入 Search 的全球可用性声明；能力条偏宣传，是否实质新功能除此材料无法确认，故新增程度有限且不确定。"
+        },
+        "knownModel": null,
+        "outputSha256": "24aeae33cdff3838c60e0addb7e1b2f1b2ce3d7f0b724e34e327a4d48f3dee2b",
+        "vendorReceipt": false,
+        "modelKnowledge": "unknown",
+        "executionSource": "assistant-file"
+      }
+    },
+    "model_receipt_id": null
+  },
+  {
+    "id": "a0d284c8953c37c83d32ca7215625b31f0a8ba552c6c556bc87f15b24146f068",
+    "article_id": "pymfvn61wjegxalgmtpgrxsqo",
+    "input_revision": 2,
+    "evidence_hash": "eb84091890cd0d5ac9f6a35a4c2c9f0ec01651b4a27c67e207b6cb26b0cc9e17",
+    "ruleset_version": "17-选题打分推荐-v2.3#sha256:45c5a6a0105268a6ecf887c8bc7611595e9626fe0a25b7ce76ca48ee64e3e43e",
+    "prompt_version": "assistant-semantic-extract-v13-to-import-v1",
+    "model_version": "file:assistant-file",
+    "information_type_id": null,
+    "content_line": null,
+    "material_status": "missing_quote",
+    "fact_status": "unchecked",
+    "value_status": "incomplete_material",
+    "release_status": "not_licensed",
+    "reasons": [
+      "文件结果，事实未核，未许可"
+    ],
+    "stale": false,
+    "recorded_at": "2026-11-18T07:42:19.673Z",
+    "created_at": "2026-11-18T07:42:19.673Z",
+    "origin": "file",
+    "comparison": {
+      "fileResult": {
+        "output": {
+          "time": "日期来自该更新组标题 November 17, 2026（在条目 li 之前的 h3，不在 section 正文句内）。输入 publishedAt 为 2026-11-17T00:00:00.000Z，是日期-only 的午夜占位，页面未给出时刻，不把 00:00 当成已证实的发布时间点。as_of 2026-11-18 15:36 Asia/Taipei。",
+          "clauses": [
+            {
+              "id": "17s158-useful-software-or-hardware-tools",
+              "text": "电子产品、好用的软硬件工具（含跟 AI 无关的，例如 iOS 系统工具）"
+            }
+          ],
+          "audience": [
+            "Claude API app developers",
+            "Customers whose organization pays Anthropic directly for API usage"
+          ],
+          "conditions": [
+            "Beta, with the stated beta header.",
+            "After a customer links their organization, billing_policy is set on each /v1/messages or /v1/chat/completions request to choose who pays.",
+            "In the Claude Console, customers can set a spend cap for the app or unlink the app.",
+            "Linked billing works for customers whose organization pays Anthropic directly for API usage."
+          ],
+          "valueBasis": "官方平台更新说明，有可执行的头字段、billing_policy 和适用资格。链接的 Linked billing 文档正文不在本材料内。不是因为出现产品名就高价值。未填分数。",
+          "narrowClaim": "Anthropic says it has launched Linked billing in beta with the user-profiles-billing-2026-10-01 beta header, so customers can pay for Claude usage in an app through their own Claude organization.",
+          "quoteLocation": {
+            "end": null,
+            "start": null,
+            "excerpt": "We’ve launched Linked billing in beta with the user-profiles-billing-2026-10-01 beta header. Your customers can now pay for the Claude usage in your app through their own Claude organization."
+          },
+          "substantiveAddition": "新的 beta 计费连接机制和花费上限/解绑，对符合资格的组织是可操作的新增，而非单纯文档回声。独立核 DOM 后，条目正文完整；日期标题在切点前属于分组标题，不单独构成正文缺失。"
+        },
+        "knownModel": null,
+        "outputSha256": "2ef9cc5036b5b13fb9b93c6e59d5503523cd8a85add04de9a6167dbd9293e2aa",
+        "vendorReceipt": false,
+        "modelKnowledge": "unknown",
+        "executionSource": "assistant-file"
+      }
+    },
+    "model_receipt_id": null
+  },
+  {
+    "id": "25de8e0388e9356979c1166f5d719c244c0c2b4cddbdbdcd47a0541cf027fb2d",
+    "article_id": "xwaxu00tc07668yxspdlpv5dd",
+    "input_revision": 5,
+    "evidence_hash": "3bebe9f85535adbd5fb883ebfc4de390566efa079f593faf706d6bd36918bd49",
+    "ruleset_version": "17-选题打分推荐-v2.3#sha256:45c5a6a0105268a6ecf887c8bc7611595e9626fe0a25b7ce76ca48ee64e3e43e",
+    "prompt_version": "assistant-semantic-extract-v13-to-import-v1",
+    "model_version": "file:assistant-file",
+    "information_type_id": null,
+    "content_line": null,
+    "material_status": "missing_quote",
+    "fact_status": "unchecked",
+    "value_status": "incomplete_material",
+    "release_status": "not_licensed",
+    "reasons": [
+      "文件结果，事实未核，未许可"
+    ],
+    "stale": false,
+    "recorded_at": "2026-11-18T07:42:19.668Z",
+    "created_at": "2026-11-18T07:42:19.669Z",
+    "origin": "file",
+    "comparison": {
+      "fileResult": {
+        "output": {
+          "time": "Today 相对输入发布日 2026-11-16T00:00:00.000Z（DOM ld+json 为 2026-11-16T00:00:00.771Z，毫秒被截断，不另造时间）。正文 This week 的 DeepSeek 用量统计相对该发布日，不改写成评估日当周。as_of 2026-11-18 15:36 Asia/Taipei。",
+          "clauses": [
+            {
+              "id": "17s158-useful-software-or-hardware-tools",
+              "text": "电子产品、好用的软硬件工具（含跟 AI 无关的，例如 iOS 系统工具）"
+            }
+          ],
+          "audience": [
+            "Hugging Face Inference Providers users",
+            "PRO, Team, and Enterprise plan users",
+            "Developers calling chat models with existing OpenAI- or Anthropic-style APIs"
+          ],
+          "conditions": [
+            "Language-model requests now go through OpenRouter and are billed to the Hugging Face account or organization; the section says you can no longer use your own API key for a provider with these models.",
+            "Image, video, and audio generation continue directly through Hugging Face Inference Providers, not via OpenRouter; custom keys for image and video providers keep working.",
+            "Pricing: pay the provider’s price on the Hugging Face bill; Hugging Face says it doesn’t add a markup. PRO: $2 credits every month; Team and Enterprise: $2 per seat.",
+            "Provider can still be chosen or excluded via model id suffix or settings."
+          ],
+          "valueBasis": "官方工具路由与计费变更，含可执行动作和破坏性变更，对正在用 Inference Providers 的人有直接后果。OpenRouter / Artificial Analysis 数字是文内转引，只表明来源如此说，未独立证实。作者名只在 DOM、不在正文。未填分数。",
+          "narrowClaim": "Hugging Face says it is partnering with OpenRouter so Hub open-weight models a provider serves can be called with a Hugging Face token over the same API, with the best of 80+ providers picked per request; today it is switching Inference Providers’ language-model router from its own custom router to OpenRouter’s, with retries, while existing caller code stays the same.",
+          "quoteLocation": {
+            "end": null,
+            "start": null,
+            "excerpt": "Hugging Face and OpenRouter are teaming up to make open-weight models easy to run. Every major open-weight release is already being published on the Hugging Face Hub, and OpenRouter serves those models at scale, routing each request across 80+ providers based on live measurements of each one. Together, every open-weight model on the Hub that a provider serves can be called with your Hugging Face token, through the same API, with the best provider picked for each request. Today, we are switching Inference Providers from our own custom router to OpenRouter's. Requests made to language models now go through OpenRouter, which picks the best provider for each call based on live price, speed and reliability, and retries on another provider if the first one fails. Your code stays the same."
+          },
+          "substantiveAddition": "相对平台回声，这是路由后端切换和自定义 provider key 对语言模型失效的实质变更；图像视频音频路径保持不变。本条首段为 v13 相对 v12 补入的原文，已按新正文重读，不是只改哈希。"
+        },
+        "knownModel": null,
+        "outputSha256": "f102301096cc04d1af7bb68fa4bef90818460651c6b85360a4857d185d7abf56",
+        "vendorReceipt": false,
+        "modelKnowledge": "unknown",
+        "executionSource": "assistant-file"
+      }
+    },
+    "model_receipt_id": null
+  }
+]

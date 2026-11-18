@@ -1,0 +1,4 @@
+DATABASE_URL=postgres://127.0.0.1:5432/own_sample_restore_test node scripts/own-sample-restore.ts --dir docs/own-pipeline/sample-restore-v14
+The database name must end in _test or _ci and be empty of these urls.
+COLLECT_ENABLED and MODEL_CALLS_ENABLED must not be true.
+This pack is the data. The repository code only supplies the schema migration.

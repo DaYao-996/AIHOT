@@ -1,0 +1,88 @@
+[
+  {
+    "id": "claude_platform_release_notes",
+    "name": "Claude Platform 更新说明 RSS",
+    "kind": "rss",
+    "config": {
+      "feedUrl": "https://platform.claude.com/docs/en/release-notes/feed.xml",
+      "preserveUrlFragment": true
+    },
+    "tags": [],
+    "tier": "T2",
+    "participation_mode": "editorial",
+    "interval_minutes": 1440,
+    "site_fulltext": false,
+    "syndicate_fulltext": false,
+    "enabled": false,
+    "health": "unknown",
+    "fail_count": 0
+  },
+  {
+    "id": "google_ai_blog",
+    "name": "Google AI Blog RSS",
+    "kind": "rss",
+    "config": {
+      "feedUrl": "https://blog.google/innovation-and-ai/technology/ai/rss/"
+    },
+    "tags": [],
+    "tier": "T2",
+    "participation_mode": "editorial",
+    "interval_minutes": 1440,
+    "site_fulltext": false,
+    "syndicate_fulltext": false,
+    "enabled": false,
+    "health": "unknown",
+    "fail_count": 0
+  },
+  {
+    "id": "huggingface_blog",
+    "name": "Hugging Face Blog RSS",
+    "kind": "rss",
+    "config": {
+      "feedUrl": "https://huggingface.co/blog/feed.xml"
+    },
+    "tags": [],
+    "tier": "T2",
+    "participation_mode": "editorial",
+    "interval_minutes": 1440,
+    "site_fulltext": false,
+    "syndicate_fulltext": false,
+    "enabled": false,
+    "health": "unknown",
+    "fail_count": 0
+  },
+  {
+    "id": "openai_codex_github_releases",
+    "name": "OpenAI Codex CLI GitHub Releases Atom",
+    "kind": "rss",
+    "config": {
+      "feedUrl": "https://github.com/openai/codex/releases.atom"
+    },
+    "tags": [],
+    "tier": "T2",
+    "participation_mode": "editorial",
+    "interval_minutes": 1440,
+    "site_fulltext": false,
+    "syndicate_fulltext": false,
+    "enabled": false,
+    "health": "unknown",
+    "fail_count": 0
+  },
+  {
+    "id": "openai_news",
+    "name": "OpenAI News RSS",
+    "kind": "rss",
+    "config": {
+      "feedUrl": "https://openai.com/news/rss.xml"
+    },
+    "tags": [],
+    "tier": "T2",
+    "participation_mode": "editorial",
+    "interval_minutes": 720,
+    "site_fulltext": false,
+    "syndicate_fulltext": false,
+    "enabled": false,
+    "health": "unknown",
+    "fail_count": 0
+  }
+]
