@@ -2,13 +2,16 @@
 // Unblinded public posts are gap checks only. They are not a new holdout.
 import { tag } from "./setup.ts";
 import assert from "node:assert/strict";
+import { spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
-import { existsSync, readdirSync, readFileSync } from "node:fs";
+import { existsSync, mkdtempSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import path from "node:path";
 import { after, before, test } from "node:test";
 import { closeDb, sql } from "@aihot/backend/db";
 import { stableJson } from "@aihot/backend/lib/ids";
 import { HISTORICAL_RULESET, unblindedStructureGaps, type JudgmentBody } from "../site/own-pipeline.ts";
-import { JudgmentConflict, commitControlledLoop, recordJudgment } from "../packages/backend/src/own-pipeline-store.ts";
+import { JudgmentConflict, appendControlledEvidence, commitControlledLoop, recordJudgment } from "../packages/backend/src/own-pipeline-store.ts";
 
 const SOURCE = `own-pipeline-${tag()}`;
 const SAMPLES = process.env.OWN_PUBLIC_SAMPLES
@@ -24,14 +27,14 @@ after(() => closeDb());
 function gapBody(reasons: string[]): JudgmentBody {
   return {
     informationTypeId: null, contentLine: null, materialStatus: "missing_body", factStatus: "unchecked",
-    valueStatus: "incomplete_material", releaseStatus: "not_licensed", reasons,
+    valueStatus: "incomplete_material", releaseStatus: "not_licensed", origin: "deterministic", reasons,
   };
 }
 
 function supplementedBody(reasons: string[]): JudgmentBody {
   return {
     informationTypeId: null, contentLine: null, materialStatus: "complete", factStatus: "unchecked",
-    valueStatus: "reference_only", releaseStatus: "not_licensed", reasons,
+    valueStatus: "reference_only", releaseStatus: "not_licensed", origin: "deterministic", reasons,
   };
 }
 
@@ -173,6 +176,93 @@ test("concurrent repeats stay one row", async () => {
   assert.ok(results.every((row) => row.id === saved.judgment.id && row.idempotent));
   const [count] = await sql<{ n: number }[]>`SELECT count(*)::int AS n FROM own_judgments WHERE article_id = ${saved.evidence.articleId}`;
   assert.equal(count!.n, 1);
+});
+
+test("judgement hashes must be the current stored evidence, including under a concurrent supplement", async () => {
+  const url = `https://example.com/own-bind-${tag()}`;
+  const saved = await commitControlledLoop(
+    { sourceId: SOURCE, url, title: "绑定", raw: { n: 1 } },
+    gapBody(["初版"]), "2026-11-18T04:00:00.000Z", binding,
+  );
+  await assert.rejects(
+    () => recordJudgment({ ...saved.judgment.identity, evidenceHash: "f".repeat(64) }, gapBody(["伪造"]), "2026-11-18T04:00:01.000Z"),
+    /当前持久证据/,
+  );
+  await assert.rejects(
+    () => recordJudgment(saved.judgment.identity, { ...gapBody(["模型空版本"]), origin: "model" }, "2026-11-18T04:00:02.000Z"),
+    /可追溯/,
+  );
+  const traced = await recordJudgment({
+    ...saved.judgment.identity, promptVersion: "prefilter@abc", modelVersion: "stub-model",
+  }, { ...gapBody(["带来源"]), origin: "model" }, "2026-11-18T04:00:03.000Z");
+  assert.equal(traced.idempotent, false);
+  const raced = await Promise.allSettled([
+    appendControlledEvidence({ sourceId: SOURCE, url, title: "绑定", raw: { n: 1 }, bodyText: "补上的正文" }),
+    recordJudgment(saved.judgment.identity, gapBody(["初版"]), "2026-11-18T04:00:04.000Z"),
+  ]);
+  assert.equal(raced.length, 2);
+  const [latest] = await sql<{ evidence_hash: string }[]>`
+    SELECT evidence_hash FROM own_evidence_versions WHERE article_id = ${saved.evidence.articleId} ORDER BY version DESC LIMIT 1`;
+  const active = await sql<{ evidence_hash: string }[]>`
+    SELECT evidence_hash FROM own_judgments WHERE article_id = ${saved.evidence.articleId} AND stale = false`;
+  assert.ok(active.every((row) => row.evidence_hash === latest!.evidence_hash));
+  assert.equal(active.some((row) => row.evidence_hash === saved.evidence.evidenceHash), false);
+  const [versions] = await sql<{ n: number }[]>`SELECT count(*)::int AS n FROM own_evidence_versions WHERE article_id = ${saved.evidence.articleId}`;
+  assert.equal(versions!.n, 2);
+});
+
+test("the import command is the supported entry and does not score incomplete material", async () => {
+  const dir = mkdtempSync(path.join(tmpdir(), "own-import-"));
+  const raw = { kind: "cli", text: "只在原件里" };
+  const file = path.join(dir, "items.json");
+  writeFileSync(file, JSON.stringify({
+    sourceId: SOURCE,
+    items: [{ url: `https://example.com/cli-${tag()}`, title: "命令导入", raw, rawSha256: createHash("sha256").update(stableJson(raw)).digest("hex") }],
+  }));
+  const quiet: NodeJS.ProcessEnv = {
+    ...process.env, DATABASE_URL: process.env.DATABASE_URL, COLLECT_ENABLED: "false", MODEL_CALLS_ENABLED: "false",
+    FEISHU_CONTENT_PUSH_ENABLED: "false", DINGTALK_CONTENT_PUSH_ENABLED: "false", FEISHU_INTERNAL_ENABLED: "false",
+    INDEXNOW_SUBMIT_ENABLED: "false", BAIDU_PUSH_ENABLED: "false",
+  };
+  const run = (args: string[], env: NodeJS.ProcessEnv = quiet) => spawnSync(process.execPath, [path.join(process.cwd(), "scripts/own-import.ts"), ...args], {
+    cwd: process.cwd(), encoding: "utf8", env,
+  });
+  const dry = run(["--file", file, "--dry-run"]);
+  assert.equal(dry.status, 0, dry.stderr);
+  const dryJson = JSON.parse(dry.stdout);
+  assert.equal(dryJson.dryRun, true);
+  assert.equal(dryJson.counts.evidenceAppended, 0);
+  assert.equal(dryJson.items[0].valueJudgment, false);
+  assert.equal(dryJson.items[0].completeness, "missing_body");
+  const first = run(["--file", file]);
+  assert.equal(first.status, 0, first.stderr);
+  const firstJson = JSON.parse(first.stdout);
+  assert.equal(firstJson.counts.evidenceAppended, 1);
+  assert.equal(firstJson.counts.judgmentSkippedIncomplete, 1);
+  assert.equal(firstJson.items[0].publicationRows, 0);
+  assert.equal(firstJson.items[0].deliveryRows, 0);
+  assert.equal(firstJson.workerStarted, false);
+  const second = run(["--file", file]);
+  assert.equal(second.status, 0, second.stderr);
+  assert.equal(JSON.parse(second.stdout).counts.idempotent, 1);
+  const [judged] = await sql<{ n: number }[]>`SELECT count(*)::int AS n FROM own_judgments WHERE article_id = ${firstJson.items[0].articleId}`;
+  assert.equal(judged!.n, 0);
+  const bad = path.join(dir, "bad.json");
+  writeFileSync(bad, JSON.stringify({ sourceId: SOURCE, items: [{ url: "https://example.com/bad", title: "坏", raw, score: 1 }] }));
+  const rejected = run(["--file", bad]);
+  assert.notEqual(rejected.status, 0);
+  const blocked = run(["--file", file], { ...process.env, COLLECT_ENABLED: "true", DATABASE_URL: process.env.DATABASE_URL });
+  assert.notEqual(blocked.status, 0);
+  assert.match(blocked.stderr, /开关打开/);
+  const safety = spawnSync(process.execPath, [path.join(process.cwd(), "scripts/own-safety-check.ts")], {
+    cwd: process.cwd(), encoding: "utf8", env: { ...process.env, COLLECT_ENABLED: "false", MODEL_CALLS_ENABLED: "false" },
+  });
+  assert.equal(safety.status, 0, safety.stderr);
+  assert.equal(JSON.parse(safety.stdout).workerStarted, false);
+  const importer = readFileSync(path.join(process.cwd(), "scripts/own-import.ts"), "utf8");
+  assert.equal(/queueProcessing\s*\(/.test(importer), false);
+  assert.equal(importer.includes("apps/worker"), false);
+  assert.equal(importer.includes("DELETE FROM own_evidence"), false);
 });
 
 test("three unblinded public samples only record body, quote and raw gaps", { skip: existsSync(SAMPLES) ? false : "public samples are not in this checkout" }, async () => {

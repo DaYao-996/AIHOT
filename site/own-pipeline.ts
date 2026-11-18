@@ -117,6 +117,8 @@ export type MaterialStatus = "complete" | "missing_body" | "missing_quote" | "mi
 export type FactStatus = "unchecked" | "source_claim" | "checked";
 export type ValueStatus = "incomplete_material" | "reference_only";
 export type ReleaseStatus = "not_licensed";
+/** 确定性规则可以没有模型版本。模型提取或判断必须带上可追溯版本，空字符串不能代替来源。 */
+export type JudgmentOrigin = "deterministic" | "model";
 
 export interface JudgmentBody {
   informationTypeId: InformationTypeId | null;
@@ -125,6 +127,7 @@ export interface JudgmentBody {
   factStatus: FactStatus;
   valueStatus: ValueStatus;
   releaseStatus: ReleaseStatus;
+  origin: JudgmentOrigin;
   reasons: string[];
 }
 
@@ -162,6 +165,10 @@ export class JudgmentLedger {
     if (body.materialStatus !== "complete" && body.valueStatus !== "incomplete_material") {
       throw new Error("材料不完整时不能记成价值判断");
     }
+    if (body.origin === "model" && (!identity.promptVersion || !identity.modelVersion)) {
+      throw new Error("模型判断必须带可追溯的提示词版本和模型版本");
+    }
+    if (body.origin !== "model" && body.origin !== "deterministic") throw new Error("判断来源无法识别");
     const id = judgmentId(identity);
     const existing = this.rows.find((row) => row.id === id);
     if (existing) {
@@ -260,6 +267,94 @@ export interface MappedMaterial {
  * 受控导入只做字段映射，不写库、不建源、不排队。
  * 正文和引用必须由调用方显式给出。raw 整包进入 material.raw，不提升为 body_text / x_post。
  */
+export class ImportRejected extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "ImportRejected";
+  }
+}
+
+const FILE_KEYS = new Set(["sourceId", "items"]);
+const ITEM_KEYS = new Set(["url", "title", "author", "publishedAt", "raw", "rawSha256", "bodyText", "quotedText", "xPost"]);
+const XPOST_KEYS = new Set(["tweetId", "authorName", "handle", "text", "quoted", "media", "lang", "replyTo", "avatarUrl"]);
+
+function rejectUnknown(obj: Record<string, unknown>, allowed: Set<string>, label: string): void {
+  for (const key of Object.keys(obj)) if (!allowed.has(key)) throw new ImportRejected(`${label}未知字段：${key}`);
+}
+
+function optionalText(value: unknown, label: string): string | null | undefined {
+  if (value === undefined) return undefined;
+  if (value === null) return null;
+  if (typeof value !== "string" || !value.trim()) throw new ImportRejected(`${label}必须是非空字符串或 null`);
+  return value.trim();
+}
+
+function parseXPost(value: unknown): XPostData | null | undefined {
+  if (value === undefined) return undefined;
+  if (value === null) return null;
+  if (!value || typeof value !== "object" || Array.isArray(value)) throw new ImportRejected("xPost 必须是对象");
+  const obj = value as Record<string, unknown>;
+  rejectUnknown(obj, XPOST_KEYS, "xPost.");
+  if (typeof obj.tweetId !== "string" || !/^[0-9]{1,30}$/.test(obj.tweetId)) throw new ImportRejected("xPost.tweetId 无效");
+  if (typeof obj.authorName !== "string" || typeof obj.handle !== "string" || typeof obj.text !== "string" || !obj.text.trim()) {
+    throw new ImportRejected("xPost 缺少作者、账号或正文");
+  }
+  return obj as unknown as XPostData;
+}
+
+export interface ParsedImportItem extends ControlledImportItem {
+  rawSha256: string;
+}
+
+/** 校验导入文件。未知字段和畸形身份在这里拒绝，不写库。 */
+export function parseImportDocument(value: unknown): { sourceId: string; items: ParsedImportItem[] } {
+  if (!value || typeof value !== "object" || Array.isArray(value)) throw new ImportRejected("文件必须是对象");
+  const file = value as Record<string, unknown>;
+  rejectUnknown(file, FILE_KEYS, "");
+  if (typeof file.sourceId !== "string" || !/^[A-Za-z0-9_-]{1,120}$/.test(file.sourceId)) throw new ImportRejected("sourceId 无效");
+  if (!Array.isArray(file.items) || file.items.length === 0) throw new ImportRejected("items 不能为空");
+  const items = file.items.map((item, index) => {
+    if (!item || typeof item !== "object" || Array.isArray(item)) throw new ImportRejected(`items[${index}] 必须是对象`);
+    const row = item as Record<string, unknown>;
+    rejectUnknown(row, ITEM_KEYS, `items[${index}].`);
+    if (typeof row.url !== "string") throw new ImportRejected(`items[${index}].url 无效`);
+    let url: URL;
+    try {
+      url = new URL(row.url);
+    } catch {
+      throw new ImportRejected(`items[${index}].url 无法解析`);
+    }
+    if (url.protocol !== "http:" && url.protocol !== "https:") throw new ImportRejected(`items[${index}].url 必须是 http 或 https`);
+    if (typeof row.title !== "string" || !row.title.trim()) throw new ImportRejected(`items[${index}].title 无效`);
+    if (row.raw === null || typeof row.raw !== "object") throw new ImportRejected(`items[${index}].raw 必须是对象或数组`);
+    const digest = sha256(stableJson(row.raw));
+    if (row.rawSha256 !== undefined && row.rawSha256 !== digest) throw new ImportRejected(`items[${index}].rawSha256 与原件不一致`);
+    const author = optionalText(row.author, `items[${index}].author`);
+    const bodyText = optionalText(row.bodyText, `items[${index}].bodyText`);
+    const quotedText = optionalText(row.quotedText, `items[${index}].quotedText`);
+    if (row.publishedAt !== undefined && row.publishedAt !== null && typeof row.publishedAt !== "string") {
+      throw new ImportRejected(`items[${index}].publishedAt 无效`);
+    }
+    const parsed: ParsedImportItem = {
+      sourceId: file.sourceId as string,
+      url: row.url,
+      title: row.title.trim(),
+      raw: row.raw,
+      rawSha256: digest,
+      ...(author !== undefined ? { author } : {}),
+      ...(row.publishedAt !== undefined ? { publishedAt: row.publishedAt as string | null } : {}),
+      ...(bodyText !== undefined ? { bodyText } : {}),
+      ...(quotedText !== undefined ? { quotedText } : {}),
+    };
+    const xPost = parseXPost(row.xPost);
+    if (xPost !== undefined) parsed.xPost = xPost;
+    const key = identityKeyFor({ sourceId: parsed.sourceId, url: parsed.url, title: parsed.title, xPost: parsed.xPost ?? null, via: "import" });
+    if (!key || key.length < 3) throw new ImportRejected(`items[${index}] 无法形成材料身份`);
+    return parsed;
+  });
+  return { sourceId: file.sourceId, items };
+}
+
 export function mapControlledImport(item: ControlledImportItem): MappedMaterial {
   const bodyText = explicitText(item.bodyText);
   const quotedText = explicitText(item.quotedText);
@@ -366,6 +461,23 @@ export function assessSwitches(env: Record<string, string | undefined>, workerSt
     row("hot.rank", "local-job", true, true, "cron 始终注册；本地计算，不因关掉 web 而消失"),
     row("modules", "queue", true, false, "site/modules/server.ts 的 SERVER_MODULES 目前为空"),
   ];
+}
+
+/** 这些项一旦武装就会对外请求、发消息或调用模型。保留期删除不在这里，它只在 worker 里发生。 */
+export const OUTBOUND_SWITCH_IDS = [
+  "collect.fetch", "collect.mp", "model.calls", "content.translate", "reports.compose", "events.digest",
+  "notify.content.feishu", "notify.content.dingtalk", "notify.ops", "feedback.forward",
+  "seo.indexnow", "seo.baidu-push", "ops.backup",
+] as const;
+
+/** 一次性命令的门禁：当前环境即使启动 worker，也不能打开外发或模型。 */
+export function cliEntryAllowed(env: Record<string, string | undefined>): { ok: boolean; outboundIfWorker: string[]; localDeleteIfWorker: string[] } {
+  const rows = assessSwitches(env, true);
+  return {
+    ok: rows.every((row) => !OUTBOUND_SWITCH_IDS.includes(row.id as typeof OUTBOUND_SWITCH_IDS[number]) || !row.armed),
+    outboundIfWorker: rows.filter((row) => OUTBOUND_SWITCH_IDS.includes(row.id as typeof OUTBOUND_SWITCH_IDS[number]) && row.armed).map((row) => row.id),
+    localDeleteIfWorker: rows.filter((row) => row.effect === "local-delete" && row.armed).map((row) => row.id),
+  };
 }
 
 export interface CostInput {

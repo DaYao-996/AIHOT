@@ -13,14 +13,17 @@ import {
   COST_INPUTS,
   HISTORICAL_RULESET,
   INFORMATION_TYPES,
+  ImportRejected,
   JudgmentLedger,
   UPSTREAM_CATEGORY_PROMOTION,
   assertThrowawayDatabase,
   assessSwitches,
+  cliEntryAllowed,
   cumulativeEvidenceHash,
   historicalBand,
   informationType,
   mapControlledImport,
+  parseImportDocument,
   unblindedStructureGaps,
   type JudgmentBody,
   type JudgmentIdentity,
@@ -46,6 +49,7 @@ function body(over: Partial<JudgmentBody> = {}): JudgmentBody {
     factStatus: "unchecked",
     valueStatus: "incomplete_material",
     releaseStatus: "not_licensed",
+    origin: "deterministic",
     reasons: ["缺正文，不算低价值"],
     ...over,
   };
@@ -288,6 +292,29 @@ test("stopping web and api does not disarm worker schedules", () => {
   assert.equal(migrationPlan(evidenceSql).kind, "transaction");
   assert.match(evidenceSql, /PRIMARY KEY \(article_id, version\)/);
   assert.equal(/\bupdate\b/i.test(evidenceSql), false);
+  assert.equal(migrationPlan(source("database/migrations/0172_own_judgments_origin.sql")).kind, "transaction");
+  assert.equal(migrationPlan(source("database/migrations/0173_own_judgments_origin_check.sql")).kind, "transaction");
+  assert.equal(migrationPlan(source("database/migrations/0174_own_judgments_origin_validate.sql")).kind, "validation");
+});
+
+test("import files reject unknown fields and a mismatched original hash", () => {
+  const raw = { text: "原件" };
+  const doc = parseImportDocument({ sourceId: "src_1", items: [{ url: "https://example.com/a", title: "标题", raw }] });
+  assert.equal(doc.items[0]!.rawSha256.length, 64);
+  assert.throws(() => parseImportDocument({ sourceId: "src_1", items: [{ url: "https://example.com/a", title: "标题", raw, score: 80 }] }), ImportRejected);
+  assert.throws(() => parseImportDocument({ sourceId: "src_1", items: [{ url: "https://example.com/a", title: "标题", raw, rawSha256: "ab" }] }), /不一致/);
+  assert.throws(() => parseImportDocument({ sourceId: "src_1", items: [{ url: "javascript:alert(1)", title: "标题", raw }] }), /http/);
+});
+
+test("a model judgement cannot hide behind an empty version", () => {
+  const ledger = new JudgmentLedger();
+  assert.throws(() => ledger.record(identity({ promptVersion: null, modelVersion: "" }), body({ origin: "model" }), "t"), /可追溯/);
+  const row = ledger.record(identity({ promptVersion: "prefilter@abc", modelVersion: "stub" }), body({ origin: "model", reasons: ["带来源"] }), "t2");
+  assert.equal(row.row.body.origin, "model");
+  assert.equal(row.row.identity.promptVersion, "prefilter@abc");
+  assert.equal(cliEntryAllowed({}).ok, true);
+  assert.equal(cliEntryAllowed({ COLLECT_ENABLED: "true" }).ok, false);
+  assert.equal(cliEntryAllowed({ MODEL_CALLS_ENABLED: "true" }).outboundIfWorker.includes("model.calls"), true);
 });
 
 test("throwaway database guard rejects remote and production names", () => {

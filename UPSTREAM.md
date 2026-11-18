@@ -20,6 +20,13 @@
 - `docs/own-pipeline/STEP0_v4.md`
 - `docs/own-pipeline/DB_LOOP_v5.md`
 - `docs/own-pipeline/EVAL_PROTOCOL_v1.md`
+- `docs/own-pipeline/EVAL_PROTOCOL_v2.md`
+- `docs/own-pipeline/DB_LOOP_v6.md`
+- `scripts/own-import.ts`
+- `scripts/own-safety-check.ts`
+- `database/migrations/0172_own_judgments_origin.sql`
+- `database/migrations/0173_own_judgments_origin_check.sql`
+- `database/migrations/0174_own_judgments_origin_validate.sql`
 - `site/own-pipeline.ts`
 - `packages/backend/src/own-pipeline-store.ts`
 - `tests/own-pipeline.standalone.test.ts`

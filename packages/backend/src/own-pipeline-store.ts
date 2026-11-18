@@ -104,6 +104,7 @@ export async function writeEvidence(tx: Db, item: ControlledImportItem): Promise
     ...(item.xPost ? { xPost: item.xPost } : {}),
     via: "import",
   }, tx);
+  await tx`SELECT pg_advisory_xact_lock(${advisoryKey(`judgment\0${saved.articleId}`)}::bigint)`;
   const versions = await tx<EvidenceVersionRow[]>`
     SELECT version, raw, body_text, quoted_text, x_post, evidence_hash
     FROM own_evidence_versions WHERE article_id = ${saved.articleId} ORDER BY version FOR UPDATE`;
@@ -127,6 +128,8 @@ export async function writeEvidence(tx: Db, item: ControlledImportItem): Promise
     INSERT INTO own_evidence_versions (article_id, version, article_revision, raw, body_text, quoted_text, x_post, evidence_hash)
     VALUES (${saved.articleId}, ${version}, ${article!.revision}, ${rawIsNew ? tx.json(item.raw as never) : null},
             ${bodyText}, ${quotedText}, ${xPost ? tx.json(xPost as never) : null}, ${evidenceHash})`;
+  await tx`UPDATE own_judgments SET stale = true
+    WHERE article_id = ${saved.articleId} AND stale = false AND evidence_hash <> ${evidenceHash}`;
   return {
     articleId: saved.articleId, articleRevision: article!.revision, evidenceVersion: version, evidenceHash,
     idempotent: false, createdArticle: saved.created, revisedArticle: saved.revised, gaps: mapped.gaps,
@@ -140,6 +143,7 @@ function bodyFromRow(row: {
   fact_status: JudgmentBody["factStatus"];
   value_status: JudgmentBody["valueStatus"];
   release_status: JudgmentBody["releaseStatus"];
+  origin: JudgmentBody["origin"];
   reasons: string[];
 }): JudgmentBody {
   return {
@@ -149,28 +153,40 @@ function bodyFromRow(row: {
     factStatus: row.fact_status,
     valueStatus: row.value_status,
     releaseStatus: row.release_status,
+    origin: row.origin,
     reasons: row.reasons,
   };
 }
 
-function assertBody(body: JudgmentBody): void {
+function assertBody(body: JudgmentBody, identity: JudgmentIdentity): void {
   if (body.releaseStatus !== "not_licensed") throw new JudgmentConflict("判断不能发放发布许可");
   if (body.materialStatus !== "complete" && body.valueStatus !== "incomplete_material") {
     throw new JudgmentConflict("材料不完整时不能记成价值判断");
   }
+  if (body.origin === "model" && (!identity.promptVersion || !identity.modelVersion)) {
+    throw new JudgmentConflict("模型判断必须带可追溯的提示词版本和模型版本");
+  }
+  if (body.origin !== "model" && body.origin !== "deterministic") throw new JudgmentConflict("判断来源无法识别");
 }
 
 async function writeJudgment(tx: Db, identity: JudgmentIdentity, body: JudgmentBody, recordedAt: string): Promise<JudgmentWrite> {
   databaseUrl();
-  assertBody(body);
   const canonical = canonicalIdentity(identity);
+  assertBody(body, canonical);
   const id = sha256(stableJson(canonical));
   await tx`SELECT pg_advisory_xact_lock(${advisoryKey(`judgment\0${canonical.articleId}`)}::bigint)`;
+  const [current] = await tx<{ evidence_hash: string; article_revision: number }[]>`
+    SELECT evidence_hash, article_revision FROM own_evidence_versions
+    WHERE article_id = ${canonical.articleId} ORDER BY version DESC LIMIT 1`;
+  if (!current) throw new JudgmentConflict("没有持久证据，拒绝判断");
+  if (current.evidence_hash !== canonical.evidenceHash || current.article_revision !== canonical.inputRevision) {
+    throw new JudgmentConflict("判断必须绑定当前持久证据");
+  }
   const [existing] = await tx<{
     id: string; stale: boolean; information_type_id: JudgmentBody["informationTypeId"]; content_line: JudgmentBody["contentLine"];
     material_status: JudgmentBody["materialStatus"]; fact_status: JudgmentBody["factStatus"]; value_status: JudgmentBody["valueStatus"];
-    release_status: JudgmentBody["releaseStatus"]; reasons: string[];
-  }[]>`SELECT id, stale, information_type_id, content_line, material_status, fact_status, value_status, release_status, reasons
+    release_status: JudgmentBody["releaseStatus"]; origin: JudgmentBody["origin"]; reasons: string[];
+  }[]>`SELECT id, stale, information_type_id, content_line, material_status, fact_status, value_status, release_status, origin, reasons
       FROM own_judgments WHERE id = ${id} FOR UPDATE`;
   if (existing) {
     if (stableJson(bodyFromRow(existing)) !== stableJson(body)) throw new JudgmentConflict(`同一判断身份出现不同结果：${id}`);
@@ -182,10 +198,10 @@ async function writeJudgment(tx: Db, identity: JudgmentIdentity, body: JudgmentB
       AND stale = false AND (input_revision <> ${canonical.inputRevision} OR evidence_hash <> ${canonical.evidenceHash})`;
   await tx`INSERT INTO own_judgments (
       id, article_id, input_revision, evidence_hash, ruleset_version, prompt_version, model_version,
-      information_type_id, content_line, material_status, fact_status, value_status, release_status, reasons, recorded_at)
+      information_type_id, content_line, material_status, fact_status, value_status, release_status, origin, reasons, recorded_at)
     VALUES (${id}, ${canonical.articleId}, ${canonical.inputRevision}, ${canonical.evidenceHash}, ${canonical.rulesetVersion},
       ${canonical.promptVersion}, ${canonical.modelVersion}, ${body.informationTypeId}, ${body.contentLine},
-      ${body.materialStatus}, ${body.factStatus}, ${body.valueStatus}, ${body.releaseStatus}, ${tx.json(body.reasons as never)}, ${recordedAt})`;
+      ${body.materialStatus}, ${body.factStatus}, ${body.valueStatus}, ${body.releaseStatus}, ${body.origin}, ${tx.json(body.reasons as never)}, ${recordedAt})`;
   return { id, identity: canonical, body, stale: false, idempotent: false };
 }
 
@@ -194,8 +210,8 @@ async function reread(identity: JudgmentIdentity, body: JudgmentBody): Promise<J
   const [existing] = await sql<{
     id: string; stale: boolean; information_type_id: JudgmentBody["informationTypeId"]; content_line: JudgmentBody["contentLine"];
     material_status: JudgmentBody["materialStatus"]; fact_status: JudgmentBody["factStatus"]; value_status: JudgmentBody["valueStatus"];
-    release_status: JudgmentBody["releaseStatus"]; reasons: string[];
-  }[]>`SELECT id, stale, information_type_id, content_line, material_status, fact_status, value_status, release_status, reasons
+    release_status: JudgmentBody["releaseStatus"]; origin: JudgmentBody["origin"]; reasons: string[];
+  }[]>`SELECT id, stale, information_type_id, content_line, material_status, fact_status, value_status, release_status, origin, reasons
       FROM own_judgments
       WHERE article_id = ${canonical.articleId} AND input_revision = ${canonical.inputRevision}
         AND evidence_hash = ${canonical.evidenceHash} AND ruleset_version = ${canonical.rulesetVersion}
@@ -205,7 +221,13 @@ async function reread(identity: JudgmentIdentity, body: JudgmentBody): Promise<J
   return { id: existing.id, identity: canonical, body, stale: existing.stale, idempotent: true };
 }
 
-/** 正常重复调用是幂等的。并发插入若撞上唯一约束，再读已提交的行；理由不同则拒绝。 */
+/** 只追加证据，不写判断、不排队。 */
+export async function appendControlledEvidence(item: ControlledImportItem): Promise<EvidenceWrite> {
+  databaseUrl();
+  return sql.begin((tx) => writeEvidence(tx, item));
+}
+
+/** 正常重复调用是幂等的。哈希和修订必须等于当前持久证据，不能由调用方另造。并发插入若撞上唯一约束，再读已提交的行；理由不同则拒绝。 */
 export async function recordJudgment(identity: JudgmentIdentity, body: JudgmentBody, recordedAt: string): Promise<JudgmentWrite> {
   databaseUrl();
   try {

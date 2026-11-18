@@ -1,0 +1,1 @@
+ALTER TABLE own_judgments VALIDATE CONSTRAINT own_judgments_origin_check;
