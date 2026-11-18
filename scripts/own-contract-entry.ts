@@ -34,7 +34,7 @@ const frozen = JSON.parse(readFileSync(configPath, "utf8")) as { doNotEnableRole
 const contract = JSON.parse(readFileSync(contractPath, "utf8")) as { sources: Row[] };
 const prior = JSON.parse(readFileSync(priorPath, "utf8")) as Row[];
 
-function qualify(input: { articles: number; bodyOk: number; pending: number; unconfirmed: number; evidence: number; found?: number }) {
+function qualify(input: { articles: number; bodyOk: number; pending: number; unconfirmed: number; evidence: number; dated?: number; found?: number }) {
   const listingOnly = input.articles > 0 && input.bodyOk === 0;
   const evidenceBound = input.evidence > 0;
   let reason = "bounded_sample_not_full_pool";
@@ -43,6 +43,7 @@ function qualify(input: { articles: number; bodyOk: number; pending: number; unc
   else if (listingOnly) reason = "listing_only_not_pool";
   else if (input.bodyOk > 0 && input.evidence === 0) reason = "body_present_evidence_not_bound";
   else if (input.bodyOk < input.articles || input.evidence < input.bodyOk) reason = "partial_body_or_evidence_not_pool";
+  else if (input.dated === 0) reason = "no_publication_time_not_pool";
   else if ((input.found ?? input.articles) > input.articles) reason = "capped_sample_not_full_pool";
   return { poolEntered: false, listingOnly, evidenceBound, reason };
 }
@@ -113,7 +114,7 @@ try {
       listingScope: source.listingScope ?? null, listingDates: source.listingDates ?? null,
       ...stored, ...gate, requestSuccessIsPool: false,
     });
-    log(`COLLECT ${source.sourceId} status=${result.status} found=${result.found} created=${result.created} body=${stored.bodyOk} evidence=${stored.evidence} detail=${stored.attempts} remainder=${remainder.created} settled=${settled.created} reason=${gate.reason}`);
+    log(`COLLECT ${source.sourceId} status=${result.status} found=${result.found} created=${result.created} body=${stored.bodyOk} evidence=${stored.evidence} detail=${stored.attempts} remainder=${remainder.created} settled=${settled.created} settledRevised=${settled.revised} reason=${gate.reason}`);
   }
   if (inserted.length) {
     const ids = inserted.flatMap((id) => id);

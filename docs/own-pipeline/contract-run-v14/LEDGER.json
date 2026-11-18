@@ -525,5 +525,6 @@
       "reason": "no_http_endpoint"
     }
   ],
-  "disabledScope": "non-X excluded, observe, manual_gap, optional, checklist; X roles are counted only in x.daily132 and x.nonDaily"
+  "disabledScope": "non-X excluded, observe, manual_gap, optional, checklist; X roles are counted only in x.daily132 and x.nonDaily",
+  "phases": "created、incrementalCreated、incrementalRevised 来自 logs/01-entry 的两次 collectSource。settledCreated、settledRevised 来自 logs/02-settled 的第三次读取。articles、dated、bodyOk、evidence 是这次读取之后的库计数。v13 台账没有改写。"
 }
