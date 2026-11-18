@@ -1,0 +1,355 @@
+{
+  "round": "2026-11-18T08:15:53.274Z",
+  "ruleFrozenBefore": "2026-11-18T08:12:00Z",
+  "program": "selection-rubric-draft-v2",
+  "programTarSha256": "66eb9f80d3e374e255e22335b2d034b12c8710e26c394fc2b6afbf7cb3a636f0",
+  "denominator": 13,
+  "overlapExcluded": 3,
+  "newMaterial": 10,
+  "scores": null,
+  "decisions": null,
+  "notFullSourceAcceptance": true,
+  "rawResponseBytesStored": false,
+  "evidenceRowsInThatRun": 0,
+  "overlap": [
+    {
+      "url": "https://platform.claude.com/docs/en/release-notes/overview#linked-billing",
+      "source": "claude_platform_release_notes",
+      "binding": {
+        "articleId": "cdtfyk6x2funqbe74pmvszdwu",
+        "revision": 1,
+        "contentHash": "3a80e50b75388ef4288fb84013a0b7ed796bf13dbfc92911bda69c8c9f29c990"
+      },
+      "publicationTime": "2026-11-17T00:00:00.000Z",
+      "listingRawSha256": "be427015d754a7b74aa1aefe8b25a438f61efeb246ef5cae778941a3c0a3139c",
+      "bodyStatus": "pending",
+      "bodyLength": null,
+      "bodySha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "liveClass": "title_or_summary_only",
+      "rawResponseBytesStored": false,
+      "evidenceRows": 0,
+      "missing": [
+        "body_not_stored",
+        "raw_response_bytes_absent",
+        "evidence_version_absent"
+      ],
+      "overlap": "url"
+    },
+    {
+      "url": "https://blog.google/innovation-and-ai/products/gemini-app/tasks-in-gemini-free-new-features/",
+      "source": "google_ai_blog",
+      "binding": {
+        "articleId": "mqpdhpl8x37wkrigszr1i28gu",
+        "revision": 1,
+        "contentHash": "2f4f8c0131403965588c94c9d91bcfe54eb58b3086b610293616693e75b4bf79"
+      },
+      "publicationTime": "2026-11-17T17:00:00.000Z",
+      "listingRawSha256": "20b49867778e29c2d72ad4b12d9cd91b0681a5fb1f456b10cbf8bbbac9016b06",
+      "bodyStatus": "pending",
+      "bodyLength": null,
+      "bodySha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "liveClass": "title_or_summary_only",
+      "rawResponseBytesStored": false,
+      "evidenceRows": 0,
+      "missing": [
+        "body_not_stored",
+        "raw_response_bytes_absent",
+        "evidence_version_absent"
+      ],
+      "overlap": "url"
+    },
+    {
+      "url": "https://huggingface.co/blog/openrouter",
+      "source": "huggingface_blog",
+      "binding": {
+        "articleId": "wtfsnpo1se4g32uw11y3iazls",
+        "revision": 1,
+        "contentHash": "5a2ae3cb55c56afcfc1794c753fb166a97c51815d8c91181203e8fea8562b8a5"
+      },
+      "publicationTime": "2026-11-16T00:00:00.000Z",
+      "listingRawSha256": "1125c0cefe607aefd83166da2829f64a6e3c58890b0c1a88ce3cfcb01270fc54",
+      "bodyStatus": "pending",
+      "bodyLength": null,
+      "bodySha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "liveClass": "title_or_summary_only",
+      "rawResponseBytesStored": false,
+      "evidenceRows": 0,
+      "missing": [
+        "body_not_stored",
+        "raw_response_bytes_absent",
+        "evidence_version_absent"
+      ],
+      "overlap": "url"
+    }
+  ],
+  "items": [
+    {
+      "url": "https://github.com/google-antigravity/antigravity-cli/releases/tag/1.5.11",
+      "source": "antigravity_cli_github_releases",
+      "binding": {
+        "articleId": "z7w9u8o7nril447048zgkiw6v",
+        "revision": 1,
+        "contentHash": "563a0f17235b4d09e76ef17fdae6418839abdf5840efad0e01da59f952f2d5e2"
+      },
+      "publicationTime": null,
+      "listingRawSha256": "c9953f653a37be03d7c05e872840f63ecef606804b07484ccdc49a58b63ec45e",
+      "bodyStatus": "ok",
+      "bodyLength": 2270,
+      "bodySha256": "78c596c5ac636d545e9747dac8bd185b6c6ea354893e5f23cd5706701e55269f",
+      "detail": null,
+      "liveClass": "no_verifiable_date",
+      "rawResponseBytesStored": false,
+      "evidenceRows": 0,
+      "missing": [
+        "no_verifiable_date",
+        "raw_response_bytes_absent",
+        "evidence_version_absent"
+      ]
+    },
+    {
+      "url": "https://www.apple.com.cn/newsroom/2026/11/apple-podcasts-names-baby-this-is-keke-palmer-the-2026-show-of-the-year/",
+      "source": "apple_newsroom_cn",
+      "binding": {
+        "articleId": "zr46yl5vd7arwx1rr5p3qvp69",
+        "revision": 1,
+        "contentHash": "e118680bdbb950874207c7bb7bb45833f3c839d453cc6930ddd7e0414dd2a2a3"
+      },
+      "publicationTime": null,
+      "listingRawSha256": "0dc42485ee940d331f7a10da0d3873590952f51b025805aa16f2a1c17e8caa90",
+      "bodyStatus": "pending",
+      "bodyLength": null,
+      "bodySha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "detail": {
+        "url": "https://www.apple.com.cn/newsroom/2026/11/apple-podcasts-names-baby-this-is-keke-palmer-the-2026-show-of-the-year/",
+        "requests": 1,
+        "status": 200,
+        "bodyLength": 1558,
+        "bodyClass": "detail_text"
+      },
+      "liveClass": "no_verifiable_date",
+      "rawResponseBytesStored": false,
+      "evidenceRows": 0,
+      "missing": [
+        "body_not_stored",
+        "no_verifiable_date",
+        "raw_response_bytes_absent",
+        "evidence_version_absent"
+      ]
+    },
+    {
+      "url": "https://www.apple.com/newsroom/2026/11/formula-1-las-vegas-grand-prix-streams-live-on-apple-tv-this-weekend/",
+      "source": "apple_newsroom_us_rss",
+      "binding": {
+        "articleId": "glb1hxzs3q052w5adbswst997",
+        "revision": 1,
+        "contentHash": "44dac6f216913dd3cbad01c4dc2aeaa4c62648831e76e954295df2a7fe027800"
+      },
+      "publicationTime": null,
+      "listingRawSha256": "b0acad87a64f708d226a5f93c733a20de45b16c8d942811fafd3fa8be8f147d9",
+      "bodyStatus": "pending",
+      "bodyLength": null,
+      "bodySha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "detail": {
+        "url": "https://www.apple.com/newsroom/2026/11/formula-1-las-vegas-grand-prix-streams-live-on-apple-tv-this-weekend/",
+        "requests": 1,
+        "status": 200,
+        "bodyLength": 12209,
+        "bodyClass": "detail_text"
+      },
+      "liveClass": "no_verifiable_date",
+      "rawResponseBytesStored": false,
+      "evidenceRows": 0,
+      "missing": [
+        "body_not_stored",
+        "no_verifiable_date",
+        "raw_response_bytes_absent",
+        "evidence_version_absent"
+      ]
+    },
+    {
+      "url": "https://arxiv.org/abs/2611.21682",
+      "source": "arxiv_cs_ai",
+      "binding": {
+        "articleId": "px0ht5u4o8ydub6e64day6ouu",
+        "revision": 1,
+        "contentHash": "a4d218add40944d6c36f922d3967b859505b068b72f7a30f59023316c6b27029"
+      },
+      "publicationTime": "2026-11-18T05:00:00.000Z",
+      "listingRawSha256": "4f7e6ec5ec0e239f44e672ff6d0fe293eb3e4bd587e036a75d9abc9012f70d36",
+      "bodyStatus": "pending",
+      "bodyLength": null,
+      "bodySha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "detail": {
+        "url": "https://arxiv.org/abs/2611.21682",
+        "requests": 1,
+        "status": 200,
+        "bodyLength": 2183,
+        "bodyClass": "detail_text"
+      },
+      "liveClass": "title_or_summary_only",
+      "rawResponseBytesStored": false,
+      "evidenceRows": 0,
+      "missing": [
+        "body_not_stored",
+        "raw_response_bytes_absent",
+        "evidence_version_absent"
+      ]
+    },
+    {
+      "url": "https://github.com/anthropics/claude-code/releases/tag/v2.1.327",
+      "source": "claude_code_releases",
+      "binding": {
+        "articleId": "sxe5g82psje6fmd5024gevg6k",
+        "revision": 1,
+        "contentHash": "ea31f077ff1ad4db1ee8890d1c5c94bb456d1b540e5e27e0ecbbf7bab6552dd2"
+      },
+      "publicationTime": null,
+      "listingRawSha256": "57f2de4eabe321c7f0640996ba518485e27ee5fd6ab1fb686a0982de1ca4363b",
+      "bodyStatus": "ok",
+      "bodyLength": 22155,
+      "bodySha256": "b5df6f998d83d5eb7d4d4521a1ebf47ddf6b9f6683cae8f7b32835c709b8240d",
+      "detail": null,
+      "liveClass": "no_verifiable_date",
+      "rawResponseBytesStored": false,
+      "evidenceRows": 0,
+      "missing": [
+        "no_verifiable_date",
+        "raw_response_bytes_absent",
+        "evidence_version_absent"
+      ]
+    },
+    {
+      "url": "https://deepmind.google/blog/introducing-gemini-4-hydrogen/",
+      "source": "deepmind_blog",
+      "binding": {
+        "articleId": "xva9axkonrks8vibh451ym1y8",
+        "revision": 1,
+        "contentHash": "0279a21255c4ccce31e9e9a1d648501fd3485e0dffe5759cb33cf63e312e8d36"
+      },
+      "publicationTime": "2026-11-12T18:00:50.000Z",
+      "listingRawSha256": "37de692ea70fa1d2d1512ad59f3c548e53d3ffa6b5b99450736f3c903c0dda90",
+      "bodyStatus": "pending",
+      "bodyLength": null,
+      "bodySha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "detail": {
+        "url": "https://deepmind.google/blog/introducing-gemini-4-hydrogen/",
+        "requests": 1,
+        "status": 200,
+        "bodyLength": 10588,
+        "bodyClass": "detail_text"
+      },
+      "liveClass": "title_or_summary_only",
+      "rawResponseBytesStored": false,
+      "evidenceRows": 0,
+      "missing": [
+        "body_not_stored",
+        "raw_response_bytes_absent",
+        "evidence_version_absent"
+      ]
+    },
+    {
+      "url": "https://mistral.ai/news/build-with-studio/",
+      "source": "mistral_news",
+      "binding": {
+        "articleId": "yczg3f4hs168e5hdztgd8pgb3",
+        "revision": 1,
+        "contentHash": "b9bf385a817493c4d1aaf50c6577864bd60b38926287be0217cc4410defa4d00"
+      },
+      "publicationTime": "2026-11-05T12:00:14.000Z",
+      "listingRawSha256": "dd2565b1e2ccb7222db9a89a1dfd3ba20532284d4b7e8ee5b97ebf45025e7978",
+      "bodyStatus": "pending",
+      "bodyLength": null,
+      "bodySha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "detail": {
+        "url": "https://mistral.ai/news/build-with-studio/",
+        "requests": 1,
+        "status": 200,
+        "bodyLength": 10928,
+        "bodyClass": "detail_text"
+      },
+      "liveClass": "title_or_summary_only",
+      "rawResponseBytesStored": false,
+      "evidenceRows": 0,
+      "missing": [
+        "body_not_stored",
+        "raw_response_bytes_absent",
+        "evidence_version_absent"
+      ]
+    },
+    {
+      "url": "https://developer.nvidia.com/blog/co-designing-sparse-attention-for-efficient-long-context-inference/",
+      "source": "nvidia_developer_blog",
+      "binding": {
+        "articleId": "b67dihgyafur7gse25rxlwwub",
+        "revision": 1,
+        "contentHash": "a814798f289549ac4f35fdca1c901099e7ed718918495421dc630766d21c80f7"
+      },
+      "publicationTime": "2026-11-17T17:30:00.000Z",
+      "listingRawSha256": "7e2ebd07514cb6dc39267f765d773da2f4d66bde7483ec4db72fe3d378b9e6ea",
+      "bodyStatus": "ok",
+      "bodyLength": 566,
+      "bodySha256": "719a740a73ae56d8abda495ea73d5a217a60826374f2f006df569ec911753ef6",
+      "detail": null,
+      "liveClass": "listing_has_body",
+      "rawResponseBytesStored": false,
+      "evidenceRows": 0,
+      "missing": [
+        "raw_response_bytes_absent",
+        "evidence_version_absent"
+      ]
+    },
+    {
+      "url": "https://github.com/openai/codex/releases/tag/rust-v0.170.0",
+      "source": "openai_codex_github_releases",
+      "binding": {
+        "articleId": "zrseuh8ghv5xr9q7mmn314lm9",
+        "revision": 1,
+        "contentHash": "0732ea36f6e965f77c9425a2beeb73dd96ac88d6c6864adce891b265747ea5de"
+      },
+      "publicationTime": null,
+      "listingRawSha256": "0bf32bd09684cf055d9b15e038be0072c672ff1df3ee15324d1ec8a8acb3b946",
+      "bodyStatus": "ok",
+      "bodyLength": 4809,
+      "bodySha256": "4d2ac27e2bb3c7d6405e17097b77ec805bcfd0602aba962ee9d2d85eaaa3c592",
+      "detail": null,
+      "liveClass": "no_verifiable_date",
+      "rawResponseBytesStored": false,
+      "evidenceRows": 0,
+      "missing": [
+        "no_verifiable_date",
+        "raw_response_bytes_absent",
+        "evidence_version_absent"
+      ]
+    },
+    {
+      "url": "https://openai.com/index/introducing-gpt-6-2-astra-sol",
+      "source": "openai_news",
+      "binding": {
+        "articleId": "uut980oeomknwtlkdmgngnqxw",
+        "revision": 1,
+        "contentHash": "409584254ce678ddefe87d99f21e27e1039a30a7d392dcebc304e547b2b21677"
+      },
+      "publicationTime": "2026-11-17T17:45:00.000Z",
+      "listingRawSha256": "9463433e9c8575876ea826b6feeff02e271d4a099e65842a17406c02c36ca997",
+      "bodyStatus": "pending",
+      "bodyLength": null,
+      "bodySha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "detail": {
+        "url": "https://openai.com/index/introducing-gpt-6-2-astra-sol",
+        "requests": 1,
+        "status": 403,
+        "failure": "http_forbidden",
+        "message": "HTTP 403 for detail"
+      },
+      "liveClass": "title_or_summary_only",
+      "rawResponseBytesStored": false,
+      "evidenceRows": 0,
+      "missing": [
+        "body_not_stored",
+        "detail_403",
+        "raw_response_bytes_absent",
+        "evidence_version_absent"
+      ]
+    }
+  ]
+}

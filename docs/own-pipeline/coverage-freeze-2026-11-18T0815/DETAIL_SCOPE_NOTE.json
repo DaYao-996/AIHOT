@@ -1,0 +1,10 @@
+{
+  "doesNotEdit": "SOURCE_COVERAGE_v1.json",
+  "listing200IsNotFullText": {
+    "google_ai_blog": "detail HTTP 200, 8273 characters, is one page sample, not the feed and not a completeness pass",
+    "huggingface_blog": "detail HTTP 200, 5613 characters, same limit",
+    "arxiv_cs_ai": "abs page is the abstract, not the paper",
+    "claude_platform_release_notes": "detail 101021 characters is the whole release-notes page, not one note",
+    "openai_news": "detail HTTP 403"
+  }
+}

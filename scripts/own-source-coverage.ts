@@ -7,13 +7,37 @@ import { upsertMaterial } from "@aihot/backend/content/materials";
 import { HttpStatusError } from "@aihot/backend/lib/http-fetch";
 import { FeedHttpError, fetchRss } from "@aihot/backend/sources/rss";
 import { listingEntries } from "@aihot/backend/sources/collect";
+import { fetchJsonList } from "@aihot/backend/sources/json-list";
 import { fetchDetail, fetchWebList } from "@aihot/backend/sources/web-list";
 import { type SourceRow } from "@aihot/backend/sources/types";
 import { UnavailablePageError } from "@aihot/backend/lib/page-content";
 import { assertThrowawayDatabase } from "../site/own-pipeline.ts";
 
 const PRIOR = new Set(["openai_news", "google_ai_blog", "huggingface_blog", "claude_platform_release_notes", "openai_codex_github_releases"]);
-const OUT = process.argv[2] ?? "docs/own-pipeline/SOURCE_COVERAGE_v1.json";
+const ATOM_UPDATED = new Set(["claude_code_releases", "openai_codex_github_releases", "antigravity_cli_github_releases", "apple_newsroom_cn", "apple_newsroom_us_rss"]);
+const outFlag = process.argv.indexOf("--out");
+const OUT = outFlag >= 0 ? process.argv[outFlag + 1]! : "docs/own-pipeline/SOURCE_COVERAGE_GAP_v1.json";
+const onlyFlag = process.argv.indexOf("--only");
+const only = onlyFlag >= 0 ? new Set(process.argv[onlyFlag + 1]!.split(",")) : null;
+
+function mappedConfig(id: string, kind: string, endpoint: string): { kind: "rss" | "web_list" | "json_list"; config: Record<string, unknown> } | null {
+  if (id === "antigravity_changelog") return { kind: "web_list", config: { url: endpoint, parseMode: "antigravity_changelog", publishedAtUtcOffset: "+00:00" } };
+  if (kind === "rss") return { kind: "rss", config: { feedUrl: endpoint, ...(ATOM_UPDATED.has(id) ? { atomUpdatedIsPublication: true } : {}) } };
+  if (kind === "markdown-changelog") return { kind: "web_list", config: { url: endpoint, parseMode: "markdown_changelog" } };
+  if (id === "hf_models_trending") return { kind: "json_list", config: { url: endpoint, titlePaths: ["id"], urlTemplate: "https://huggingface.co/{id}", publishedAtPath: "createdAt", summaryPaths: ["pipeline_tag"] } };
+  if (id === "hf_daily_papers") return { kind: "json_list", config: { url: endpoint, titlePaths: ["title"], urlTemplate: "https://huggingface.co/papers/{paper.id}", publishedAtPath: "publishedAt", summaryPaths: ["paper.summary"] } };
+  if (id === "gh_release_watch_openai_python") return { kind: "json_list", config: { url: endpoint, titlePaths: ["name", "tag_name"], urlTemplate: "{raw:html_url}", publishedAtPath: "published_at", summaryPaths: ["body"], summaryIsBody: true } };
+  if (kind === "github-trending") return { kind: "web_list", config: { url: endpoint, parseMode: "html", itemSelector: "article.Box-row", linkSelector: "h2 a", titleSelector: "h2 a" } };
+  return null;
+}
+
+function detailScope(url: string, bodyLength: number): string {
+  if (/arxiv\.org\/abs\//.test(url)) return "abstract_page_not_paper";
+  if (bodyLength > 20000) return "whole_page_not_one_item";
+  if (bodyLength > 280) return "detail_text_not_listing_fulltext";
+  if (bodyLength > 0) return "detail_short";
+  return "detail_no_body";
+}
 
 function classifyFailure(status: number | null, message: string): string {
   const text = message.toLowerCase();
@@ -34,6 +58,7 @@ function sourceRow(id: string, name: string, kind: SourceRow["kind"], config: So
 }
 
 async function main() {
+  if (OUT.includes("SOURCE_COVERAGE_v1.json") || OUT.includes("coverage-freeze-2026-11-18T0815")) throw new Error("不覆盖 08:15 快照");
   assertThrowawayDatabase(process.env.DATABASE_URL ?? "");
   if (process.env.COLLECT_ENABLED === "true" || process.env.MODEL_CALLS_ENABLED === "true") {
     throw new Error("采集或模型开关开着，拒绝这次覆盖");
@@ -48,6 +73,7 @@ async function main() {
     const id = String(row.source_id);
     const endpoint = String(row.endpoint ?? "").trim();
     const kind = String(row.kind_hint ?? "");
+    if (only && !only.has(id)) continue;
     const base = {
       source_id: id, name: row.name, kind_hint: kind, endpoint: endpoint || null,
       historical_availability: row.availability, duplicate_endpoint: row.duplicate_endpoint === true,
@@ -61,10 +87,11 @@ async function main() {
       report.push({ ...base, live_class: "no_endpoint", fetched: false, basis: "没有可请求的公开地址" });
       continue;
     }
-    if (kind !== "rss" && kind !== "markdown-changelog") {
+    const mapped = mappedConfig(id, kind, endpoint);
+    if (!mapped) {
       report.push({
         ...base, live_class: "adapter_pending", fetched: false,
-        basis: `${kind} 没有现成的 rss / web_list / json_list 配置。不另写抓取脚本。`,
+        basis: `${kind} 仍没有可套用的 rss / web_list / json_list 配置。不另写抓取脚本。`,
       });
       continue;
     }
@@ -75,16 +102,20 @@ async function main() {
     }
     seenEndpoint.set(endpoint, id);
     await sql`INSERT INTO sources (id, name, kind, participation_mode, config, enabled, interval_minutes, next_fetch_at)
-      VALUES (${id}, ${String(row.name)}, ${kind === "rss" ? "rss" : "web_list"}, 'isolated', ${sql.json(kind === "rss" ? { feedUrl: endpoint } : { url: endpoint, parseMode: "markdown_changelog" })}, false, 1440, '2100-01-01')
+      VALUES (${id}, ${String(row.name)}, ${mapped.kind}, 'isolated', ${sql.json(mapped.config)}, false, 1440, '2100-01-01')
       ON CONFLICT (id) DO NOTHING`;
-    const source = sourceRow(id, String(row.name), kind === "rss" ? "rss" : "web_list", kind === "rss" ? { feedUrl: endpoint } : { url: endpoint, parseMode: "markdown_changelog" });
+    await sql`UPDATE sources SET config = ${sql.json(mapped.config)}, kind = ${mapped.kind} WHERE id = ${id}`;
+    const source = sourceRow(id, String(row.name), mapped.kind, mapped.config);
     freeGets += 1;
     let failure: { type: string; status: number | null; message: string; rawSha256: string | null; byteLength: number | null } | null = null;
     let read: { candidates: Awaited<ReturnType<typeof listingEntries>>; trace: { httpStatus: number; rawSha256: string | null; byteLength: number | null; responseUrl: string; contentType: string | null; fetchedAt: string } } | null = null;
     try {
-      if (kind === "rss") {
+      if (mapped.kind === "rss") {
         const rss = await fetchRss(source, { force: true });
         read = { candidates: await listingEntries(source, rss.candidates), trace: rss.trace };
+      } else if (mapped.kind === "json_list") {
+        const candidates = await listingEntries(source, await fetchJsonList(source));
+        read = { candidates, trace: { httpStatus: 200, rawSha256: null, byteLength: null, responseUrl: endpoint, contentType: "application/json", fetchedAt: new Date().toISOString() } };
       } else {
         const candidates = await listingEntries(source, await fetchWebList(source));
         read = { candidates, trace: { httpStatus: 200, rawSha256: null, byteLength: null, responseUrl: endpoint, contentType: null, fetchedAt: new Date().toISOString() } };
@@ -119,7 +150,7 @@ async function main() {
       try {
         const got = await fetchDetail(sample.url, source, { date: false, title: false, summary: true, body: true });
         const bodyLength = got.body?.text?.length ?? 0;
-        detail = { url: sample.url, requests: 1, status: 200, bodyLength, bodyClass: bodyLength > 280 ? "detail_text" : bodyLength > 0 ? "detail_short" : "detail_no_body" };
+        detail = { url: sample.url, requests: 1, status: 200, bodyLength, bodyClass: detailScope(sample.url, bodyLength), listingBodyStatus: sample.bodyStatus };
       } catch (error) {
         const status = error instanceof HttpStatusError ? error.status : null;
         const message = error instanceof UnavailablePageError ? `${error.message} sign-in` : error instanceof Error ? error.message : String(error);

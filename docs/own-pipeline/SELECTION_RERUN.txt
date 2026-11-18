@@ -1,0 +1,28 @@
+base 7b446b1008d832ee25084f8e7baf62ce493f40c3
+v16 data pack already published, do not copy it into the repo again:
+  /opt/cursor/artifacts/sample-restore-v16.tar.gz
+  sha256 328058ffe668a7b1eca9f61ee60ac2f1172d82a72b641172dfb96db77698a01c
+XY file already published:
+  RESULTS sha256 ba776241bc5c3581063b9d5dec933ebca630c6f8b9806edc7156a0355214dc64
+v3 decisions already published:
+  /opt/cursor/artifacts/selection-decisions-batch9-v3.tar.gz
+  sha256 41f9e1c57af1bb3e772243ce9e265105b9c2b40dc3128b8b60be1e4be428c0b0
+  SELECTION_DECISIONS_v3.json sha256 2340b4861b3f2c9a48d5a73085bef30ccd772e44ab87949b18e4a665332e0e98
+
+Restore v16 on an empty *_test database with scripts/own-sample-restore.ts.
+That restore is 8 current file judgments and 3 stale.
+Then, only through the CLIs, not by inserting judgment rows:
+  node scripts/own-file-result.ts --file <xy adapter with schema+items only> --dry-run
+  node scripts/own-file-result.ts --file <xy adapter>
+  node scripts/own-file-result.ts --file <xy adapter>
+  node scripts/own-selection-decision.ts --file SELECTION_DECISIONS_v3.json --dry-run
+  node scripts/own-selection-decision.ts --file SELECTION_DECISIONS_v3.json
+  node scripts/own-selection-decision.ts --file SELECTION_DECISIONS_v3.json
+Expected after those commands: 9 current file judgments, 3 stale, 9 pending selections.
+The second file import and the second selection import are idempotent.
+COLLECT_ENABLED and MODEL_CALLS_ENABLED stay false. No worker.
+
+Conflict, evidence move, and unchanged semantic fileResult are the test
+"a selection file keeps its rationale, stays pending, and does not rewrite the semantic result"
+in tests/own-pipeline.test.ts. That test calls recordSelectionDecision and recordFileResult.
+It does not insert a finished row by SQL.

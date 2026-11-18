@@ -263,6 +263,46 @@ function fromDocusaurusChangelog(html: string, base: string, source: SourceRow):
   return out;
 }
 
+/** Antigravity's changelog is version links, then a calendar day, then one title. No {% id %} anchors. */
+export function fromAntigravityChangelog(markdown: string, base: string, source: SourceRow): Candidate[] {
+  const versionRe = /^### \[([^\]]+)\]\(([^)\s]+)(?:\s+"[^"]*")?\)\s*$/;
+  const lines = markdown.split("\n");
+  const starts: number[] = [];
+  for (let i = 0; i < lines.length; i++) if (versionRe.test(lines[i]!.trim())) starts.push(i);
+  const out: Candidate[] = [];
+  for (let n = 0; n < starts.length; n++) {
+    const at = starts[n]!;
+    const version = versionRe.exec(lines[at]!.trim())!;
+    const following = starts[n + 1];
+    const heading = lines.findIndex((line, index) => index > at && /^## /.test(line));
+    const end = following ?? (heading >= 0 ? heading : lines.length);
+    const section = lines.slice(at + 1, end);
+    let date = readPublicationDate("", source.config.publishedAtUtcOffset);
+    let title = version[1]!;
+    const body: string[] = [];
+    let titled = false;
+    for (const line of section) {
+      const trimmed = line.trim();
+      if (!titled && trimmed.startsWith("### ") && !versionRe.test(trimmed)) {
+        title = trimmed.slice(4).trim();
+        titled = true;
+        continue;
+      }
+      if (!date.publishedAt && trimmed.length < 40) {
+        const parsed = readPublicationDate(trimmed, source.config.publishedAtUtcOffset ?? "+00:00");
+        if (parsed.publishedAt) { date = parsed; continue; }
+      }
+      body.push(line);
+    }
+    let url = "";
+    try { url = new URL(version[2]!, base).toString(); } catch { continue; }
+    if (!allowed(url, source)) continue;
+    const bodyText = collapseWhitespace(body.join("\n"));
+    out.push({ url, title: collapseWhitespace(title), ...date, bodyText, bodyStatus: bodyText ? "ok" : "pending" });
+  }
+  return out;
+}
+
 /** Markdown documentation keeps section addresses in explicit {% id="…" %} heading annotations. */
 function fromMarkdownChangelog(markdown: string, base: string, source: SourceRow): Candidate[] {
   const tokens = marked.lexer(markdown);
@@ -363,6 +403,7 @@ export async function fetchWebList(source: SourceRow): Promise<Candidate[]> {
   else if (mode === "markdown") out = fromMarkdown(text, base, source);
   else if (mode === "docusaurus_changelog") out = fromDocusaurusChangelog(text, base, source);
   else if (mode === "markdown_changelog") out = fromMarkdownChangelog(text, base, source);
+  else if (mode === "antigravity_changelog") out = fromAntigravityChangelog(text, base, source);
   else if (mode === "intercom_changelog") out = fromIntercomChangelog(text, base, source);
   else out = fromHtml(text, base, source);
   if (out.length === 0) throw new FetchError(`no items matched (${mode})`);

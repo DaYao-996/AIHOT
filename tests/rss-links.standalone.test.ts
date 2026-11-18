@@ -83,3 +83,11 @@ test("Atom update time never substitutes for missing or malformed publication ti
     assert.equal(item!.sourceUpdatedAt?.toISOString(), "2026-10-01T00:00:00.000Z");
   }
 });
+
+test("a feed that only states Atom updated can use that timestamp, not the read clock", async () => {
+  const items = (await fetchRss({ config: { feedUrl: root + "/dates", atomUpdatedIsPublication: true }, participation_mode: "editorial" } as never)).candidates;
+  assert.equal(items[0]!.publishedAt?.toISOString(), "2026-10-01T00:00:00.000Z");
+  assert.equal(items[0]!.publicationTime, "2026-10-01T00:00:00.000Z");
+  assert.equal(items[1]!.publishedAt?.toISOString(), "2020-02-15T00:00:00.000Z");
+  assert.equal(items[2]!.publishedAt, null);
+});

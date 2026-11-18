@@ -266,8 +266,9 @@ export async function fetchRss(source: SourceRow, opts: { force?: boolean } = {}
         url: entryUrl,
         title,
         author: text(arr(e.author)[0]?.name) || null,
-        // Atom updated describes a revision, not the original publication.
-        ...readPublicationDate(text(e.published), source.config.publishedAtUtcOffset),
+        // updated is a revision when published is also present. A feed that only states updated
+        // can opt in; the stated timestamp is used, never the clock at read time.
+        ...readPublicationDate(text(e.published) || (source.config.atomUpdatedIsPublication === true ? text(e.updated) : ""), source.config.publishedAtUtcOffset),
         sourceUpdatedAt: parseDate(text(e.updated)),
         ...feedText(bodyHtml, summary, source, !video, plainBody),
         ...(videoExcerpt ? { excerpt: videoExcerpt } : {}),
