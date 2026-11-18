@@ -1,0 +1,22 @@
+BASE 7b446b1008d832ee25084f8e7baf62ce493f40c3
+This file is added with the source pack HEAD. The pack is the git diff from BASE
+excluding docs/own-pipeline/sample-restore-v14, sample-restore-v15 and sample-restore-v16.
+v16 is not inside the pack.
+
+Apply: git apply --check PATCH && git apply PATCH
+Then npm ci.
+
+Time and raw bytes:
+  node --test tests/rss-links.standalone.test.ts tests/rss-conditional.test.ts
+Atom updated is not a publication time. A collect run stores fetch_runs.response
+and detail.response.rawSha256 / parsedSha256 / requests.
+
+Single release document:
+  node --test --test-name-pattern "single release object" tests/sources.standalone.test.ts
+GitHub tag JSON is one item. published_at is the publication time. body is that release's notes.
+
+Selection entry and A-B-A remain in SELECTION_RERUN.txt and tests/own-pipeline.test.ts.
+The nine pending decisions are not part of this rerun.
+public-sample-v1 is frozen. Its 40-row denominator and bytes are not rebuilt here.
+The Codex tag supplement is a later one-GET record, not a replacement of that pack.
+The other 32 listing rows were not given detail reads.
