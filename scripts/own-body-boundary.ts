@@ -310,12 +310,20 @@ async function runFixture() {
     });
     const analyzeAfter = await analyzeJobs(saved.id);
     if (analyzeAfter.length !== 0) throw new Error("写上判断之后分析作业还在");
+    const others = await sql<{ id: string }[]>`SELECT id FROM articles WHERE source_id = ${sourceId} AND id <> ${saved.id}`;
+    for (const row of others) await holdBackAutomaticRelease(sql, row.id);
     const [state] = await sql<{ processing_state: string }[]>`SELECT processing_state FROM articles WHERE id = ${saved.id}`;
     if (state!.processing_state !== "skipped") throw new Error("夹具判断没有离开自动分析");
     await sql`UPDATE sources SET enabled = false, next_fetch_at = '2100-01-01' WHERE id = ${sourceId}`;
+    const [left] = await sql<{ n: number }[]>`
+      SELECT count(*)::int AS n FROM pgboss.job j
+      JOIN articles a ON a.id = j.data->>'articleId'
+      WHERE a.source_id = ${sourceId} AND j.state IN ('created', 'retry')`;
+    if (left!.n !== 0) throw new Error("夹具源上还留着已创建的作业");
     return {
       technicalFixture: true, officialTopic: false, created: first.created, recovered: opened.created,
       publishedAt: published, analyzeBefore, analyzeAfter, chain, processingState: state!.processing_state,
+      setupJobsLeft: left!.n,
     };
   } finally {
     await new Promise<void>((resolve, reject) => server.close((error) => error ? reject(error) : resolve()));
