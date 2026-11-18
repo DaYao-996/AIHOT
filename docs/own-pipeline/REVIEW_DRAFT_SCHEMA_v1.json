@@ -1,0 +1,67 @@
+{
+  "schema": "own-review-draft-v1-shape",
+  "importable": false,
+  "acceptedSchema": "own-review-draft-v1",
+  "command": "node scripts/own-review-draft.ts --file <drafts.json> [--dry-run]",
+  "requiresBeforeImport": [
+    "one current file semantic judgment on the same article, evidence hash and article revision",
+    "one current pending selection on that same binding",
+    "COLLECT_ENABLED and MODEL_CALLS_ENABLED are not true",
+    "DATABASE_URL names a local database ending in _test"
+  ],
+  "forced": {
+    "factStatus": "unchecked",
+    "releaseStatus": "not_licensed",
+    "status": "pending_review"
+  },
+  "realDraft": {
+    "technicalFixture": false,
+    "requiresHumanReview": true
+  },
+  "items": [
+    {
+      "articleId": "<current article id>",
+      "evidenceHash": "<64 hex of the current evidence row>",
+      "evidenceVersion": "<current evidence version, integer>",
+      "inputRevision": "<current articles.revision; must equal the evidence row's article_revision>",
+      "rulesetVersion": "<rules version actually used>",
+      "promptVersion": "<draft prompt version, different from the selection prompt>",
+      "text": "<manuscript text. not decision_rationale>",
+      "sourceNote": "<where the manuscript text came from>",
+      "sourceCitations": ["<citation taken from the stored material>"],
+      "conditions": ["<condition from the selection, copied explicitly>"],
+      "technicalFixture": false,
+      "requiresHumanReview": true
+    }
+  ],
+  "knownBindingsOnV6": [
+    {
+      "name": "CodeMode v2.1.323",
+      "articleId": "i5d3e8sv1zup81f7dqbryixtj",
+      "sourceId": "claude_code_releases",
+      "url": "https://github.com/anthropics/claude-code/releases/tag/v2.1.323",
+      "evidenceHash": "2819a4844f82b751cc519e958ddf6dfdcb2ea48246cd31f83f33a8eaeec80c0f",
+      "evidenceVersion": 1,
+      "inputRevision": 2,
+      "semanticJudgments": 0,
+      "selectionJudgments": 0
+    },
+    {
+      "name": "SSH v2.33.0",
+      "articleId": "uxdnh10q3y7lvo9xsp4cld41e",
+      "sourceId": "antigravity_changelog",
+      "url": "https://antigravity.google/releases?tab=hub&version=2.33.0",
+      "evidenceHash": "d42be07f129c7e2a47d32e2895e9e052212e8fa1ba99645f862d067f04e12062",
+      "evidenceVersion": 1,
+      "inputRevision": 1,
+      "semanticJudgments": 0,
+      "selectionJudgments": 0
+    }
+  ],
+  "rulesetUsedByTheStoredNine": "17-选题打分推荐-v2.3#sha256:45c5a6a0105268a6ecf887c8bc7611595e9626fe0a25b7ce76ca48ee64e3e43e",
+  "selectionPromptVersionsUsedByTheStoredNine": [
+    "assistant-selection-decision-draft-v2-nine-convenience-v1",
+    "assistant-selection-decision-draft-v3-rejudge-simready-watermark-xycond-v1"
+  ],
+  "notFilledHere": "CodeMode and SSH semantic claims, quotes, conditions and manuscript text are not in this file."
+}

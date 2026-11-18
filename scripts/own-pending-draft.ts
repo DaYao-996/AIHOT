@@ -23,7 +23,7 @@ async function main() {
              (SELECT count(*)::int FROM deliveries WHERE subject_id = ${row.articleId}) AS deliveries`;
     items.push({ ...row, url: article?.url ?? null, processingState: article?.processing_state ?? null, articleRevision: article?.revision ?? null, publications: local?.publications ?? null, analyses: local?.analyses ?? null, deliveries: local?.deliveries ?? null });
   }
-  const held = items.every((item) => item.processingState === "skipped" && item.publications === 0 && item.analyses === 0 && item.factStatus === "unchecked" && item.releaseStatus === "not_licensed" && item.technicalFixture === true);
+  const held = items.every((item) => item.processingState === "skipped" && item.publications === 0 && item.analyses === 0 && item.factStatus === "unchecked" && item.releaseStatus === "not_licensed" && (item.technicalFixture === true || item.requiresHumanReview === true));
   const report = {
     qualityPass: false, realManuscripts: 0, styleScored: false, workerStarted: false, modelCalls: 0, paid: false,
     pending: items.length, heldOutOfSendQueue: held, items,

@@ -306,6 +306,50 @@ export function parseSelectionDecisionDocument(value: unknown): Array<Record<str
   });
 }
 
+const DRAFT_FILE_KEYS = new Set(["schema", "items"]);
+const DRAFT_ITEM_KEYS = new Set(["articleId", "evidenceHash", "evidenceVersion", "inputRevision", "rulesetVersion", "promptVersion", "text", "sourceNote", "sourceCitations", "conditions", "technicalFixture", "requiresHumanReview"]);
+
+/** 真稿文件。缺字段就拒绝，不把选择理由或空数组填成通过。 */
+export function parseReviewDraftDocument(value: unknown): Array<{
+  articleId: string; evidenceHash: string; evidenceVersion: number; inputRevision: number;
+  rulesetVersion: string; promptVersion: string; text: string; sourceNote: string;
+  sourceCitations: string[]; conditions: string[]; technicalFixture: boolean; requiresHumanReview: boolean;
+}> {
+  if (!value || typeof value !== "object" || Array.isArray(value)) throw new ImportRejected("待审稿格式无法解析");
+  const doc = value as Record<string, unknown>;
+  if (ownKeys(doc).some((key) => !DRAFT_FILE_KEYS.has(key)) || doc.schema !== "own-review-draft-v1" || !Array.isArray(doc.items) || doc.items.length === 0) {
+    throw new ImportRejected("待审稿格式无法解析");
+  }
+  return doc.items.map((row, index) => {
+    if (!row || typeof row !== "object" || Array.isArray(row)) throw new ImportRejected(`items[${index}] 格式无法解析`);
+    const item = row as Record<string, unknown>;
+    if (ownKeys(item).some((key) => !DRAFT_ITEM_KEYS.has(key)) || ownKeys(item).length !== DRAFT_ITEM_KEYS.size) {
+      throw new ImportRejected(`items[${index}] 字段不齐`);
+    }
+    if (item.decision_rationale !== undefined) throw new ImportRejected(`items[${index}] 不能把选择理由当正文`);
+    if (typeof item.articleId !== "string" || !item.articleId.trim()) throw new ImportRejected(`items[${index}].articleId 无效`);
+    if (typeof item.evidenceHash !== "string" || !/^[0-9a-f]{64}$/.test(item.evidenceHash)) throw new ImportRejected(`items[${index}].evidenceHash 无效`);
+    if (!Number.isInteger(item.evidenceVersion) || (item.evidenceVersion as number) < 1) throw new ImportRejected(`items[${index}].evidenceVersion 无效`);
+    if (!Number.isInteger(item.inputRevision) || (item.inputRevision as number) < 1) throw new ImportRejected(`items[${index}].inputRevision 无效`);
+    if (typeof item.rulesetVersion !== "string" || !item.rulesetVersion.trim()) throw new ImportRejected(`items[${index}].rulesetVersion 无效`);
+    if (typeof item.promptVersion !== "string" || !item.promptVersion.trim()) throw new ImportRejected(`items[${index}].promptVersion 无效`);
+    if (typeof item.text !== "string" || !item.text.trim()) throw new ImportRejected(`items[${index}].text 无效`);
+    if (typeof item.sourceNote !== "string" || !item.sourceNote.trim()) throw new ImportRejected(`items[${index}].sourceNote 无效`);
+    if (item.technicalFixture !== true && item.technicalFixture !== false) throw new ImportRejected(`items[${index}].technicalFixture 必须是布尔值`);
+    if (item.technicalFixture === false && item.requiresHumanReview !== true) throw new ImportRejected(`items[${index}] 真稿必须要求人工复核`);
+    if (item.technicalFixture === true && item.requiresHumanReview !== false && item.requiresHumanReview !== true) throw new ImportRejected(`items[${index}].requiresHumanReview 无效`);
+    const sourceCitations = stringList(item.sourceCitations, `items[${index}].sourceCitations`);
+    const conditions = stringList(item.conditions, `items[${index}].conditions`);
+    if (item.technicalFixture === false && !sourceCitations.some((citation) => citation.trim())) throw new ImportRejected(`items[${index}] 真稿缺少来源引用`);
+    return {
+      articleId: item.articleId.trim(), evidenceHash: item.evidenceHash, evidenceVersion: item.evidenceVersion as number,
+      inputRevision: item.inputRevision as number, rulesetVersion: item.rulesetVersion.trim(), promptVersion: item.promptVersion.trim(),
+      text: item.text.trim(), sourceNote: item.sourceNote.trim(), sourceCitations, conditions,
+      technicalFixture: item.technicalFixture, requiresHumanReview: item.requiresHumanReview as boolean,
+    };
+  });
+}
+
 export function parseFileResultDocument(value: unknown): FileResultItem[] {
   if (!value || typeof value !== "object" || Array.isArray(value)) throw new Error("文件结果格式无法解析");
   const doc = value as Record<string, unknown>;
@@ -411,10 +455,13 @@ export interface ReviewDraftRecord {
   status: "pending_review";
   text: string;
   sourceNote: string;
+  /** 正文引用的来源。真稿必须带上，不能用选择理由代替。 */
+  sourceCitations: string[];
   conditions: string[];
   boundSemanticJudgmentId: string;
   boundSelectionJudgmentId: string;
   technicalFixture: boolean;
+  requiresHumanReview: boolean;
 }
 
 export interface SelectionDecisionRecord {

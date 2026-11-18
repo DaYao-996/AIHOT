@@ -898,6 +898,100 @@ test("a date revision rebinds evidence, and a fixture draft stays pending withou
   assert.equal(recorded.articleRevision, Number(row!.revision));
 });
 
+test("a manuscript file imports as a real draft, repeats, and rejects an old revision", async () => {
+  const dir = mkdtempSync(path.join(tmpdir(), "own-review-draft-"));
+  const url = `https://example.com/real-draft-${tag()}`;
+  const body = "待审正文要引用的原句在材料里。";
+  const excerpt = "待审正文要引用的原句在材料里";
+  const saved = await appendControlledEvidence({ sourceId: SOURCE, url, title: "真稿材料", raw: { n: 1 }, bodyText: body });
+  await recordFileResult({
+    articleId: saved.articleId, evidenceHash: saved.evidenceHash, evidenceVersion: saved.evidenceVersion,
+    inputRevision: saved.articleRevision, rulesetVersion: "rules@draft", promptVersion: "prompt@semantic",
+    executionSource: "assistant-file", modelKnowledge: "unknown", knownModel: null,
+    output: {
+      narrowClaim: "材料里有这一句", quoteLocation: { excerpt, start: 0, end: excerpt.length },
+      conditions: ["只引用这一句"], time: "2026-11-18", valueBasis: "材料写了这一句", audience: ["复核的人"],
+      substantiveAddition: "没有新的结论", clauses: [{ id: "scope", text: "只覆盖这一句" }],
+    },
+  }, "2026-11-18T09:50:00.000Z");
+  await recordSelectionDecision({
+    articleId: saved.articleId, evidenceHash: saved.evidenceHash, evidenceVersion: saved.evidenceVersion,
+    inputRevision: saved.articleRevision, rulesetVersion: "rules@draft", promptVersion: "prompt@select",
+    decision_rationale: "选择理由不是稿件正文。", conditions: ["只引用这一句"],
+  }, "2026-11-18T09:50:01.000Z");
+  const document = {
+    schema: "own-review-draft-v1",
+    items: [{
+      articleId: saved.articleId, evidenceHash: saved.evidenceHash, evidenceVersion: saved.evidenceVersion,
+      inputRevision: saved.articleRevision, rulesetVersion: "rules@draft", promptVersion: "prompt@draft",
+      text: "这是待审正文，引用材料里的原句。", sourceNote: "文件交来的初稿",
+      sourceCitations: [excerpt], conditions: ["只引用这一句"], technicalFixture: false, requiresHumanReview: true,
+    }],
+  };
+  const run = (doc: unknown) => {
+    const file = path.join(dir, `draft-${tag()}.json`);
+    writeFileSync(file, JSON.stringify(doc));
+    return spawnSync(process.execPath, [path.join(process.cwd(), "scripts/own-review-draft.ts"), "--file", file], {
+      cwd: process.cwd(), encoding: "utf8", env: { ...process.env, COLLECT_ENABLED: "false", MODEL_CALLS_ENABLED: "false" },
+    });
+  };
+  const first = run(document);
+  assert.equal(first.status, 0, first.stderr);
+  const firstJson = JSON.parse(first.stdout);
+  assert.equal(firstJson.items[0].idempotent, false);
+  assert.equal(firstJson.items[0].technicalFixture, false);
+  assert.equal(firstJson.items[0].requiresHumanReview, true);
+  assert.equal(firstJson.items[0].factStatus, "unchecked");
+  assert.equal(firstJson.items[0].releaseStatus, "not_licensed");
+  const again = run(document);
+  assert.equal(again.status, 0, again.stderr);
+  assert.equal(JSON.parse(again.stdout).items[0].idempotent, true);
+  assert.equal(JSON.parse(again.stdout).items[0].judgmentId, firstJson.items[0].judgmentId);
+  const staleVersion = run({ ...document, items: [{ ...document.items[0], evidenceVersion: saved.evidenceVersion + 9 }] });
+  assert.notEqual(staleVersion.status, 0);
+  assert.match(staleVersion.stdout, /当前版本|当前文章修订/);
+  const otherUrl = `https://example.com/real-draft-other-${tag()}`;
+  const other = await appendControlledEvidence({ sourceId: SOURCE, url: otherUrl, title: "另一篇", raw: { n: 2 }, bodyText: body });
+  await recordFileResult({
+    articleId: other.articleId, evidenceHash: other.evidenceHash, evidenceVersion: other.evidenceVersion,
+    inputRevision: other.articleRevision, rulesetVersion: "rules@draft", promptVersion: "prompt@semantic",
+    executionSource: "assistant-file", modelKnowledge: "unknown", knownModel: null,
+    output: {
+      narrowClaim: "另一篇也有这一句", quoteLocation: { excerpt, start: 0, end: excerpt.length },
+      conditions: ["另一篇"], time: "2026-11-18", valueBasis: "另一篇", audience: ["复核的人"],
+      substantiveAddition: "另一篇", clauses: [{ id: "scope", text: "另一篇" }],
+    },
+  }, "2026-11-18T09:50:02.000Z");
+  await recordSelectionDecision({
+    articleId: other.articleId, evidenceHash: other.evidenceHash, evidenceVersion: other.evidenceVersion,
+    inputRevision: other.articleRevision, rulesetVersion: "rules@draft", promptVersion: "prompt@select",
+    decision_rationale: "另一篇的选择理由。", conditions: ["另一篇"],
+  }, "2026-11-18T09:50:03.000Z");
+  const otherRun = run({
+    schema: "own-review-draft-v1",
+    items: [{
+      ...document.items[0], articleId: other.articleId, evidenceHash: other.evidenceHash,
+      evidenceVersion: other.evidenceVersion, inputRevision: other.articleRevision,
+      text: "另一篇的待审正文。", sourceCitations: [excerpt], conditions: ["另一篇"],
+    }],
+  });
+  assert.equal(otherRun.status, 0, otherRun.stderr);
+  await appendControlledEvidence({ sourceId: SOURCE, url, title: "真稿材料", raw: { n: 1 }, bodyText: `${body}补充。` });
+  const [stale] = await sql<{ stale: boolean }[]>`SELECT stale FROM own_judgments WHERE id = ${firstJson.items[0].judgmentId}`;
+  const [kept] = await sql<{ stale: boolean }[]>`SELECT stale FROM own_judgments WHERE id = ${JSON.parse(otherRun.stdout).items[0].judgmentId}`;
+  assert.equal(stale!.stale, true);
+  assert.equal(kept!.stale, false);
+  const listed = await listPendingDrafts();
+  const survivor = listed.find((row) => row.id === JSON.parse(otherRun.stdout).items[0].judgmentId);
+  assert.equal(survivor?.technicalFixture, false);
+  assert.equal(survivor?.requiresHumanReview, true);
+  assert.equal(survivor?.text, "另一篇的待审正文。");
+  const [parked] = await sql<{ processing_state: string }[]>`SELECT processing_state FROM articles WHERE id = ${other.articleId}`;
+  const [published] = await sql<{ n: number }[]>`SELECT count(*)::int AS n FROM publications WHERE article_id = ${saved.articleId}`;
+  assert.equal(parked!.processing_state, "skipped");
+  assert.equal(published!.n, 0);
+});
+
 test("three unblinded public samples go through the import command", { skip: existsSync(SAMPLES) ? false : "public samples are not in this checkout" }, () => {
   const result = spawnSync(process.execPath, [path.join(process.cwd(), "scripts/own-unblinded-drill.ts"), SAMPLES], {
     cwd: process.cwd(), encoding: "utf8", env: {

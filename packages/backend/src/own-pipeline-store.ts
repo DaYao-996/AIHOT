@@ -302,8 +302,11 @@ function assertBody(body: JudgmentBody, identity: JudgmentIdentity): void {
   if (body.reviewDraft) {
     if (body.reviewDraft.status !== "pending_review") throw new JudgmentConflict("待审稿只能待审");
     if (body.factStatus !== "unchecked" || body.releaseStatus !== "not_licensed") throw new JudgmentConflict("待审稿不能升级事实或许可");
-    if (body.reviewDraft.technicalFixture !== true) throw new JudgmentConflict("待审稿夹具必须标明不是对外稿件");
+    if (body.reviewDraft.technicalFixture !== true && body.reviewDraft.technicalFixture !== false) throw new JudgmentConflict("待审稿必须标明是夹具还是真稿");
+    if (body.reviewDraft.technicalFixture === false && body.reviewDraft.requiresHumanReview !== true) throw new JudgmentConflict("真稿必须要求人工复核");
     if (!body.reviewDraft.text.trim() || !body.reviewDraft.sourceNote.trim()) throw new JudgmentConflict("待审稿缺少正文或来源");
+    const citations = body.reviewDraft.sourceCitations ?? [];
+    if (body.reviewDraft.technicalFixture === false && !citations.some((item) => item.trim())) throw new JudgmentConflict("真稿缺少来源引用");
     if (!Array.isArray(body.reviewDraft.conditions)) throw new JudgmentConflict("待审稿缺少条件");
   }
 }
@@ -726,7 +729,7 @@ export async function recordDateOnly(articleId: string, publishedAt: Date, publi
 export async function recordReviewDraft(input: {
   articleId: string; evidenceHash: string; evidenceVersion: number; inputRevision: number;
   rulesetVersion: string; promptVersion: string; text: string; sourceNote: string; conditions: string[];
-  technicalFixture: true;
+  technicalFixture: boolean; sourceCitations?: string[]; requiresHumanReview?: boolean;
 }, recordedAt: string): Promise<JudgmentWrite> {
   databaseUrl();
   const [evidence] = await sql<{ version: number; article_revision: number; evidence_hash: string; body_text: string | null; quoted_text: string | null }[]>`
@@ -758,8 +761,12 @@ export async function recordReviewDraft(input: {
     valueStatus: "incomplete_material", releaseStatus: "not_licensed", origin: "deterministic",
     reasons: ["待审稿，事实未核，未许可"], modelReceiptId: null,
     reviewDraft: {
-      status: "pending_review", text: input.text.trim(), sourceNote: input.sourceNote.trim(), conditions: input.conditions,
-      boundSemanticJudgmentId: semantic.id, boundSelectionJudgmentId: selection.id, technicalFixture: true,
+      status: "pending_review", text: input.text.trim(), sourceNote: input.sourceNote.trim(),
+      sourceCitations: (input.sourceCitations ?? []).map((item) => item.trim()).filter(Boolean),
+      conditions: input.conditions,
+      boundSemanticJudgmentId: semantic.id, boundSelectionJudgmentId: selection.id,
+      technicalFixture: input.technicalFixture,
+      requiresHumanReview: input.technicalFixture === false ? true : input.requiresHumanReview === true,
     },
   }, recordedAt);
 }
@@ -767,7 +774,7 @@ export async function recordReviewDraft(input: {
 export async function listPendingDrafts(): Promise<Array<{
   id: string; articleId: string; evidenceHash: string; inputRevision: number; promptVersion: string;
   text: string; sourceNote: string; conditions: string[]; boundSemanticJudgmentId: string; boundSelectionJudgmentId: string;
-  technicalFixture: boolean; factStatus: "unchecked"; releaseStatus: "not_licensed";
+  technicalFixture: boolean; requiresHumanReview: boolean; factStatus: "unchecked"; releaseStatus: "not_licensed";
 }>> {
   databaseUrl();
   const rows = await sql<{
@@ -793,7 +800,8 @@ export async function listPendingDrafts(): Promise<Array<{
     id: row.id, articleId: row.article_id, evidenceHash: row.evidence_hash, inputRevision: Number(row.input_revision),
     promptVersion: row.prompt_version, text: row.draft.text, sourceNote: row.draft.sourceNote, conditions: row.draft.conditions,
     boundSemanticJudgmentId: row.draft.boundSemanticJudgmentId, boundSelectionJudgmentId: row.draft.boundSelectionJudgmentId,
-    technicalFixture: row.draft.technicalFixture, factStatus: "unchecked" as const, releaseStatus: "not_licensed" as const,
+    technicalFixture: row.draft.technicalFixture, requiresHumanReview: row.draft.requiresHumanReview === true,
+    factStatus: "unchecked" as const, releaseStatus: "not_licensed" as const,
   }] : []);
 }
 
