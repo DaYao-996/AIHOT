@@ -27,6 +27,21 @@ const state = async (id: string) =>
 
 // Invalid timestamps from a provider must be absent at the common storage boundary, on both the
 // first insert and an update. Otherwise postgres date serialization aborts the complete source run.
+test("a body revision keeps a source updated time the new text does not carry", async () => {
+  const url = `https://example.com/updated-${tag()}`;
+  const sourceUpdatedAt = new Date("2026-11-18T05:52:48.000Z");
+  const { articleId } = await upsertMaterial({ sourceId: SOURCE, url, title: "Short release", via: "fetch", sourceUpdatedAt });
+  assert.equal((await upsertMaterial({ sourceId: SOURCE, url, title: "Short release", via: "fetch", bodyText: "Release 0.171.0-alpha.13", bodyStatus: "ok" })).revised, true);
+  const [row] = await sql<{ revision: number; body_text: string; source_updated_at: Date | null }[]>`
+    SELECT revision, body_text, source_updated_at FROM articles WHERE id = ${articleId}`;
+  assert.equal(row!.revision, 2);
+  assert.equal(row!.body_text, "Release 0.171.0-alpha.13");
+  assert.equal(row!.source_updated_at?.toISOString(), "2026-11-18T05:52:48.000Z");
+  const history = await sql<{ revision: number; body_text: string | null }[]>`
+    SELECT revision, body_text FROM article_revisions WHERE article_id = ${articleId} ORDER BY revision`;
+  assert.deepEqual(history.map((h) => h.body_text), [null, "Release 0.171.0-alpha.13"]);
+});
+
 test("invalid source timestamps remain unknown on inserts and revisions", async () => {
   const material = { sourceId: SOURCE, url: `https://example.com/date-${tag()}`, title: "Undated", via: "fetch" as const,
     publishedAt: new Date(NaN), sourceUpdatedAt: new Date(NaN) };

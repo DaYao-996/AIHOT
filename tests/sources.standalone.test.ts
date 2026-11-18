@@ -13,7 +13,7 @@ import { config } from "@aihot/backend/config";
 import { extractFromUrl, pageRules } from "@aihot/backend/content/extract";
 import { sanitizeBody, trimTrailingChrome } from "@aihot/backend/content/sanitize";
 import { unsupportedConfig } from "@aihot/backend/sources/config-keys";
-import { fetchDetail, fetchWebList, fromHtml, fromMarkdown } from "@aihot/backend/sources/web-list";
+import { fetchDetail, fetchWebList, fromHtml, fromMarkdown, locateArticleText } from "@aihot/backend/sources/web-list";
 import { fetchRss } from "@aihot/backend/sources/rss";
 import { fetchJsonList } from "@aihot/backend/sources/json-list";
 import { noiseFiltered } from "@aihot/backend/sources/filters";
@@ -279,6 +279,20 @@ test("a single release object is one item, and its published_at is the publicati
   assert.equal(item!.publicationTime, "2026-11-18T05:21:54.000Z");
   assert.equal((item!.raw as { timeSource: string }).timeSource, "json:published_at");
   await assert.rejects(fetchJsonList({ id: "test-json", config: { ...config, singleObject: false } } as never), /array/);
+});
+
+test("a long article stays the article, and the navigation and chart payload stay out", () => {
+  const prose = "The model release note continues with the same sentence. ".repeat(500);
+  const html = `<html><body><nav>Home Pricing</nav><header>Site header</header><article><p>${prose}</p><figure>Chart Download PNG {"data":[{"x":1}]}</figure><mistral-atom-text-vibe>Thinking Summary A generated blurb.</mistral-atom-text-vibe></article><footer>Privacy</footer></body></html>`;
+  const located = locateArticleText(html);
+  assert.ok(located);
+  assert.ok(located!.text.length > 20000);
+  assert.match(located!.text, /model release note/);
+  assert.equal(located!.text.includes("Home Pricing"), false);
+  assert.equal(located!.text.includes("Privacy"), false);
+  assert.equal(located!.text.includes('{"data"'), false);
+  assert.equal(located!.text.includes("Thinking Summary"), false);
+  assert.ok(located!.navChars > 0);
 });
 
 test("a short release note element is that note, not a truncated page", async () => {

@@ -263,6 +263,33 @@ function fromDocusaurusChangelog(html: string, base: string, source: SourceRow):
   return out;
 }
 
+/**
+ * The article element, without the site navigation or embedded chart payloads.
+ * A long article stays whole: length is not a reason to drop it or to call it the whole page.
+ */
+export function locateArticleText(html: string): { text: string; articleChars: number; navChars: number; headerChars: number; footerChars: number } | null {
+  const $ = cheerio.load(html);
+  const article = $("article").first();
+  if (!article.length) return null;
+  const chars = (sel: string) => $(sel).toArray().reduce((n, el) => n + collapseWhitespace($(el).text()).length, 0);
+  const articleChars = collapseWhitespace(article.text()).length;
+  const navChars = chars("nav");
+  const headerChars = chars("header");
+  const footerChars = chars("footer");
+  article.find([
+    "nav", "header", "footer", "script", "style",
+    "mistral-section-hero-post-ml4-oss", "mistral-atom-text-vibe", "mistral-section-blog-footer",
+    "mistral-atom-navigation-scroll-progress", "mistral-block-card-model", "mistral-block-chart",
+    "mistral-atom-button-copy-clipboard", "mistral-atom-button-tooltip",
+  ].join(",")).remove();
+  article.find("figure").each((_, el) => {
+    const t = $(el).text();
+    if (t.includes('{"data"') || t.includes("Download PNG")) $(el).remove();
+  });
+  const text = collapseWhitespace(article.text());
+  return text ? { text, articleChars, navChars, headerChars, footerChars } : null;
+}
+
 /** Antigravity's changelog is version links, then a calendar day, then one title. No {% id %} anchors. */
 export function fromAntigravityChangelog(markdown: string, base: string, source: SourceRow): Candidate[] {
   const versionRe = /^### \[([^\]]+)\]\(([^)\s]+)(?:\s+"[^"]*")?\)\s*$/;
