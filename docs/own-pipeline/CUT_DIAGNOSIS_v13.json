@@ -1,0 +1,39 @@
+{
+  "premise": "A start/end number taken from the HTML string can be used as a byte offset into the raw response.",
+  "falsified": true,
+  "firstError": "coordinate domain: the stored numbers were UTF-16 indexes of the JavaScript string. The response files are UTF-8, so those indexes land inside tags or words when applied to the bytes.",
+  "secondError": "HF selector: the slice began at the last <p before the first outline heading, so the opening paragraph was omitted. The section text itself started at the next sentence, not at the syllable 'request'.",
+  "title": "A title that sits in the hero or the date heading, outside the body element, is not by itself a missing body. It stays on the title field.",
+  "samples": {
+    "items/04 google tasks": {
+      "byteLength": 379254,
+      "jsLength": 378726,
+      "oldByteWindow": "ass=\"uni-container",
+      "oldJsWindow": "data-component=\"uni-article-body\"> then the article text",
+      "sectionHead": "The best assistant knows you and helps you get things done.",
+      "sectionTextChanged": false,
+      "titleInSection": false,
+      "titleField": "Put Gemini to work for you",
+      "verdict": "offset metadata only; body text already started on a sentence inside uni-article-body"
+    },
+    "items/07 hf openrouter": {
+      "byteLength": 163203,
+      "jsLength": 163176,
+      "oldByteWindow": "request.</p>",
+      "oldJsWindow": "<p>Today, we are switching",
+      "droppedParagraph": "Hugging Face and OpenRouter are teaming up to make open-weight models easy to run. ... picked for each request.",
+      "sectionTextChanged": true,
+      "verdict": "both errors. The byte window looked like a mid-word cut. The JS slice was on a tag boundary but skipped the first paragraph. The repaired slice starts at that first <p>."
+    },
+    "items/10 claude linked-billing": {
+      "byteLength": 1046281,
+      "jsLength": 1041746,
+      "oldByteWindow": "ul class cut before t\">",
+      "oldJsWindow": "We’ve launched",
+      "dateHeadingBeforeCut": "November 17, 2026",
+      "sectionTextChanged": false,
+      "nextUpdateInSection": false,
+      "verdict": "offset metadata only. The date h3 is the group heading before the li. The li text was already complete."
+    }
+  }
+}

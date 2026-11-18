@@ -10,9 +10,14 @@ import {
   assertThrowawayDatabase,
   canonicalIdentity,
   cumulativeEvidenceHash,
+  fileExecutionIdentity,
+  fileOutputCanonical,
+  fileOutputSha256,
   mapControlledImport,
   ownModelOutput,
   parseOwnModelOutput,
+  type FileResultItem,
+  type FileResultRecord,
   type ControlledImportItem,
   type JudgmentBody,
   type JudgmentIdentity,
@@ -82,7 +87,13 @@ function uniqueViolation(error: unknown): boolean {
 }
 
 function canonicalBody(body: JudgmentBody): JudgmentBody {
-  return { ...body, comparison: body.comparison ?? null, modelReceiptId: body.modelReceiptId ?? null, factCheck: body.factCheck ?? null };
+  return {
+    ...body,
+    comparison: body.comparison ?? null,
+    modelReceiptId: body.modelReceiptId ?? null,
+    factCheck: body.factCheck ?? null,
+    fileResult: body.fileResult ?? null,
+  };
 }
 
 function explicitText(value: string | null): string | null {
@@ -220,6 +231,7 @@ function bodyFromRow(row: {
     comparison: row.comparison?.algorithm ? { algorithm: row.comparison.algorithm, inputHash: row.comparison.inputHash } : null,
     modelReceiptId: row.model_receipt_id,
     factCheck: (row.comparison as { factCheck?: JudgmentBody["factCheck"] } | null)?.factCheck ?? null,
+    fileResult: (row.comparison as { fileResult?: FileResultRecord } | null)?.fileResult ?? null,
   };
 }
 
@@ -234,7 +246,18 @@ function assertBody(body: JudgmentBody, identity: JudgmentIdentity): void {
   if (body.origin === "model" && !(Number.isInteger(body.modelReceiptId) && (body.modelReceiptId ?? 0) > 0)) {
     throw new JudgmentConflict("模型判断必须带可追溯回执");
   }
-  if (body.origin !== "model" && body.origin !== "deterministic") throw new JudgmentConflict("判断来源无法识别");
+  if (body.origin === "file") {
+    if (!identity.promptVersion || identity.modelVersion !== fileExecutionIdentity(body.fileResult?.executionSource ?? "assistant-file")) {
+      throw new JudgmentConflict("文件结果的执行来源无法识别");
+    }
+    if (body.modelReceiptId) throw new JudgmentConflict("文件结果不能使用外部回执");
+    if (body.factStatus !== "unchecked") throw new JudgmentConflict("文件结果不能把事实标成已核");
+    if (body.valueStatus !== "incomplete_material") throw new JudgmentConflict("文件结果不能记成价值判断");
+    if (!body.fileResult || body.fileResult.vendorReceipt !== false || body.fileResult.outputSha256 !== fileOutputSha256(body.fileResult)) {
+      throw new JudgmentConflict("文件输出哈希无法重算");
+    }
+  }
+  if (body.origin !== "model" && body.origin !== "deterministic" && body.origin !== "file") throw new JudgmentConflict("判断来源无法识别");
 }
 
 async function writeJudgment(tx: Db, identity: JudgmentIdentity, body: JudgmentBody, recordedAt: string): Promise<JudgmentWrite> {
@@ -314,7 +337,11 @@ async function writeJudgment(tx: Db, identity: JudgmentIdentity, body: JudgmentB
     VALUES (${id}, ${canonical.articleId}, ${canonical.inputRevision}, ${canonical.evidenceHash}, ${canonical.rulesetVersion},
       ${canonical.promptVersion}, ${canonical.modelVersion}, ${body.informationTypeId}, ${body.contentLine},
       ${body.materialStatus}, ${body.factStatus}, ${body.valueStatus}, ${body.releaseStatus}, ${body.origin}, ${tx.json(body.reasons as never)}, ${recordedAt},
-      ${body.comparison ? tx.json({ ...body.comparison, ...(body.factCheck ? { factCheck: body.factCheck } : {}) } as never) : body.factCheck ? tx.json({ factCheck: body.factCheck } as never) : null}, ${body.modelReceiptId ?? null})`;
+      ${body.fileResult
+        ? tx.json({ fileResult: body.fileResult } as never)
+        : body.comparison
+          ? tx.json({ ...body.comparison, ...(body.factCheck ? { factCheck: body.factCheck } : {}) } as never)
+          : body.factCheck ? tx.json({ factCheck: body.factCheck } as never) : null}, ${body.modelReceiptId ?? null})`;
   return { id, identity: canonical, body, stale: false, idempotent: false };
 }
 
@@ -375,7 +402,7 @@ export async function activeJudgment(
 }
 
 /** 正文归属结果写在已有证据表上。ready 只表示可以做特征提取，不评分、不入 worker 队列。 */
-export async function recordBodyGate(articleId: string, gate: BodyGate): Promise<{ version: number }> {
+export async function recordBodyGate(articleId: string, gate: BodyGate): Promise<{ version: number; evidenceHash: string }> {
   databaseUrl();
   return sql.begin(async (tx) => {
     const [article] = await tx<{ revision: number; raw: unknown }[]>`SELECT revision, raw FROM articles WHERE id = ${articleId}`;
@@ -393,7 +420,7 @@ export async function recordBodyGate(articleId: string, gate: BodyGate): Promise
         ${latest?.raw_identity ? tx.json(latest.raw_identity as never) : null}, ${latest?.raw_file ?? null}, ${tx.json(gate as never)})`;
     await tx`UPDATE articles SET processing_state = 'skipped', processing_queued_at = NULL
       WHERE id = ${articleId} AND processing_state = 'new'`;
-    return { version };
+    return { version, evidenceHash };
   });
 }
 
@@ -453,6 +480,73 @@ export async function recordJudgment(identity: JudgmentIdentity, body: JudgmentB
     if (!uniqueViolation(error)) throw error;
     return reread(identity, body);
   }
+}
+
+function quoteFits(text: string | null, excerpt: string, start: number | null, end: number | null): boolean {
+  if (!text || !text.includes(excerpt)) return false;
+  if (start === null || end === null) return true;
+  return text.slice(start, end) === excerpt;
+}
+
+/** 把一份文件推理记到当前证据上。不写外部回执，不把事实标成已核，不发放许可。 */
+export async function recordFileResult(item: FileResultItem, recordedAt: string, options?: { write?: boolean }): Promise<JudgmentWrite & { fileReceipt: { kind: "file-output"; vendorReceipt: false; outputSha256: string } }> {
+  databaseUrl();
+  const [current] = await sql<{ version: number; evidence_hash: string; article_revision: number; body_text: string | null; quoted_text: string | null }[]>`
+    SELECT version, evidence_hash, article_revision, body_text, quoted_text FROM own_evidence_versions
+    WHERE article_id = ${item.articleId} ORDER BY version DESC LIMIT 1`;
+  if (!current) throw new JudgmentConflict("没有持久证据，拒绝判断");
+  if (current.evidence_hash !== item.evidenceHash || Number(current.article_revision) !== item.inputRevision || Number(current.version) !== item.evidenceVersion) {
+    throw new JudgmentConflict("输入证据不是当前版本");
+  }
+  const quote = item.output.quoteLocation;
+  if (!quoteFits(current.body_text, quote.excerpt, quote.start, quote.end) && !quoteFits(current.quoted_text, quote.excerpt, quote.start, quote.end)) {
+    throw new JudgmentConflict("引文不在当前正文或引用里");
+  }
+  const derived = !current.body_text ? "missing_body" as const : current.quoted_text ? "complete" as const : "missing_quote" as const;
+  const fileResult: FileResultRecord = {
+    executionSource: item.executionSource,
+    knownModel: item.knownModel,
+    output: item.output,
+    outputSha256: fileOutputSha256(fileOutputCanonical(item)),
+    vendorReceipt: false,
+  };
+  if (options?.write === false) {
+    return {
+      id: "",
+      identity: {
+        articleId: item.articleId, inputRevision: item.inputRevision, evidenceHash: item.evidenceHash,
+        rulesetVersion: item.rulesetVersion, promptVersion: item.promptVersion, modelVersion: fileExecutionIdentity(item.executionSource),
+      },
+      body: {
+        informationTypeId: null, contentLine: null, materialStatus: derived, factStatus: "unchecked",
+        valueStatus: "incomplete_material", releaseStatus: "not_licensed", origin: "file",
+        reasons: ["文件结果，事实未核，未许可"], modelReceiptId: null, fileResult,
+      },
+      stale: false,
+      idempotent: false,
+      fileReceipt: { kind: "file-output", vendorReceipt: false, outputSha256: fileResult.outputSha256 },
+    };
+  }
+  const judgment = await recordJudgment({
+    articleId: item.articleId,
+    inputRevision: item.inputRevision,
+    evidenceHash: item.evidenceHash,
+    rulesetVersion: item.rulesetVersion,
+    promptVersion: item.promptVersion,
+    modelVersion: fileExecutionIdentity(item.executionSource),
+  }, {
+    informationTypeId: null,
+    contentLine: null,
+    materialStatus: derived,
+    factStatus: "unchecked",
+    valueStatus: "incomplete_material",
+    releaseStatus: "not_licensed",
+    origin: "file",
+    reasons: ["文件结果，事实未核，未许可"],
+    modelReceiptId: null,
+    fileResult,
+  }, recordedAt);
+  return { ...judgment, fileReceipt: { kind: "file-output", vendorReceipt: false, outputSha256: fileResult.outputSha256 } };
 }
 
 export interface ClosedLoop {

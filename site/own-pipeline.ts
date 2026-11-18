@@ -196,7 +196,138 @@ export function parseOwnModelOutput(response: unknown, expected: { articleId: st
 }
 export type ReleaseStatus = "not_licensed";
 /** 确定性规则可以没有模型版本。模型提取或判断必须带上可追溯版本，空字符串不能代替来源。 */
-export type JudgmentOrigin = "deterministic" | "model";
+export type JudgmentOrigin = "deterministic" | "model" | "file";
+
+export const FILE_EXECUTION_SOURCES = ["assistant-file", "human-file"] as const;
+export type FileExecutionSource = (typeof FILE_EXECUTION_SOURCES)[number];
+
+/** 文件推理的实际输出。不是五枚举，也不是 A–F 分。 */
+export interface FileSemanticOutput {
+  narrowClaim: string;
+  quoteLocation: { excerpt: string; start: number | null; end: number | null };
+  conditions: string[];
+  audience: string[];
+  substantiveAddition: string;
+  clauses: { id: string; text: string }[];
+}
+
+/** 存在判断行上的文件结果。outputSha256 由输出重算，不是外部厂商回执。 */
+export interface FileResultRecord {
+  executionSource: FileExecutionSource;
+  knownModel: string | null;
+  output: FileSemanticOutput;
+  outputSha256: string;
+  vendorReceipt: false;
+}
+
+export interface FileResultItem {
+  articleId: string;
+  evidenceHash: string;
+  evidenceVersion: number;
+  inputRevision: number;
+  rulesetVersion: string;
+  promptVersion: string;
+  executionSource: FileExecutionSource;
+  knownModel: string | null;
+  output: FileSemanticOutput;
+}
+
+export function fileExecutionIdentity(source: FileExecutionSource): string {
+  return `file:${source}`;
+}
+
+export function fileOutputCanonical(input: Pick<FileResultRecord, "executionSource" | "knownModel" | "output">): { executionSource: FileExecutionSource; knownModel: string | null; output: FileSemanticOutput } {
+  return { executionSource: input.executionSource, knownModel: input.knownModel, output: input.output };
+}
+
+export function fileOutputSha256(input: Pick<FileResultRecord, "executionSource" | "knownModel" | "output">): string {
+  return sha256(stableJson(fileOutputCanonical(input)));
+}
+
+const FILE_ITEM_KEYS = new Set(["articleId", "evidenceHash", "evidenceVersion", "inputRevision", "rulesetVersion", "promptVersion", "executionSource", "knownModel", "output"]);
+const FILE_OUTPUT_KEYS = new Set(["narrowClaim", "quoteLocation", "conditions", "audience", "substantiveAddition", "clauses"]);
+const FILE_QUOTE_KEYS = new Set(["excerpt", "start", "end"]);
+const FILE_CLAUSE_KEYS = new Set(["id", "text"]);
+const FILE_BANNED_KEY = /^(?:score|grade|band|points|prioritize|verify|exclude|expected|automatic_route|modelreceiptid|modelversion|factstatus|releasestatus)$/i;
+
+function ownKeys(value: Record<string, unknown>): string[] {
+  return Object.keys(value);
+}
+
+function rejectBannedKeys(value: unknown): void {
+  if (!value || typeof value !== "object") return;
+  for (const [key, child] of Object.entries(value as Record<string, unknown>)) {
+    if (FILE_BANNED_KEY.test(key)) throw new Error(`文件结果不能带字段 ${key}`);
+    if (child && typeof child === "object") rejectBannedKeys(child);
+  }
+}
+
+function stringList(value: unknown, label: string): string[] {
+  if (!Array.isArray(value) || value.some((item) => typeof item !== "string")) throw new Error(`${label} 必须是字符串数组`);
+  return value;
+}
+
+/** 解析文件结果。未知结构拒绝。不读取调用者声称的输出哈希。 */
+export function parseFileResultDocument(value: unknown): FileResultItem[] {
+  if (!value || typeof value !== "object" || Array.isArray(value)) throw new Error("文件结果格式无法解析");
+  const doc = value as Record<string, unknown>;
+  if (doc.schema !== "own-file-result-v1" || !Array.isArray(doc.items) || doc.items.length === 0) throw new Error("文件结果格式无法解析");
+  if (ownKeys(doc).some((key) => key !== "schema" && key !== "items")) throw new Error("文件结果格式无法解析");
+  return doc.items.map((row, index) => {
+    if (!row || typeof row !== "object" || Array.isArray(row)) throw new Error(`items[${index}] 格式无法解析`);
+    const item = row as Record<string, unknown>;
+    if (ownKeys(item).some((key) => !FILE_ITEM_KEYS.has(key)) || FILE_ITEM_KEYS.size !== ownKeys(item).length) throw new Error(`items[${index}] 格式无法解析`);
+    rejectBannedKeys(item);
+    if (typeof item.articleId !== "string" || !item.articleId.trim()) throw new Error(`items[${index}].articleId 无效`);
+    if (typeof item.evidenceHash !== "string" || !/^[0-9a-f]{64}$/.test(item.evidenceHash)) throw new Error(`items[${index}].evidenceHash 无效`);
+    if (!Number.isInteger(item.evidenceVersion) || (item.evidenceVersion as number) < 1) throw new Error(`items[${index}].evidenceVersion 无效`);
+    if (!Number.isInteger(item.inputRevision) || (item.inputRevision as number) < 1) throw new Error(`items[${index}].inputRevision 无效`);
+    if (typeof item.rulesetVersion !== "string" || !item.rulesetVersion.trim()) throw new Error(`items[${index}].rulesetVersion 无效`);
+    if (typeof item.promptVersion !== "string" || !item.promptVersion.trim()) throw new Error(`items[${index}].promptVersion 无效`);
+    if (!FILE_EXECUTION_SOURCES.includes(item.executionSource as FileExecutionSource)) throw new Error(`items[${index}].executionSource 无效`);
+    if (item.knownModel !== null && (typeof item.knownModel !== "string" || !item.knownModel.trim())) throw new Error(`items[${index}].knownModel 无效`);
+    if (!item.output || typeof item.output !== "object" || Array.isArray(item.output)) throw new Error(`items[${index}].output 无效`);
+    const output = item.output as Record<string, unknown>;
+    if (ownKeys(output).some((key) => !FILE_OUTPUT_KEYS.has(key)) || ownKeys(output).length !== FILE_OUTPUT_KEYS.size) throw new Error(`items[${index}].output 无效`);
+    if (typeof output.narrowClaim !== "string" || output.narrowClaim.trim().length < 4) throw new Error(`items[${index}].output.narrowClaim 无效`);
+    if (!output.quoteLocation || typeof output.quoteLocation !== "object" || Array.isArray(output.quoteLocation)) throw new Error(`items[${index}].output.quoteLocation 无效`);
+    const quote = output.quoteLocation as Record<string, unknown>;
+    if (ownKeys(quote).some((key) => !FILE_QUOTE_KEYS.has(key)) || ownKeys(quote).length !== FILE_QUOTE_KEYS.size) throw new Error(`items[${index}].output.quoteLocation 无效`);
+    if (typeof quote.excerpt !== "string" || quote.excerpt.trim().length < 4) throw new Error(`items[${index}].output.quoteLocation.excerpt 无效`);
+    const start = quote.start;
+    const end = quote.end;
+    if (!((start === null && end === null) || (Number.isInteger(start) && Number.isInteger(end) && (start as number) >= 0 && (end as number) > (start as number)))) {
+      throw new Error(`items[${index}].output.quoteLocation 偏移无效`);
+    }
+    const clauses = output.clauses;
+    if (!Array.isArray(clauses)) throw new Error(`items[${index}].output.clauses 无效`);
+    const parsedClauses = clauses.map((clause, clauseIndex) => {
+      if (!clause || typeof clause !== "object" || Array.isArray(clause)) throw new Error(`items[${index}].output.clauses[${clauseIndex}] 无效`);
+      const row = clause as Record<string, unknown>;
+      if (ownKeys(row).some((key) => !FILE_CLAUSE_KEYS.has(key)) || ownKeys(row).length !== FILE_CLAUSE_KEYS.size) throw new Error(`items[${index}].output.clauses[${clauseIndex}] 无效`);
+      if (typeof row.id !== "string" || !row.id.trim() || typeof row.text !== "string" || !row.text.trim()) throw new Error(`items[${index}].output.clauses[${clauseIndex}] 无效`);
+      return { id: row.id, text: row.text };
+    });
+    return {
+      articleId: item.articleId.trim(),
+      evidenceHash: item.evidenceHash,
+      evidenceVersion: item.evidenceVersion as number,
+      inputRevision: item.inputRevision as number,
+      rulesetVersion: item.rulesetVersion.trim(),
+      promptVersion: item.promptVersion.trim(),
+      executionSource: item.executionSource as FileExecutionSource,
+      knownModel: item.knownModel === null ? null : (item.knownModel as string).trim(),
+      output: {
+        narrowClaim: (output.narrowClaim as string).trim(),
+        quoteLocation: { excerpt: (quote.excerpt as string).trim(), start: start as number | null, end: end as number | null },
+        conditions: stringList(output.conditions, `items[${index}].output.conditions`),
+        audience: stringList(output.audience, `items[${index}].output.audience`),
+        substantiveAddition: typeof output.substantiveAddition === "string" ? output.substantiveAddition.trim() : (() => { throw new Error(`items[${index}].output.substantiveAddition 无效`); })(),
+        clauses: parsedClauses,
+      },
+    };
+  });
+}
 
 export interface JudgmentBody {
   informationTypeId: InformationTypeId | null;
@@ -216,6 +347,11 @@ export interface JudgmentBody {
    * unchecked 可以记判断，但不表示事实已核，也不能发放许可。
    */
   factCheck?: { claim: string; sourceExcerpt: string; by: "human" } | null;
+  /**
+   * origin=file 时必填。这是助理或人工文件推理的输出，不是外部厂商回执。
+   * 事实保持 unchecked，许可保持 not_licensed。
+   */
+  fileResult?: FileResultRecord | null;
 }
 
 export interface JudgmentRow {
@@ -271,7 +407,16 @@ export class JudgmentLedger {
     if (body.origin === "model" && !(Number.isInteger(body.modelReceiptId) && (body.modelReceiptId ?? 0) > 0)) {
       throw new Error("模型判断必须带可追溯回执");
     }
-    if (body.origin !== "model" && body.origin !== "deterministic") throw new Error("判断来源无法识别");
+    if (body.origin === "file") {
+      if (body.factStatus !== "unchecked") throw new Error("文件结果不能把事实标成已核");
+      if (body.valueStatus !== "incomplete_material") throw new Error("文件结果不能记成价值判断");
+      if (body.modelReceiptId) throw new Error("文件结果不能使用外部回执");
+      if (!body.fileResult || body.fileResult.vendorReceipt !== false || body.fileResult.outputSha256 !== fileOutputSha256(body.fileResult)) {
+        throw new Error("文件输出哈希无法重算");
+      }
+      if (identity.modelVersion !== fileExecutionIdentity(body.fileResult.executionSource)) throw new Error("文件结果的执行来源无法识别");
+    }
+    if (body.origin !== "model" && body.origin !== "deterministic" && body.origin !== "file") throw new Error("判断来源无法识别");
     const id = judgmentId(identity);
     const existing = this.rows.find((row) => row.id === id);
     if (existing) {

@@ -225,6 +225,16 @@ export interface DomSlice {
   gap: string | null;
 }
 
+/** UTF-16 index in the HTML string, as a byte offset into that string's UTF-8 bytes. */
+export function utf8ByteOffset(text: string, index: number): number {
+  return Buffer.byteLength(text.slice(0, Math.max(0, index)));
+}
+
+function byteSpan(text: string, start: number | null, end: number | null): { start: number | null; end: number | null } {
+  if (start === null) return { start, end };
+  return { start: utf8ByteOffset(text, start), end: end === null ? null : utf8ByteOffset(text, end) };
+}
+
 function headingAt(html: string, label: string): number {
   for (const match of html.matchAll(/<h([1-4])\b[^>]*>([\s\S]*?)<\/h\1>/gi)) {
     if (plain(match[2] ?? "") === label && match.index !== undefined) return match.index;
@@ -283,10 +293,9 @@ function hfSlice(html: string): DomSlice {
     return { text: "", headings: labels, missing: [labels[0]!], start: 0, end: null, source: "titleTree", gap: `outline heading is not in the page: ${labels[0]}` };
   }
   const navEnd = html.lastIndexOf("</nav>", firstAt);
-  const leadFrom = navEnd >= 0 ? navEnd : Math.max(0, firstAt - 4000);
-  const lead = html.slice(leadFrom, firstAt);
-  const paragraph = lead.lastIndexOf("<p");
-  const start = paragraph >= 0 ? leadFrom + paragraph : firstAt;
+  const afterNav = navEnd >= 0 ? navEnd + "</nav>".length : Math.max(0, firstAt - 4000);
+  const paragraph = html.slice(afterNav, firstAt).search(/<p\b/i);
+  const start = paragraph >= 0 ? afterNav + paragraph : firstAt;
   const lastAt = headingAt(html, labels[labels.length - 1]!);
   const lastClose = lastAt >= 0 ? html.slice(lastAt).search(/<\/h[1-4]>/i) : -1;
   const after = lastAt >= 0 && lastClose >= 0 ? lastAt + lastClose : firstAt;
@@ -354,7 +363,8 @@ export function classifyFetched(input: {
     return {
       ...base, fetch: "feed_stored", body: "attributed", completeness: thin ? "partial" : "complete",
       queue: thin ? "held" : "ready_for_features", reason: note.reason,
-      sectionText: note.text, sectionSha256: sha256(note.text), dateLabel: note.updated, start: note.start, end: note.end,
+      sectionText: note.text, sectionSha256: sha256(note.text), dateLabel: note.updated,
+      ...byteSpan(input.atomXml, note.start, note.end),
     };
   }
   if (fragment && input.html) {
@@ -365,6 +375,7 @@ export function classifyFetched(input: {
       return {
         ...base, fetch: "feed_stored", body: "ambiguous", completeness: "partial", queue: "held", start: cut.start, end: cut.end,
         reason: `subheading dropped before the next update: ${dropped.join(" | ")}`, sectionText: cut.text, sectionSha256: sha256(cut.text),
+        ...byteSpan(input.html, cut.start, cut.end),
       };
     }
     const thin = TRUNCATION.test(cut.text);
@@ -375,6 +386,7 @@ export function classifyFetched(input: {
         ? "fragment runs to the next same-level update and keeps the subheadings inside that span"
         : "fragment runs to the next same-level update; the span has no later subheading",
       sectionText: cut.text, sectionSha256: sha256(cut.text),
+      ...byteSpan(input.html, cut.start, cut.end),
     };
   }
   if (input.html) {
@@ -387,7 +399,8 @@ export function classifyFetched(input: {
         reason: dom.gap ?? (dom.headings.length
           ? `DOM slice ${dom.source}; ${dom.headings.length} heading(s) stay inside the slice`
           : `DOM slice ${dom.source}; the body element has no internal heading, and the slice runs from that element to the chrome heading`),
-        sectionText: ready ? dom.text : null, sectionSha256: ready ? sha256(dom.text) : null, start: dom.start, end: dom.end,
+        sectionText: ready ? dom.text : null, sectionSha256: ready ? sha256(dom.text) : null,
+        ...byteSpan(input.html, dom.start, dom.end),
       };
     }
   }

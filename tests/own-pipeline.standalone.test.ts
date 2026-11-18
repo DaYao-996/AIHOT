@@ -24,6 +24,7 @@ import {
   historicalBand,
   informationType,
   mapControlledImport,
+  parseFileResultDocument,
   parseImportDocument,
   unblindedStructureGaps,
   type JudgmentBody,
@@ -301,6 +302,9 @@ test("stopping web and api does not disarm worker schedules", () => {
   assert.equal(migrationPlan(source("database/migrations/0173_own_judgments_origin_check.sql")).kind, "transaction");
   assert.equal(migrationPlan(source("database/migrations/0174_own_judgments_origin_validate.sql")).kind, "validation");
   assert.equal(migrationPlan(source("database/migrations/0175_own_evidence_raw_identity.sql")).kind, "transaction");
+  assert.equal(migrationPlan(source("database/migrations/0180_own_judgments_origin_file_drop.sql")).kind, "transaction");
+  assert.equal(migrationPlan(source("database/migrations/0181_own_judgments_origin_file_check.sql")).kind, "transaction");
+  assert.equal(migrationPlan(source("database/migrations/0182_own_judgments_origin_file_validate.sql")).kind, "validation");
 });
 
 test("import files reject unknown fields and a mismatched original hash", () => {
@@ -328,6 +332,27 @@ test("a model judgement cannot hide behind an empty version", () => {
   assert.equal(cliEntryAllowed({}).ok, true);
   assert.equal(cliEntryAllowed({ COLLECT_ENABLED: "true" }).ok, false);
   assert.equal(cliEntryAllowed({ MODEL_CALLS_ENABLED: "true" }).outboundIfWorker.includes("model.calls"), true);
+});
+
+test("a file result schema accepts a narrow claim and rejects a score or a claimed hash", () => {
+  const item = {
+    articleId: "article-1", evidenceHash: "a".repeat(64), evidenceVersion: 2, inputRevision: 3,
+    rulesetVersion: "rules@1", promptVersion: "prompt@1", executionSource: "assistant-file", knownModel: null,
+    output: {
+      narrowClaim: "这是一个窄主张",
+      quoteLocation: { excerpt: "原句在这里", start: null, end: null },
+      conditions: ["只在正文出现时"],
+      audience: ["读发布说明的人"],
+      substantiveAddition: "相对标题多了一句限制",
+      clauses: [{ id: "scope", text: "只覆盖这一段" }],
+    },
+  };
+  const parsed = parseFileResultDocument({ schema: "own-file-result-v1", items: [item] });
+  assert.equal(parsed[0]!.output.narrowClaim, "这是一个窄主张");
+  assert.equal(parsed[0]!.knownModel, null);
+  assert.throws(() => parseFileResultDocument({ schema: "own-file-result-v1", items: [{ ...item, outputSha256: "b".repeat(64) }] }), /格式无法解析/);
+  assert.throws(() => parseFileResultDocument({ schema: "own-file-result-v1", items: [{ ...item, output: { ...item.output, score: 80 } }] }), /score|格式无法解析/);
+  assert.throws(() => parseFileResultDocument({ schema: "own-file-result-v1", items: [{ ...item, executionSource: "gpt-4o" }] }), /executionSource/);
 });
 
 test("throwaway database guard rejects remote and production names", () => {

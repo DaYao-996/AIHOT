@@ -79,7 +79,10 @@ async function main() {
         rawFileBase64: page.body.toString("base64"), rawFileSha256: sha256(page.body),
         bodyText: gate.queue === "ready_for_features" ? gate.sectionText ?? null : null,
       });
-      await recordBodyGate(row.id, gate);
+      const gated = await recordBodyGate(row.id, gate);
+      if (evidence) {
+        evidence = { ...evidence, evidenceVersion: gated.version, evidenceHash: gated.evidenceHash };
+      }
     }
     const pageSha = codex ? sha256(atom.body) : gate.pageSha256;
     const feature = gate.sectionText && gate.sectionSha256 && pageSha
@@ -113,7 +116,7 @@ async function main() {
     });
   }
   const queue = await listFeatureQueue();
-  const pack = "/tmp/own-evidence-v12";
+  const pack = "/tmp/own-evidence-v13";
   rmSync(pack, { recursive: true, force: true });
   mkdirSync(`${pack}/shared`, { recursive: true });
   writeFileSync(`${pack}/shared/overview.bin`, overview.body);
@@ -138,6 +141,7 @@ async function main() {
   });
   const report = {
     generated_at: new Date().toISOString(), paid: false, refetch: false, bypass403: false,
+    offsetUnit: "utf-8 byte offset into the response named by input.sectionByteSource; not a javascript string index",
     checkedMeans: "checked is a human claim against a stored excerpt, not an automatic proof",
     overview: { status: overview.status, finalUrl: overview.finalUrl, sha256: sha256(overview.body), bytes: overview.body.length },
     atom: { status: atom.status, finalUrl: atom.finalUrl, sha256: sha256(atom.body), bytes: atom.body.length },
@@ -147,7 +151,7 @@ async function main() {
     items: publicItems,
   };
   writeFileSync(`${pack}/INDEX.json`, JSON.stringify(report, null, 2));
-  writeFileSync("docs/own-pipeline/DETAIL_EVIDENCE_v12.json", JSON.stringify(report, null, 2));
+  writeFileSync("docs/own-pipeline/DETAIL_EVIDENCE_v13.json", JSON.stringify(report, null, 2));
   const files: string[] = [];
   const walk = (dir: string) => {
     for (const entry of readdirSync(dir, { withFileTypes: true })) {
@@ -159,9 +163,9 @@ async function main() {
   walk(pack);
   const hashes = files.sort().map((file) => `${sha256(readFileSync(file))}  ${file.slice(pack.length + 1)}`).join("\n") + "\n";
   writeFileSync(`${pack}/HASHES.txt`, hashes);
-  const packed = spawnSync("tar", ["-czf", "/tmp/own-pipeline-evidence-v12.tar.gz", "-C", "/tmp", "own-evidence-v12"], { encoding: "utf8" });
+  const packed = spawnSync("tar", ["-czf", "/tmp/own-pipeline-evidence-v13.tar.gz", "-C", "/tmp", "own-evidence-v13"], { encoding: "utf8" });
   if (packed.status !== 0) throw new Error(packed.stderr || "tar failed");
-  console.log(JSON.stringify({ ready: queue.length, counts: report.counts, pack: "/tmp/own-pipeline-evidence-v12.tar.gz" }));
+  console.log(JSON.stringify({ ready: queue.length, counts: report.counts, pack: "/tmp/own-pipeline-evidence-v13.tar.gz" }));
 }
 
 try { await main(); } finally { await closeDb(); }

@@ -97,6 +97,36 @@ test("a DOM article slice keeps its headings and stops before the newsletter", (
   assert.equal((cut.sectionText ?? "").includes("Skip to main content"), false);
 });
 
+test("byte offsets are not javascript indexes, and the first paragraph is kept", () => {
+  const google = `café<div class="uni-article-body"><p>The article starts here and ends well.</p></div><h2>Get the latest news from Google in your inbox</h2>`;
+  const googleGate = classifyFetched({ title: "The article starts here", url: "https://blog.google/example/", httpStatus: 200, html: google });
+  const googleBytes = Buffer.from(google);
+  assert.equal(googleBytes.subarray(googleGate.start! - 1, googleGate.start!).toString("utf8"), ">");
+  assert.equal(googleBytes.subarray(googleGate.start!, googleGate.start! + 3).toString("utf8").includes("ass"), false);
+  assert.match(googleGate.sectionText ?? "", /The article starts here/);
+  assert.notEqual(googleGate.start, google.indexOf("uni-article-body"));
+
+  const hf = `<nav><a>What's next</a></nav><p>The lede ends with each request.</p><p>Today the next paragraph starts.</p><h2>Pricing</h2><p>Price details.</p><h2>Other post</h2>`;
+  const hfHtml = `é${hf}`;
+  const hfGate = classifyFetched({ title: "OpenRouter", url: "https://huggingface.co/blog/openrouter", httpStatus: 200, html: `<div data-target="SideNavigation" data-props="{&quot;titleTree&quot;:[{&quot;label&quot;:&quot;Pricing&quot;,&quot;children&quot;:[]}]}"></div>${hfHtml}` });
+  assert.match(hfGate.sectionText ?? "", /each request/);
+  assert.match(hfGate.sectionText ?? "", /Today the next paragraph/);
+  assert.equal((hfGate.sectionText ?? "").includes("Other post"), false);
+  const hfBytes = Buffer.from(`<div data-target="SideNavigation" data-props="{&quot;titleTree&quot;:[{&quot;label&quot;:&quot;Pricing&quot;,&quot;children&quot;:[]}]}"></div>${hfHtml}`);
+  assert.equal(hfBytes.subarray(hfGate.start!, hfGate.start! + 3).toString("utf8"), "<p>");
+
+  const claude = `é<h3 id="november-17-2026">November 17, 2026</h3><ul class="docs-public-part"><li id="linked-billing">We’ve launched the note.</li></ul><h3 id="november-16-2026">November 16, 2026</h3>`;
+  const claudeGate = classifyFetched({
+    title: "Linked billing",
+    url: "https://platform.claude.com/docs/en/release-notes/overview#linked-billing",
+    httpStatus: 200, html: claude,
+  });
+  const claudeBytes = Buffer.from(claude);
+  assert.equal(claudeBytes.subarray(claudeGate.start! - 1, claudeGate.start!).toString("utf8"), ">");
+  assert.match(claudeGate.sectionText ?? "", /We’ve launched the note/);
+  assert.equal((claudeGate.sectionText ?? "").includes("November 16"), false);
+});
+
 test("a titleTree slice keeps every outline heading and stops before the next post", () => {
   const html = `<div data-target="SideNavigation" data-props="{&quot;titleTree&quot;:[{&quot;label&quot;:&quot;Pricing&quot;,&quot;children&quot;:[]},{&quot;label&quot;:&quot;What&#39;s next&quot;,&quot;children&quot;:[]}]}"></div></nav><p>Lede of the post.</p><h2>Pricing</h2><p>Details of pricing.</p><h2>What's next</h2><p>The ending sentence.</p><h2>Other post</h2><p>Not this article.</p>`;
   const cut = classifyFetched({ title: "OpenRouter", url: "https://huggingface.co/blog/openrouter", httpStatus: 200, html });
