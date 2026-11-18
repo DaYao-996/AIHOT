@@ -17,6 +17,11 @@ const older = section("h_older", "September 25, 2026", "Build plugins", "Create 
 const newest = section("h_newest", "September 28, 2026", "A model launch", 'A new model is available. <a href="/docs/new">Read about it</a>.');
 let prepend = false;
 const server = http.createServer((req, res) => {
+  if (req.url === "/antigravity.md") {
+    res.setHeader("content-type", "text/markdown");
+    res.end(`# Changelog\n\n## Antigravity App\n\n### [v2.33.0](/releases?tab=hub&version=2.33.0 "View release 2.33.0")\n\nLatest\n\nNovember 17, 2026\n\n### Connect over SSH\n\nSSH host connections for remote Linux machines.\n\n### [v2.32.2](/releases?tab=hub&version=2.32.2 "View release 2.32.2")\n\nNovember 10, 2026\n\n### Side questions\n\nA later fix.\n`);
+    return;
+  }
   if (req.url === "/notes.md") {
     res.setHeader("content-type", "text/markdown");
     res.end(`# Release notes\n\n## November 2, 2026 {% id="11-02-2026" %}\n\n**Model deprecation:** Migrate to [the replacement](/docs/models/new).\n\n## October 30, 2026 {% id="10-30-2026" %}\n\nComputer use is generally available.\n`);
@@ -58,6 +63,18 @@ test("Markdown changelog sections keep explicit anchors, publication days and se
   assert.match(items[0]!.bodyText!, /Model deprecation/);
   assert.doesNotMatch(items[0]!.bodyText!, /Computer use|Release notes/);
   assert.match(items[1]!.bodyText!, /Computer use is generally available/);
+});
+
+test("Antigravity changelog versions keep their calendar day and do not swallow the next version", async () => {
+  const draft = { config: { url: base + "/antigravity.md", parseMode: "antigravity_changelog", publishedAtUtcOffset: "+00:00" } } as never;
+  const items = await fetchWebList(draft);
+  assert.deepEqual(unsupportedConfig("web_list", (draft as { config: Record<string, unknown> }).config), []);
+  assert.deepEqual(items.map((item) => [item.url, item.title, item.publicationTime]), [
+    [base + "/releases?tab=hub&version=2.33.0", "Connect over SSH", "2026-11-17"],
+    [base + "/releases?tab=hub&version=2.32.2", "Side questions", "2026-11-10"],
+  ]);
+  assert.match(items[0]!.bodyText!, /remote Linux/);
+  assert.doesNotMatch(items[0]!.bodyText!, /later fix/);
 });
 
 test("dates require a real complete calendar day, never a product version or an impossible day", () => {

@@ -1,0 +1,19 @@
+{
+  "version": "gap-v19",
+  "code": {
+    "HEAD": "56e912eb306c7cd841cb7def441596622673f031",
+    "parent": "5442b6e602e7b1436b59bf77e293ccdb5bc898ca",
+    "tree": "4ee240c00589ae13b9b56c3743f22ef08e7b0261"
+  },
+  "files": {
+    "scripts/own-run.ts": "0fa6bdaa3f1be2e48e452b533f03f29430b41599b7a1d03c1c942018de1eebe0",
+    "scripts/own-judge-mode.ts": "3fcd00a145e2c2bdfdc487c65f39cd168d8742ad6e046288ae175f4f6c01d853",
+    "packages/backend/src/sources/request-ledger.ts": "5efa64107de1f9755ebb74d70817bd3a7a86fdd2bc39dbbcd9f0ca903fe9932f",
+    "packages/backend/src/sources/web-list.ts": "5d264f0cff30aa1fc8fb06456a16c1a2beee87ed6730a928115e6c899117fae1",
+    "packages/backend/src/content/extract.ts": "6ec9450c74fa782eb107e71deab42bdc4b5129a53b311459556bbcf76d2dfab2",
+    "docs/own-pipeline/contract-run-v19/CONFIG.json": "d8f3e98559ae5b42eb57504fe9e5b9723b91af7efae3f108550f26a6d6b0096c",
+    "docs/own-pipeline/contract-run-v19/COMMAND.txt": "7c464a0059ef147a980cdf045d7f2ec4bd4822d2ad2af2a5aab92185de67ec5e",
+    "docs/own-pipeline/contract-run-v19/dumps/before.dump": "49c0204763cd9d980b5e9fc9a882aa76e8cba5ea39bc13d60afbe08f1da13693"
+  },
+  "startedFrom": "empty migrated database; three articles are read from the sealed v13 database during the run"
+}

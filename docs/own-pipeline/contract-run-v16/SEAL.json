@@ -1,0 +1,26 @@
+{
+  "version": "contract-run-v16",
+  "notV15": true,
+  "code": {
+    "HEAD": "603b6018a2802802482001a4fbce36e549d6092d",
+    "parent": "f9088563e9ea8e9b41790a7c77ad84a17a829652",
+    "tree": "65eaafc8721d2acf3bc2b2eaa5ad3019605cc2ba"
+  },
+  "files": {
+    "docs/own-pipeline/contract-run-v16/CONFIG.json": "d217421e9f9a2dac12d89c227c256775de414060d71f567e397dbb1d9f42b345",
+    "docs/own-pipeline/contract-run-v16/PRIOR17.json": "c976fc613071f2ca1d71c833240bf5cfc8bdb0bc45820ebc36ce0fd2e15292dd",
+    "docs/own-pipeline/contract-run-v16/COMMAND.txt": "6f9855bc35015ab41211cacd5c050a843e3afb18b990bf0cf25935a3152958b5",
+    "docs/own-pipeline/contract-run-v16/dumps/before.dump": "58dd7e210f62bd4e93e95e95c70786e3063676539ea017c16d095785000c1ec7",
+    "docs/own-pipeline/contract-run-v15/inputs/SOURCE_CONTRACT_v1.json": "44a2f8a73ea78db39606df8910d7602ab7de345949bcdba099cb31006a9bc9aa"
+  },
+  "beforeCounts": {
+    "articles": 0,
+    "sources": 0,
+    "fetch_runs": 0
+  },
+  "assetConfigNotUsed": {
+    "statedSha256Prefix": "9a556268",
+    "mainPackageConfigSha256": "498e9e29d412772d27d5722470a73f014949e75800830bc15f1d3f6073a25ada",
+    "note": "独立另给的 CONFIG 资产和 v15 主包配置不是同一份。这一版没有用它替换配置，身份待厘清。"
+  }
+}

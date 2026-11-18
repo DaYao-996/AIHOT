@@ -80,7 +80,7 @@ test("shards keep to the query length and account limits, per participation mode
   assert.deepEqual(shards.flatMap((s) => s.sourceIds).sort(), long.map((s) => s.id).sort(), "a query of its own and a first fetch stay out");
   for (const s of shards) {
     const handles = s.sourceIds.map((id) => /handle_\d+/.exec(long.find((l) => l.id === id)!.config.query)![0]);
-    assert.ok(shardQuery(handles, s.sourceIds.map((id) => selfThreadHandle(long.find((l) => l.id === id)!)).filter((h): h is string => h !== null)).length <= 470, "room is left for the since_id watermark under 512 characters");
+    assert.ok(shardQuery(handles, handles).length <= 470, "room is left for the since_id watermark under 512 characters");
     assert.ok(s.sourceIds.length <= 24);
     assert.ok(s.sourceIds.every((id) => long.find((l) => l.id === id)!.participation_mode === s.mode), "modes are not mixed");
   }
@@ -198,18 +198,19 @@ test("due accounts are scheduled by shard, not one by one", async () => {
 });
 
 
-test("verified publishers include self-thread announcements in both single and shared searches", async () => {
+test("verified publishers do not get an unproven self-thread query rewrite", async () => {
   await sql`UPDATE sources SET config = config || '{"publisherRole":"organization"}'::jsonb,
     cursor = (cursor - 'lastOkAt') || ${sql.json({ lastTweetId: String(WATERMARK - 8n) })} WHERE id = ${IDS[0]!}`;
   const before = queries.length;
   await collectXShard(`editorial:self-threads-${T}`, IDS);
   const q = queries[before]!;
-  assert.ok(q.includes(`OR (from:${HANDLES[0]}) filter:self_threads)`), "only the verified publisher gets thread continuations");
-  assert.ok(q.includes(`(from:${HANDLES[0]} OR from:${HANDLES[1]} OR from:${HANDLES[2]}) -filter:replies`));
+  assert.equal(q.includes("filter:self_threads"), false);
+  assert.ok(q.startsWith(`(from:${HANDLES[0]} OR from:${HANDLES[1]} OR from:${HANDLES[2]}) -filter:replies`));
   const [source] = await sql`SELECT * FROM sources WHERE id = ${IDS[0]!}`;
   const singleBefore = queries.length;
   await fetchXSearch(source as Parameters<typeof fetchXSearch>[0]);
-  assert.ok(queries[singleBefore]!.startsWith(`from:${HANDLES[0]} (-filter:replies OR filter:self_threads)`));
+  assert.equal(queries[singleBefore]!.includes("filter:self_threads"), false);
+  assert.ok(queries[singleBefore]!.startsWith(`from:${HANDLES[0]} -filter:replies`));
   assert.equal(selfThreadHandle({ config: { query: "from:official -filter:replies", publisherRole: "person" } }), "official");
   assert.equal(selfThreadHandle({ config: { query: "from:official -filter:replies (AI OR news)", publisherRole: "organization" } }), null, "custom query semantics stay explicit");
   assert.equal(selfThreadHandle({ config: { query: "from:media -filter:replies" } }), null);

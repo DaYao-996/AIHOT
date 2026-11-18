@@ -1,11 +1,16 @@
 // What the judging steps read about an article: loaded once per analysis and rendered per step.
+import sharp from "sharp";
 import { describePublicationTime } from "../sources/dates.ts";
 import { sql } from "../db.ts";
-import { collapseWhitespace, truncate } from "../lib/text.ts";
+import { collapseWhitespace, htmlBlockText, mergeDistinctText, truncate } from "../lib/text.ts";
 import { produceImage, rasterImage, SVG_PASSTHROUGH_MAX_BYTES } from "../media/images.ts";
+import type { EditorialLoadedImages } from "../modules.ts";
 import type { ContentPart } from "../providers/llm.ts";
 import { MAX_BODY_CHARS } from "./writing.ts";
 import { withXArticle } from "../content/posts.ts";
+import { collectImageUrls, htmlAltText, mediaAltText } from "../content/presentation.ts";
+import { asideFromGate, type ContentAside } from "../sources/saved-supplements.ts";
+import { cumulativeEvidenceHash } from "../../../../site/own-pipeline.ts";
 
 export interface AnalyzeInputArticle {
   id: string;
@@ -18,10 +23,15 @@ export interface AnalyzeInputArticle {
   /** When the site first saw it; never evidence of when the source published it. */
   discoveredAt?: Date | null;
   bodyText: string | null;
+  fullBodyText?: string | null;
   excerpt: string | null;
   /** pending: no body fetched yet; ok; unconfirmed: fetching failed; none. */
   bodyStatus?: string;
   xPost: Record<string, any> | null;
+  rawXPostText?: string | null;
+  rawXQuotedText?: string | null;
+  xArticleText?: string | null;
+  imageUrls?: string[];
   media: Array<Record<string, any>>;
   source: {
     name: string;
@@ -37,30 +47,50 @@ export interface AnalyzeInputArticle {
   };
   /** Stored Chinese translation of the body (e.g. a full post whose original was truncated). */
   translationZh?: string | null;
+  /** Page links and chart axes. Separate from the prose. Linked pages were not read. */
+  aside?: ContentAside;
 }
 
 export async function loadAnalyzeInput(articleId: string): Promise<AnalyzeInputArticle | null> {
   const [row] = await sql<{
     id: string; revision: number; title: string; url: string; author: string | null; published_at: Date | null; publication_time: string | null; discovered_at: Date;
-    body_text: string | null; excerpt: string | null; body_status: string; x_post: Record<string, any> | null; x_article: { title?: string; text?: string } | null;
-    media: Array<Record<string, any>>; source_name: string; source_kind: string; tier: string; selection_class: string | null; first_party: boolean; source_tags: string[]; owner_entity_id: string | null;
-    config: Record<string, any>; translation_zh: string | null;
+    body_text: string | null; body_html: string | null; excerpt: string | null; body_status: string; x_post: Record<string, any> | null; x_article: { title?: string; text?: string; html?: string } | null;
+    cover: Record<string, any> | null; media: Array<Record<string, any>>; source_name: string; source_kind: string; tier: string; selection_class: string | null; source_tags: string[]; owner_entity_id: string | null;
+    config: Record<string, any>; translation_zh: string | null; body_gate: unknown; evidence_hash: string | null;
+    evidence_raw: unknown; evidence_body: string | null; evidence_quote: string | null; evidence_x: unknown;
   }[]>`
-    SELECT a.id, a.revision, a.title, a.url, a.author, a.published_at, a.publication_time, a.discovered_at, a.body_text, a.excerpt, a.body_status, a.x_post, a.x_article, a.media,
-           s.name AS source_name, s.kind AS source_kind, s.tier, s.selection_class, s.first_party, s.tags AS source_tags, s.owner_entity_id, s.config,
-           tr.body_text AS translation_zh
+    SELECT a.id, a.revision, a.title, a.url, a.author, a.published_at, a.publication_time, a.discovered_at, a.body_text, a.body_html, a.excerpt, a.body_status, a.x_post, a.x_article, a.cover, a.media,
+           s.name AS source_name, s.kind AS source_kind, s.tier, s.selection_class, s.tags AS source_tags, s.owner_entity_id, s.config,
+           tr.body_text AS translation_zh, ev.body_gate, ev.evidence_hash, ev.raw AS evidence_raw, ev.body_text AS evidence_body,
+           ev.quoted_text AS evidence_quote, ev.x_post AS evidence_x
     FROM articles a JOIN sources s ON s.id = a.source_id
     LEFT JOIN translations tr ON tr.article_id = a.id AND tr.lang = 'zh' AND tr.revision >= a.revision
+    LEFT JOIN LATERAL (
+      SELECT body_gate, evidence_hash, raw, body_text, quoted_text, x_post FROM own_evidence_versions WHERE article_id = a.id ORDER BY version DESC LIMIT 1
+    ) ev ON true
     WHERE a.id = ${articleId}`;
   if (!row) return null;
+  const parsedAside = asideFromGate(row.body_gate);
+  const asideBound = !!row.evidence_hash && cumulativeEvidenceHash({
+    title: row.title, raw: row.evidence_raw, bodyText: row.evidence_body, quotedText: row.evidence_quote, xPost: row.evidence_x as never, aside: parsedAside,
+  }) === row.evidence_hash;
+  const aside = asideBound ? parsedAside : { links: [], charts: [] };
   return {
     id: row.id, revision: row.revision, title: row.title, url: row.url, author: row.author, publishedAt: row.published_at, publicationTime: row.publication_time, discoveredAt: row.discovered_at,
-    bodyText: row.body_text, excerpt: row.excerpt, bodyStatus: row.body_status, xPost: withXArticle(row.x_post, row.x_article), media: row.media,
+    bodyText: row.body_text,
+    fullBodyText: mergeDistinctText(row.body_text, htmlBlockText(row.body_html), htmlAltText(row.body_html), mediaAltText(row.media), typeof row.cover?.alt === "string" ? row.cover.alt : null) || null,
+    excerpt: row.excerpt, bodyStatus: row.body_status, xPost: withXArticle(row.x_post, row.x_article),
+    rawXPostText: mergeDistinctText(row.x_post?.text ? String(row.x_post.text) : null, mediaAltText(row.x_post?.media)) || null,
+    rawXQuotedText: mergeDistinctText(row.x_post?.quoted?.text ? String(row.x_post.quoted.text) : null, mediaAltText(row.x_post?.quoted?.media)) || null,
+    xArticleText: mergeDistinctText(row.x_article?.title, row.x_article?.text, htmlBlockText(row.x_article?.html), htmlAltText(row.x_article?.html)) || null,
+    imageUrls: collectImageUrls({ html: row.body_html, xArticleHtml: row.x_article?.html ?? null, cover: row.cover, media: row.media, xPost: row.x_post }),
+    media: row.media,
     source: {
       name: row.source_name, kind: row.source_kind, tier: row.tier, selectionClass: row.selection_class, firstParty: row.tier === "T1", tags: row.source_tags, ownerEntityId: row.owner_entity_id,
       fetchesBody: row.config?.fetchPublicContent === true || !!row.config?.detail || row.source_kind === "web_list",
     },
     translationZh: row.translation_zh,
+    ...(aside.links.length || aside.charts.length ? { aside } : {}),
   };
 }
 
@@ -94,7 +124,25 @@ export function buildMaterial(a: AnalyzeInputArticle): string {
   }
   lines.push(`原文链接：${a.url}`);
   lines.push("</material>");
+  if (a.aside && (a.aside.links.length > 0 || a.aside.charts.length > 0)) {
+    lines.push("<aside>");
+    lines.push("以下不是正文。链接只记标签和地址，目标页没有读取。");
+    for (const link of a.aside.links) lines.push(`链接：${link.label} ${link.absoluteUrl} @${link.byteStart} linkedPageRead=false`);
+    for (const chart of a.aside.charts) lines.push(`图表：\n${chart.text}`);
+    lines.push("</aside>");
+  }
   return lines.join("\n");
+}
+
+async function imagePart(body: Buffer, type: string): Promise<ContentPart | null> {
+  if (!/^image\/(jpeg|png|webp)$/.test(type)) return null;
+  const { width, height } = await sharp(body).metadata();
+  // Vision providers reject either side at 10 pixels or below. Pad thin thumbnails without
+  // dropping review evidence, stretching their content or changing the reader's cached image.
+  if (width! <= 10 || height! <= 10) {
+    body = await sharp(body).extend({ top: 0, left: 0, right: Math.max(0, 11 - width!), bottom: Math.max(0, 11 - height!), background: "#fff" }).toBuffer();
+  }
+  return { type: "image_url", image_url: { url: `data:${type};base64,${body.toString("base64")}` } };
 }
 
 /**
@@ -112,8 +160,53 @@ export async function firstImagePart(a: Pick<AnalyzeInputArticle, "media"> & Par
     if (type === "image/svg+xml" && body.length > SVG_PASSTHROUGH_MAX_BYTES) {
       ({ body, type } = await rasterImage(body, type, "thumb"));
     }
-    return /^image\/(jpeg|png|webp)$/.test(type) ? { type: "image_url", image_url: { url: `data:${type};base64,${body.toString("base64")}` } } : null;
+    return await imagePart(body, type);
   } catch {
     return null;
   }
+}
+
+const MAX_REVIEW_IMAGES = 16;
+
+function decodeDataImage(url: string): { body: Buffer; type: string } | null {
+  const m = /^data:(image\/[a-z0-9.+-]+)(?:;charset=[^;,]+)?;base64,([a-z0-9+/=\s]+)$/i.exec(url);
+  if (!m) return null;
+  return { type: m[1]!.toLowerCase(), body: Buffer.from(m[2]!.replace(/\s+/g, ""), "base64") };
+}
+
+/** Loads all displayable article images as bitmap thumbnails for vision compliance review. */
+export async function loadArticleImageParts(urls: readonly string[]): Promise<EditorialLoadedImages> {
+  const unique = [...new Set(urls.filter(Boolean))];
+  if (!unique.length) return { parts: [], unverifiedCount: 0 };
+  const parts: ContentPart[] = [];
+  let unverifiedCount = unique.length > MAX_REVIEW_IMAGES ? unique.length - MAX_REVIEW_IMAGES : 0;
+  for (const url of unique.slice(0, MAX_REVIEW_IMAGES)) {
+    try {
+      let body: Buffer;
+      let type: string;
+      if (/^data:image\//i.test(url)) {
+        const decoded = decodeDataImage(url);
+        if (!decoded) {
+          unverifiedCount += 1;
+          continue;
+        }
+        ({ body, type } = await rasterImage(decoded.body, decoded.type, "thumb"));
+      } else {
+        ({ body, type } = await produceImage(url, "thumb"));
+        if (type === "image/svg+xml") {
+          ({ body, type } = await rasterImage(body, type, "thumb"));
+        }
+      }
+      const part = await imagePart(body, type);
+      if (part) {
+        parts.push(part);
+      } else {
+        unverifiedCount += 1;
+      }
+    } catch (error) {
+      if (/^upstream (?:404|410)$/.test((error as Error)?.message ?? "")) continue;
+      unverifiedCount += 1;
+    }
+  }
+  return { parts, unverifiedCount };
 }

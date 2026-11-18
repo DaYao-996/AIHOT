@@ -1,0 +1,251 @@
+{
+  "asOf": "2026-11-18T09:39:38.616Z",
+  "basedOn": "public-sample-v5",
+  "factsSha256": "85a8f53b759c5369b0db4ef5230e4dcc31cabdaeba1da77a6dac8144c8645249",
+  "frozenV3Unchanged": true,
+  "frozenV4Unchanged": true,
+  "frozenV5Unchanged": true,
+  "database": "own_public_sample_v6_test",
+  "newRequests": 0,
+  "qualityPass": false,
+  "linkedPagesRead": false,
+  "workerStarted": false,
+  "modelCalls": 0,
+  "paid": false,
+  "completenessClaimed": false,
+  "links": [
+    {
+      "nn": "24",
+      "url": "https://deepmind.google/blog/introducing-alphaproof-code/",
+      "rawSha256": "7b872d33f2809084640c86bb62b25c4382857af25ac8dfea6aae8b86ccba298e",
+      "kept": [
+        {
+          "label": "formal verification artifacts",
+          "href": "https://google-deepmind.github.io/code-verification",
+          "absoluteUrl": "https://google-deepmind.github.io/code-verification",
+          "byteStart": 114574,
+          "byteEnd": 114625,
+          "linkedPageRead": false,
+          "limit": null
+        },
+        {
+          "label": "Read the technical paper",
+          "href": "/documents/36/Formal_Verification_of_Signal_4.pdf",
+          "absoluteUrl": "https://deepmind.google/documents/36/Formal_Verification_of_Signal_4.pdf",
+          "byteStart": 97047,
+          "byteEnd": 97096,
+          "linkedPageRead": false,
+          "limit": null
+        }
+      ],
+      "skipped": [],
+      "plainTextNoHref": [],
+      "evidence": {
+        "version": 2,
+        "evidenceHash": "c7db533fafd7299aa4c0f8648f1516e398a408baa533f652dd5f02f7b9c50412",
+        "previousHash": "006ab314a60f9b804165fd316a118254ea34860127d10bb660c01364189d3123",
+        "articleRevision": 2,
+        "staled": 0
+      },
+      "bodyUnchanged": true,
+      "linkedPagesRead": false
+    },
+    {
+      "nn": "25",
+      "url": "https://deepmind.google/blog/opening-the-datasets-behind-our-ai-weather-models/",
+      "rawSha256": "12d1f471f4a9a938e3f35784b224b05b4063aabed368200d0ccb286055a74f88",
+      "kept": [
+        {
+          "label": "WeatherNext developer documentation",
+          "href": "https://developers.google.com/weathernext",
+          "absoluteUrl": "https://developers.google.com/weathernext",
+          "byteStart": 120617,
+          "byteEnd": 120658,
+          "linkedPageRead": false,
+          "limit": null
+        },
+        {
+          "label": "Access historical data and real-time",
+          "href": "https://developers.google.com/weathernext",
+          "absoluteUrl": "https://developers.google.com/weathernext",
+          "byteStart": 120946,
+          "byteEnd": 120987,
+          "linkedPageRead": false,
+          "limit": null
+        },
+        {
+          "label": "Read the PARDIG research paper",
+          "href": "https://arxiv.org/abs/2611.13941",
+          "absoluteUrl": "https://arxiv.org/abs/2611.13941",
+          "byteStart": 121270,
+          "byteEnd": 121302,
+          "linkedPageRead": false,
+          "limit": null
+        },
+        {
+          "label": "Access PARDIG historical archive",
+          "href": "https://earthengine.google.com/",
+          "absoluteUrl": "https://earthengine.google.com/",
+          "byteStart": 121581,
+          "byteEnd": 121612,
+          "linkedPageRead": false,
+          "limit": "这是 Earth Engine 站点根，不是某一条目录的对象路径。"
+        },
+        {
+          "label": "Earth AI",
+          "href": "https://ai.google/earth-ai/",
+          "absoluteUrl": "https://ai.google/earth-ai/",
+          "byteStart": 119531,
+          "byteEnd": 119558,
+          "linkedPageRead": false,
+          "limit": "链的是 Earth AI 组合页，不是 Earth Engine 目录。"
+        }
+      ],
+      "skipped": [],
+      "plainTextNoHref": [
+        {
+          "phrase": "Google Cloud Storage",
+          "byteOffset": 119368,
+          "context": "The SatWeave and PARDIG live and historical datasets are now openly available on Google Cloud Storage."
+        },
+        {
+          "phrase": "Google Earth Engine",
+          "byteOffset": 119441,
+          "context": "PARDIG’s historical catalogs are also available in Google Earth Engine."
+        }
+      ],
+      "evidence": {
+        "version": 2,
+        "evidenceHash": "b96ad4fbb45ab8ef52535219ae4701c682d70b4e2cf310c0aebed64ace44d529",
+        "previousHash": "c058ccde7b02aa0d6066e0358514d3f6c645f49d5486f684d1cfcda35bd47fb7",
+        "articleRevision": 2,
+        "staled": 0
+      },
+      "bodyUnchanged": true,
+      "linkedPagesRead": false
+    },
+    {
+      "nn": "26",
+      "url": "https://mistral.ai/news/build-with-studio/",
+      "rawSha256": "ab180da801fca34eb50d653dd28275ce84a4a96e82dfd6969fdef905e4fdb7af",
+      "kept": [
+        {
+          "label": "Managed Agents documentation",
+          "href": "https://docs.mistral.ai/studio/agents/overview",
+          "absoluteUrl": "https://docs.mistral.ai/studio/agents/overview",
+          "byteStart": 194914,
+          "byteEnd": 194960,
+          "linkedPageRead": false,
+          "limit": null
+        },
+        {
+          "label": "Incident investigation cookbook",
+          "href": "https://docs.mistral.ai/resources/cookbooks/mistral-agents-investigation_agent-slack-sentry-investigation-agent",
+          "absoluteUrl": "https://docs.mistral.ai/resources/cookbooks/mistral-agents-investigation_agent-slack-sentry-investigation-agent",
+          "byteStart": 195087,
+          "byteEnd": 195198,
+          "linkedPageRead": false,
+          "limit": null
+        },
+        {
+          "label": "Workflows documentation",
+          "href": "https://docs.mistral.ai/studio/workflows/overview",
+          "absoluteUrl": "https://docs.mistral.ai/studio/workflows/overview",
+          "byteStart": 195415,
+          "byteEnd": 195464,
+          "linkedPageRead": false,
+          "limit": null
+        },
+        {
+          "label": "Workflow cookbooks",
+          "href": "https://docs.mistral.ai/resources/cookbooks/mistral-agents-slack_triage_workflow-slack-triage-workflow",
+          "absoluteUrl": "https://docs.mistral.ai/resources/cookbooks/mistral-agents-slack_triage_workflow-slack-triage-workflow",
+          "byteStart": 195545,
+          "byteEnd": 195647,
+          "linkedPageRead": false,
+          "limit": null
+        },
+        {
+          "label": "Apps documentation",
+          "href": "https://docs.mistral.ai/studio/apps/overview",
+          "absoluteUrl": "https://docs.mistral.ai/studio/apps/overview",
+          "byteStart": 195846,
+          "byteEnd": 195890,
+          "linkedPageRead": false,
+          "limit": null
+        },
+        {
+          "label": "Document review cookbook",
+          "href": "https://docs.mistral.ai/resources/cookbooks/mistral-agents-expert_matching_workflow-expert-matching-workflow",
+          "absoluteUrl": "https://docs.mistral.ai/resources/cookbooks/mistral-agents-expert_matching_workflow-expert-matching-workflow",
+          "byteStart": 196008,
+          "byteEnd": 196116,
+          "linkedPageRead": false,
+          "limit": null
+        }
+      ],
+      "skipped": [],
+      "plainTextNoHref": [],
+      "evidence": {
+        "version": 2,
+        "evidenceHash": "186688134036fdf485b3f98329815dbe8d1f23063e4ab5e07d0e4572d4eec542",
+        "previousHash": "6543ced878a5f8b7451b513ec54b91a24b7c02b1d0efa5379873c0f5fefda2e8",
+        "articleRevision": 2,
+        "staled": 0
+      },
+      "bodyUnchanged": true,
+      "linkedPagesRead": false
+    },
+    {
+      "nn": "19",
+      "url": "https://github.com/anthropics/claude-code/releases/tag/v2.1.323",
+      "rawSha256": "05792f8336efae6fb02c5ba2ad8a8d802ee14b6dac37f3a856dd37713df62692",
+      "kept": [],
+      "skipped": [
+        {
+          "label": "https://code.claude.com/docs/en/code-mode",
+          "reason": "地址已经在正文里"
+        }
+      ],
+      "plainTextNoHref": [],
+      "evidence": null,
+      "bodyUnchanged": true,
+      "linkedPagesRead": false
+    },
+    {
+      "nn": "01",
+      "url": "https://antigravity.google/releases?tab=hub&version=2.33.0",
+      "rawSha256": "b8954f59f47f9b6d6a5108bbd0718b692a6e2d0496fc4a907355e646201d9be0",
+      "kept": [],
+      "skipped": [
+        {
+          "label": "v2.33.0",
+          "reason": "指向本页，不是外链"
+        }
+      ],
+      "plainTextNoHref": [],
+      "evidence": null,
+      "bodyUnchanged": true,
+      "linkedPagesRead": false
+    }
+  ],
+  "chartAxis": {
+    "url": "https://mistral.ai/news/mistral-large-4-oss/",
+    "evidence": {
+      "version": 3,
+      "evidenceHash": "f40ee26e17033231f5f2b7b63519535541fd400979592bea34c6e9a49732ec76",
+      "previousHash": "f2322cf5c4f6a6b3a6ca5128c9a2120e7395011446eeddd9404b61fcb4f89f17",
+      "articleRevision": 2,
+      "staled": 0
+    },
+    "parts": 9,
+    "firstHasScorePercent": true,
+    "bodyUnchanged": true
+  },
+  "newlyStaleJudgments": 0,
+  "counts": {
+    "articles": 40,
+    "queued": 0,
+    "publications": 0
+  }
+}

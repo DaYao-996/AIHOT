@@ -1,0 +1,14 @@
+{
+  "acceptedBatch": false,
+  "status": "pending_review",
+  "factStatus": "unchecked",
+  "releaseStatus": "not_licensed",
+  "tarSha256": "41f9e1c57af1bb3e772243ce9e265105b9c2b40dc3128b8b60be1e4be428c0b0",
+  "fileSha256": "2340b4861b3f2c9a48d5a73085bef30ccd772e44ab87949b18e4a665332e0e98",
+  "stored": 9,
+  "prioritize": 6,
+  "candidate": 3,
+  "idempotentRepeat": true,
+  "semanticFileResultsRewritten": false,
+  "qualityPass": false
+}

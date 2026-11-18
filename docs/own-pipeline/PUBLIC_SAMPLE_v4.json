@@ -1,0 +1,254 @@
+{
+  "asOf": "2026-11-18T09:23:43.538Z",
+  "basedOn": "public-sample-v3",
+  "frozenV3Unchanged": true,
+  "database": "own_public_sample_v4_test",
+  "newRequests": 0,
+  "scores": null,
+  "decisions": null,
+  "labels": null,
+  "workerStarted": false,
+  "modelCalls": 0,
+  "paid": false,
+  "completenessClaimed": false,
+  "denominator": 40,
+  "mistral": {
+    "url": "https://mistral.ai/news/mistral-large-4-oss/",
+    "bodyUnchanged": true,
+    "bodyLength": 21435,
+    "previousEvidenceHash": "81a2036eff14bc97a457a96d10e28c791fe26dd5b2b7ecc22247e9fe3d5e7289",
+    "evidenceHash": "f2322cf5c4f6a6b3a6ca5128c9a2120e7395011446eeddd9404b61fcb4f89f17",
+    "evidenceVersion": 2,
+    "articleRevision": 2,
+    "staledJudgments": 0,
+    "charts": 9,
+    "chartsNotExtracted": 0,
+    "parts": [
+      {
+        "id": "chart-1",
+        "role": "chart",
+        "byteStart": 423391,
+        "byteEnd": 423738,
+        "text": "heading: Cognition - FrontierCode 2.0\nsection: Built for the Builders.\ntitle: Cognition - FrontierCode 2.0\ntype: bar\nrows:\nlabel=Mistral Large 4 value=19.7\nlabel=Beam 1.0 value=2.9\nlabel=GLM-5.3 Flash value=14.2\nlabel=Kimi K3 value=17.3\nlabel=GLM-5.3 value=17.8\nlabel=DeepSeek V4.1 Flash value=19.3"
+      },
+      {
+        "id": "chart-2",
+        "role": "chart",
+        "byteStart": 434480,
+        "byteEnd": 435425,
+        "text": "heading: Artificial Analysis Coding Agent Index vs. Token Efficiency\nsection: Pushing the pareto frontier for agentic coding.\npageCaption: Mistral\npageCaption: Other models\npageCaption: Coding Agent Index scores and token efficiencies for reasoning levels available on Artificial Analysis\ntitle: Artificial Analysis Coding Agent Index vs. Token Efficiency\ntype: scatter\ncaption: Coding Agent Index scores and token efficiencies for reasoning levels available on Artificial Analysis\nx: Average Tokens per Task in millions\ny: Score\nrows:\nlabel=Mistral Large 4 - Medium x=5.8 y=35 series=Mistral\nlabel=Mistral Large 4 - High x=8.5 y=48 series=Mistral\nlabel=Muse Spark Open - xhigh x=13.3 y=26 series=Other models\nlabel=GLM-5.3 x=15.9 y=49 series=Other models\nlabel=DeepSeek V4.1 Flash 1017 x=16.7 y=46 series=Other models\nlabel=Kimi K3 x=9 y=41 series=Other models"
+      },
+      {
+        "id": "chart-3",
+        "role": "chart",
+        "byteStart": 447084,
+        "byteEnd": 447604,
+        "text": "heading: Artificial Analysis Coding Agent Index - Terminal-Bench 4.0\nsection: Pushing the pareto frontier for agentic coding.\ntitle: Artificial Analysis Coding Agent Index - Terminal-Bench 4.0\ntype: bar\nrows:\nlabel=ML4 Preview - self reported value=28\nlabel=Mistral Large 4 value=41.4\nlabel=Beam 1.0 value=3\nlabel=Muse Spark Open value=6\nlabel=Kimi K3 value=21\nlabel=DeepSeek V4.1 Flash 1017 value=31\nlabel=GLM-5.3 value=40"
+      },
+      {
+        "id": "chart-4",
+        "role": "chart",
+        "byteStart": 460376,
+        "byteEnd": 460863,
+        "text": "heading: Surge Code - Human preference on code\nsection: Pushing the pareto frontier for agentic coding.\npageCaption: Blind side-by-side win rates against other models\npageCaption: Mistral Large 4 win\npageCaption: Other model\npageCaption: Share of prompts where graders preferred Mistral Large 4's answer over the opponent's.\ntitle: Surge Code - Human preference on code\ntype: comparison\ncaption: Share of prompts where graders preferred Mistral Large 4's answer over the opponent's.\nsubtitle: Blind side-by-side win rates against other models\nsubject: Mistral Large 4 win\nopponent: Other model\nrows:\nlabel=GLM-5.3 value=64 tie=0\nlabel=Kimi K3 value=64 tie=0\nlabel=DeepSeek V4.1 Flash value=56 tie=0\nlabel=Claude Opus 5.5 value=22 tie=0"
+      },
+      {
+        "id": "chart-5",
+        "role": "chart",
+        "byteStart": 470812,
+        "byteEnd": 471212,
+        "text": "heading: Artificial Analysis - Cyber Index\nsection: Built for the Defenders.\ntitle: Artificial Analysis - Cyber Index\ntype: bar\nrows:\nlabel=Mistral Large 4 value=50.9\nlabel=Beam 1.0 value=34\nlabel=GLM-5.3 value=36\nlabel=Kimi K3 value=41\nlabel=GLM-5.3 Flash value=50\nlabel=MiMo-V2.6-Pro value=56\nlabel=DeepSeek-V4.1-Flash 1017 value=57"
+      },
+      {
+        "id": "chart-6",
+        "role": "chart",
+        "byteStart": 480983,
+        "byteEnd": 481483,
+        "text": "heading: Refusal of harmful cyber requests\nsection: Built for the Defenders.\npageCaption: Average refusal on the cyber-related prompts of JailbreakBench, StrongREJECT and AgentHarm\ntitle: Refusal of harmful cyber requests\ntype: bar\ncaption: Average refusal on the cyber-related prompts of JailbreakBench, StrongREJECT and AgentHarm\nrows:\nlabel=Mistral Large 4 Preview value=95.3\nlabel=Mistral Large 4 value=96.6\nlabel=DeepSeek-V4-Pro value=50.7\nlabel=Gemma-4-31B value=84.1\nlabel=GLM-5.3 value=87.1\nlabel=Kimi K3 value=93.6"
+      },
+      {
+        "id": "chart-7",
+        "role": "chart",
+        "byteStart": 523360,
+        "byteEnd": 523703,
+        "text": "heading: FinWorkBench (Finch)\nsection: Built for Work.\ntitle: FinWorkBench (Finch)\ntype: bar\nrows:\nlabel=Mistral Large 4 - Preview value=67.4\nlabel=Mistral Large 4 value=73.3\nlabel=GLM-5.3 value=65.12\nlabel=DeepSeek-V4-Pro-0813 value=67.44\nlabel=Kimi K3 value=77.33"
+      },
+      {
+        "id": "chart-8",
+        "role": "chart",
+        "byteStart": 532925,
+        "byteEnd": 533302,
+        "text": "heading: Web browsing - BrowseComp\nsection: Built for Work.\ntitle: Web browsing - BrowseComp\ntype: bar\nrows:\nlabel=Early Mistral Large  SFT checkpoint value=75\nlabel=Mistral Large 4 value=84.5\nlabel=GLM-5.3 value=82.5\nlabel=DeepSeek V4.1 Flash 1017 value=83.4\nlabel=Kimi K3 value=91.2"
+      },
+      {
+        "id": "chart-9",
+        "role": "chart",
+        "byteStart": 542203,
+        "byteEnd": 542601,
+        "text": "heading: B3 Agent security benchmark - Attack resistance\nsection: Built for Work.\ntitle: B3 Agent security benchmark - Attack resistance\ntype: bar\nrows:\nlabel=Mistral Large 4 Preview value=93.3\nlabel=Mistral Large 4 value=97.1\nlabel=DeepSeek-V4-Pro value=58.6\nlabel=Gemma-4-31B value=82.9\nlabel=Kimi K3 value=88.1\nlabel=GLM-5.3 value=93.3"
+      }
+    ]
+  },
+  "apple": [
+    {
+      "url": "https://www.apple.com.cn/newsroom/2026/11/apple-podcasts-names-baby-this-is-keke-palmer-the-2026-show-of-the-year/",
+      "source": "apple_newsroom_cn",
+      "timeSource": "jsonld:datePublished",
+      "raw": "2026-11-17Z",
+      "publicationTime": "2026-11-17",
+      "publicationPrecision": "date_only",
+      "revisionBefore": 2,
+      "revisionAfter": 3,
+      "bodyUnchanged": true,
+      "notUsed": [
+        "dateModified",
+        "atom:updated",
+        "readTime"
+      ]
+    },
+    {
+      "url": "https://www.apple.com.cn/newsroom/2026/11/olivia-dean-is-apple-musics-artist-of-the-year-for-2026/",
+      "source": "apple_newsroom_cn",
+      "timeSource": "jsonld:datePublished",
+      "raw": "2026-11-10Z",
+      "publicationTime": "2026-11-10",
+      "publicationPrecision": "date_only",
+      "revisionBefore": 2,
+      "revisionAfter": 3,
+      "bodyUnchanged": true,
+      "notUsed": [
+        "dateModified",
+        "atom:updated",
+        "readTime"
+      ]
+    },
+    {
+      "url": "https://www.apple.com.cn/newsroom/2026/11/apple-reports-fourth-quarter-results/",
+      "source": "apple_newsroom_cn",
+      "timeSource": "jsonld:datePublished",
+      "raw": "2026-11-02Z",
+      "publicationTime": "2026-11-02",
+      "publicationPrecision": "date_only",
+      "revisionBefore": 2,
+      "revisionAfter": 3,
+      "bodyUnchanged": true,
+      "notUsed": [
+        "dateModified",
+        "atom:updated",
+        "readTime"
+      ]
+    },
+    {
+      "url": "https://www.apple.com.cn/newsroom/2026/10/apple-intelligence-features-are-coming-to-users-in-china/",
+      "source": "apple_newsroom_cn",
+      "timeSource": "jsonld:datePublished",
+      "raw": "2026-10-31Z",
+      "publicationTime": "2026-10-31",
+      "publicationPrecision": "date_only",
+      "revisionBefore": 2,
+      "revisionAfter": 3,
+      "bodyUnchanged": true,
+      "notUsed": [
+        "dateModified",
+        "atom:updated",
+        "readTime"
+      ]
+    },
+    {
+      "url": "https://www.apple.com.cn/newsroom/2026/10/apple-unveils-groundbreaking-macbook-pro-with-proled-xdr-display/",
+      "source": "apple_newsroom_cn",
+      "timeSource": "jsonld:datePublished",
+      "raw": "2026-10-28Z",
+      "publicationTime": "2026-10-28",
+      "publicationPrecision": "date_only",
+      "revisionBefore": 2,
+      "revisionAfter": 3,
+      "bodyUnchanged": true,
+      "notUsed": [
+        "dateModified",
+        "atom:updated",
+        "readTime"
+      ]
+    },
+    {
+      "url": "https://www.apple.com/newsroom/2026/11/formula-1-las-vegas-grand-prix-streams-live-on-apple-tv-this-weekend/",
+      "source": "apple_newsroom_us_rss",
+      "timeSource": "jsonld:datePublished",
+      "raw": "2026-11-17Z",
+      "publicationTime": "2026-11-17",
+      "publicationPrecision": "date_only",
+      "revisionBefore": 2,
+      "revisionAfter": 3,
+      "bodyUnchanged": true,
+      "notUsed": [
+        "dateModified",
+        "atom:updated",
+        "readTime"
+      ]
+    },
+    {
+      "url": "https://www.apple.com/newsroom/2026/11/apple-podcasts-names-baby-this-is-keke-palmer-the-2026-show-of-the-year/",
+      "source": "apple_newsroom_us_rss",
+      "timeSource": "jsonld:datePublished",
+      "raw": "2026-11-17Z",
+      "publicationTime": "2026-11-17",
+      "publicationPrecision": "date_only",
+      "revisionBefore": 2,
+      "revisionAfter": 3,
+      "bodyUnchanged": true,
+      "notUsed": [
+        "dateModified",
+        "atom:updated",
+        "readTime"
+      ]
+    },
+    {
+      "url": "https://www.apple.com/newsroom/2026/11/apple-launches-research-study-to-explore-the-use-of-ai-for-health/",
+      "source": "apple_newsroom_us_rss",
+      "timeSource": "jsonld:datePublished",
+      "raw": "2026-11-15Z",
+      "publicationTime": "2026-11-15",
+      "publicationPrecision": "date_only",
+      "revisionBefore": 2,
+      "revisionAfter": 3,
+      "bodyUnchanged": true,
+      "notUsed": [
+        "dateModified",
+        "atom:updated",
+        "readTime"
+      ]
+    },
+    {
+      "url": "https://www.apple.com/newsroom/2026/11/apple-homeview-available-today/",
+      "source": "apple_newsroom_us_rss",
+      "timeSource": "jsonld:datePublished",
+      "raw": "2026-11-13Z",
+      "publicationTime": "2026-11-13",
+      "publicationPrecision": "date_only",
+      "revisionBefore": 2,
+      "revisionAfter": 3,
+      "bodyUnchanged": true,
+      "notUsed": [
+        "dateModified",
+        "atom:updated",
+        "readTime"
+      ]
+    },
+    {
+      "url": "https://www.apple.com/newsroom/2026/11/apple-tv-introduces-new-sign-language-interpretation-feature/",
+      "source": "apple_newsroom_us_rss",
+      "timeSource": "jsonld:datePublished",
+      "raw": "2026-11-10Z",
+      "publicationTime": "2026-11-10",
+      "publicationPrecision": "date_only",
+      "revisionBefore": 2,
+      "revisionAfter": 3,
+      "bodyUnchanged": true,
+      "notUsed": [
+        "dateModified",
+        "atom:updated",
+        "readTime"
+      ]
+    }
+  ]
+}

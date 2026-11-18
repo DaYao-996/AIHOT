@@ -11,7 +11,9 @@ import { analyzeArticle } from "../editorial/analyze.ts";
 import { isHistorical } from "../content/materials.ts";
 import { publishArticle } from "../publication/publish.ts";
 import { BudgetExceededError, failedReceiptId, failureKind } from "../providers/receipts.ts";
+import { editorialPolicy } from "../modules.ts";
 import { readsWhole } from "../sources/uses.ts";
+import { holdBackAutomaticRelease, unlicensedReleaseHold } from "../own-pipeline-hold.ts";
 import { enqueue, QUEUES, shutdownSignal, work } from "./queue.ts";
 
 /** Minutes to wait after the n-th failed attempt; one more failure after the last ends in "failed". */
@@ -74,6 +76,10 @@ export function groupingPriority(a: { signal: boolean; historical: boolean }): n
  */
 export async function queueProcessing(articleId: string, opts: { step?: Step; attemptTag?: string; db?: Db } = {}): Promise<string | null> {
   const db = opts.db ?? sql;
+  if (await unlicensedReleaseHold(db, articleId)) {
+    await holdBackAutomaticRelease(db, articleId);
+    return null;
+  }
   const r = await route(articleId, db);
   if (!r) return null;
   const step = opts.step ?? r.step;
@@ -129,6 +135,10 @@ async function processingInput(articleId: string) {
 export async function processArticle(articleId: string, opts: { attemptTag?: string } = {}): Promise<{ state: string; retryAt?: Date }> {
   const row = await processingInput(articleId);
   if (!row) return { state: "missing" };
+  if (await unlicensedReleaseHold(sql, articleId)) {
+    await holdBackAutomaticRelease(sql, articleId);
+    return { state: "held" };
+  }
   try {
     return await processRevision(articleId, row, opts);
   } catch (error) {
@@ -268,7 +278,8 @@ const ARTICLE_STEPS = new Set(["prefilter_article", "score_article", "structure_
  * back to processing: one action, not two. Returns whether it was queued.
  */
 export async function resumeAfterRelease(receipt: { purpose: string; subject: string | null }, db: Db): Promise<boolean> {
-  const article = ARTICLE_STEPS.has(receipt.purpose) ? /^article:([^@:#]+)/.exec(receipt.subject ?? "")?.[1] : undefined;
+  const isAnalysisStep = ARTICLE_STEPS.has(receipt.purpose) || Boolean(editorialPolicy().analysisPurposes?.includes(receipt.purpose));
+  const article = isAnalysisStep ? /^article:([^@:#]+)/.exec(receipt.subject ?? "")?.[1] : undefined;
   if (!article) return false;
   const [a] = await db`UPDATE articles SET processing_state = 'new', processing_attempts = 0, processing_retry_at = NULL, processing_error = NULL
                         WHERE id = ${article} AND processing_state = 'failed' RETURNING id`;

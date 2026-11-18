@@ -1,0 +1,262 @@
+{
+  "input_zip_sha256": "05dc4ad6d9ca36a94a4af9a90930417d542edfe8e627ba627091336fbb1c624a",
+  "debug_only": true,
+  "scored": false,
+  "new_holdout": false,
+  "assistant_labels_are_not_gold": true,
+  "fifty_completion_receipt": false,
+  "collision_212045": {
+    "scalarsEqual": true,
+    "primaryEqual": false,
+    "identical": false,
+    "does_not_resolve_which_label_is_right": true
+  },
+  "items": [
+    {
+      "postId": "2117095432526700766",
+      "debugOnly": true,
+      "fieldSource": "fixed_debug_input",
+      "structuralSource": "record_file",
+      "scored": false,
+      "humanVerification": "unverified",
+      "selectedAngle": "引用中对 Ming-3.0-tts-0.5B 的本地语音克隆实测：5 秒样本、RTX 3090、约 3.3 GB 显存、快于实时",
+      "usedClaim": "ItsmeAjayKV 在 RTX 3090 本地运行 Ming-3.0-tts-0.5B，用约 5 秒、带风扇噪音的自己的声音即完成克隆，约 3.3 GB 显存，4 秒语音约 2–3 秒内生成。",
+      "primaryClauseId": "ai_tool_hands_on",
+      "clauses": [
+        {
+          "clauseId": "ai_tool_hands_on",
+          "clauseText": "AI 工具上手实测",
+          "anchor": "It needed just a 5-second sample of my voice, and it speaks faster than real time: about 4 seconds of speech in 2–3 seconds.",
+          "sourceField": "quote",
+          "correspondence": "这是对 AI 语音工具的具体上手实测，对应「AI 工具上手实测」。官方转帖只是致谢，不改变引用里已写出的实测机制。"
+        },
+        {
+          "clauseId": "ai_hardware_devices",
+          "clauseText": "AI 硬件和数码设备",
+          "anchor": "All running locally on my RTX 3090. Ming takes about 3.3 GB of VRAM",
+          "sourceField": "quote",
+          "correspondence": "硬件在此是运行环境，主角度仍是语音工具实测，而不是一篇 AI 硬件评测，故 hardware 条款只作 review。"
+        }
+      ],
+      "scalars": {
+        "core_material": "in_post",
+        "source_type": "participant_first_hand",
+        "independent_confirmation": "not_applicable",
+        "claim_support": "supported_as_stated_by_source",
+        "direction_status": "evidenced",
+        "preference_sensitive_class": "none",
+        "electronics_or_device_angle": "false",
+        "reader_action": "explicit",
+        "new_information": "substantive",
+        "temporal_state": "current"
+      },
+      "rootText": "Great to see Ming-3.0-tts-0.5B running locally on an RTX 3090! In @ItsmeAjayKV’s test, a 5-second sample of his own voice was enough for cloning—even with fan noise in the recording. 🫶 Thanks for sharing, AJ! We’d love to see what you build next.",
+      "quoteText": "Tested voice cloning with Ming-3.0-tts-0.5B by @AntLingAGI and it is even more insane.\n\nFor a model of this size, voice cloning happens really well, i tested my own voice, half drunk, in a room full of noise (fan noise mostly) and it instantly cloned it.\n\nIt needed just a 5-second sample of my voice, and it speaks faster than real time: about 4 seconds of speech in 2–3 seconds.\n\nAll running locally on my RTX 3090. Ming takes about 3.3 GB of VRAM, and the whole model is under 3 GB on disk.\n\nGreat time for Local AI.",
+      "publishedAt": "2026-11-02T03:24:19.000000Z",
+      "rules17Sha256": "45c5a6a0105268a6ecf887c8bc7611595e9626fe0a25b7ce76ca48ee64e3e43e",
+      "fieldsSchema": "fanfan-value-fields-v46",
+      "inputPackageSha256": "caf2b657ae9c281094dfe427639d5205913642e65676d61609a00d18de3181a2"
+    },
+    {
+      "postId": "2118428355058102650",
+      "debugOnly": true,
+      "fieldSource": "fixed_debug_input",
+      "structuralSource": "record_file",
+      "scored": false,
+      "humanVerification": "unverified",
+      "selectedAngle": "ChatGPT Images 2.6 已在 HeyGen 上线，用于补充角色的角色表，并改善 HeyGen Video 1 的一致性",
+      "usedClaim": "ChatGPT Images 2.6 is live in HeyGen and can be used for better character sheets of additional scene characters, with better consistency in HeyGen Video 1; OpenAI also states GIFs, reference images, and 50% faster image generation models coming to the API.",
+      "primaryClauseId": "content_ops_media",
+      "clauses": [
+        {
+          "clauseId": "content_ops_media",
+          "clauseText": "AI 做内容、自媒体、运营、平台后台拆解",
+          "anchor": "But for additional characters in your scene, an upgrade to ChatGPT Images means better character sheets, and better consistency in HeyGen Video 1.",
+          "sourceField": "root",
+          "correspondence": "对应「AI 做内容、自媒体、运营、平台后台拆解」。官方身份不足以单独标 evidenced，但内容制作机制已经写明。"
+        },
+        {
+          "clauseId": "ai_tool_hands_on",
+          "clauseText": "AI 工具上手实测",
+          "anchor": "ChatGPT Images 2.6 is live in HeyGen.",
+          "sourceField": "root",
+          "correspondence": "不能当成已完成的上手实测。"
+        },
+        {
+          "clauseId": "general_ai_info",
+          "clauseText": "一般 AI 资讯",
+          "anchor": "Images, upgraded—introducing ChatGPT Images 2.6.",
+          "sourceField": "quote",
+          "correspondence": "同时也是一般 AI 产品资讯。"
+        }
+      ],
+      "scalars": {
+        "core_material": "in_post",
+        "source_type": "official_first_hand",
+        "independent_confirmation": "not_applicable",
+        "claim_support": "supported_as_stated_by_source",
+        "direction_status": "evidenced",
+        "preference_sensitive_class": "none",
+        "electronics_or_device_angle": "false",
+        "reader_action": "explicit",
+        "new_information": "substantive",
+        "temporal_state": "current"
+      },
+      "rootText": "ChatGPT Images 2.6 is live in HeyGen.\n\nHeyGen has your back for consistent avatars.\n\nBut for additional characters in your scene, an upgrade to ChatGPT Images means better character sheets, and better consistency in HeyGen Video 1. https://t.co/vDTFCoDbgh",
+      "quoteText": "Images, upgraded—introducing ChatGPT Images 2.6.\n\nNow with GIFs and reference images.\n\nPlus, two new models are coming to the API with 50% faster image generation. https://t.co/kcuOhTipYR",
+      "publishedAt": "2026-11-05T19:40:52.000000Z",
+      "rules17Sha256": "45c5a6a0105268a6ecf887c8bc7611595e9626fe0a25b7ce76ca48ee64e3e43e",
+      "fieldsSchema": "fanfan-value-fields-v46",
+      "inputPackageSha256": "76898256aef796dc071d72e9243263f7114990835a088363456353e4df318478"
+    },
+    {
+      "postId": "2120299157411790929",
+      "debugOnly": true,
+      "fieldSource": "fixed_debug_input",
+      "structuralSource": "record_file",
+      "scored": false,
+      "humanVerification": "unverified",
+      "selectedAngle": "十一月 Pixel Drop：Pixel 10 上的 Gemini Intelligence、Pixel Tag、自定义组件与 Pixel Watch 训练指导等设备功能",
+      "usedClaim": "The November Pixel Drop is out: Gemini Intelligence on Pixel 10 devices, Pixel Tag available to order starting the day after the post, new custom widgets and icon styles, improved search and Gemini-enhanced call screening, and step-by-step workout guidance on Pixel Watch.",
+      "primaryClauseId": "ai_hardware_devices",
+      "clauses": [
+        {
+          "clauseId": "ai_hardware_devices",
+          "clauseText": "AI 硬件和数码设备",
+          "anchor": "Gemini Intelligence is now available on Pixel 10 devices",
+          "sourceField": "root",
+          "correspondence": "这是具体的 AI 硬件与数码设备更新，对应「AI 硬件和数码设备」。官方身份不是 evidenced 的理由，设备与功能机制本身已写明。"
+        },
+        {
+          "clauseId": "useful_software_or_hardware_tools",
+          "clauseText": "电子产品、好用的软硬件工具（含跟 AI 无关的，例如 iOS 系统工具）",
+          "anchor": "Keep tabs on your keys, wallet, or luggage with Pixel Tag",
+          "sourceField": "root",
+          "correspondence": "该角度属于条款中的电子产品子集，electronics_or_device_angle 为 true。"
+        }
+      ],
+      "scalars": {
+        "core_material": "in_post",
+        "source_type": "official_first_hand",
+        "independent_confirmation": "not_applicable",
+        "claim_support": "supported_as_stated_by_source",
+        "direction_status": "evidenced",
+        "preference_sensitive_class": "none",
+        "electronics_or_device_angle": "true",
+        "reader_action": "explicit",
+        "new_information": "substantive",
+        "temporal_state": "current"
+      },
+      "rootText": "The November #PixelDrop is here:\n\n✨ Gemini Intelligence is now available on Pixel 10 devices\n🏷️ Keep tabs on your keys, wallet, or luggage with Pixel Tag, available to order starting tomorrow\n📱 Create custom widgets, like a spending tracker or a game day widget with team colors\n🎨 Customize your phone with new icon styles\n🔍 Improved search functions, Gemini-enhanced call screening and more\n⌚ Get step-by-step workout guidance on Pixel Watch \n…and more",
+      "quoteText": null,
+      "publishedAt": "2026-11-10T23:34:47.000000Z",
+      "rules17Sha256": "45c5a6a0105268a6ecf887c8bc7611595e9626fe0a25b7ce76ca48ee64e3e43e",
+      "fieldsSchema": "fanfan-value-fields-v46",
+      "inputPackageSha256": "4d4e908f4eba63b9efa5c4a87e18451bf55b70c82ec6f7ecbf15fa9f7af3b877"
+    },
+    {
+      "postId": "2120452474305904776",
+      "debugOnly": true,
+      "fieldSource": "fixed_debug_input",
+      "structuralSource": "record_file",
+      "scored": false,
+      "humanVerification": "unverified",
+      "selectedAngle": "作者说明如何用 EnConvo 在 macOS 各应用侧边栏与全局语音中接入已订阅模型，并配置生图/音视频等能力做媒体工作",
+      "usedClaim": "EnConvo 是可在 macOS 上接管多应用的 AI 助手：可为助手配置生图、生视频、语音识别与合成，吸附在 Chrome/PPT 等应用侧边栏，支持快捷键与全局语音，并能接入已订阅的 GPT、Claude；不付费也可用，付费可按量使用 Opus。",
+      "primaryClauseId": "ai_tool_hands_on",
+      "clauses": [
+        {
+          "clauseId": "ai_tool_hands_on",
+          "clauseText": "AI 工具上手实测",
+          "anchor": "我现在是在Chrome里开问问Gemini侧边栏、在PPT开Claude侧边栏",
+          "sourceField": "root",
+          "correspondence": "这是对 AI 助手的上手使用说明，对应「AI 工具上手实测」。"
+        },
+        {
+          "clauseId": "content_ops_media",
+          "clauseText": "AI 做内容、自媒体、运营、平台后台拆解",
+          "anchor": "相当于眼睛、嘴巴、耳朵、画笔都有了，适合媒体创作",
+          "sourceField": "root",
+          "correspondence": "也对应「AI 做内容、自媒体」中的媒体创作工作流。"
+        },
+        {
+          "clauseId": "useful_software_or_hardware_tools",
+          "clauseText": "电子产品、好用的软硬件工具（含跟 AI 无关的，例如 iOS 系统工具）",
+          "anchor": "可以说是系统级的全能AI中枢",
+          "sourceField": "root",
+          "correspondence": "属于好用的软件工具；它不是电子产品，electronics_or_device_angle 为 false。主角度仍放在上手使用与内容工作流。"
+        }
+      ],
+      "scalars": {
+        "core_material": "in_post",
+        "source_type": "participant_first_hand",
+        "independent_confirmation": "unconfirmed",
+        "claim_support": "supported_as_stated_by_source",
+        "direction_status": "evidenced",
+        "preference_sensitive_class": "none",
+        "electronics_or_device_angle": "false",
+        "reader_action": "explicit",
+        "new_information": "substantive",
+        "temporal_state": "current"
+      },
+      "rootText": "EnConvo：All in One的AI助手\n\nEnConvo是最近新出的AI助手，功能最全面，你能想到的功能都有了，基本上接管了我的macOS，可以说是系统级的全能AI中枢。\n\n符合我需求的主要是两方面：第一是可以便捷的给AI助手配置全面的外接能力，包括生图、生视频、语音识别、合成语音，给AI助手补充上完整的能力，相当于眼睛、嘴巴、耳朵、画笔都有了，适合媒体创作；第二是全面融合到电脑里的任意应用，我现在是在Chrome里开问问Gemini侧边栏、在PPT开Claude侧边栏，在Notion里因为没买他的AI会员就只能复制粘贴使用，使用EnConvo可以扩展到每个应用的侧面直接用，也支持快捷键快速唤起和全局语音输入，免去了所有的复制粘贴。\n\n而且EnConvo能接入你已订阅的AI，包括GPT、Claude等，不付费也是完全能用的，付费则可以按量使用Opus模型。\n\nEnConvo的功能有多全面，请看我大致挖掘的功能列表。\n\nEnConvo=\nCodex：编程、工作、Computer Use\n+多媒体工作台：ASR、TTS、OCR、生成图片、生成视频，其中的ASR、TTS、OCR支持配置本地模型，使用Opus+这些能力，就是天然的多媒体Agent，可以实现翻译视频、一键生成短剧等功能\n+飞书会议：发起多人会议、实时转录、会议纪要\n+豆包输入法：按住右侧Command键语音输入。而且不会像豆包那样抢占输入法\n+Ollama：下载适合电脑配置的模型，然后本地运行\n+UU远程：手机端EnConvo连接电脑，可以远程操控\n+全局语音唤起：按右侧的option即可语音输入发起聊天，AI同时用文字+语音回复\n+划词搜索：类似苹果自带的三指查询，选中词条或句子可以唤起工具栏，翻译/解释/AI润色/问问AI等自定义工具\n+应用侧边栏：吸附在当前正在使用的应用旁，伴随式协助阅读、编程或写作\n+桌面宠物：可以互动和派任务\n+Live Talk实时对话：类似GPT的实时语音对话\n+下载视频：YouTube、X、Tiktok等均可下载\n+知识库：导入和管理知识库\n\n因为能配全套的音视频能力，制作大肥鱼视频是完全没问题的。看看大肥鱼来讲解黄仁勋出轨事件的来龙去脉。\n\n官网免费下载：https://t.co/NdYEycKmk7",
+      "quoteText": null,
+      "publishedAt": "2026-11-11T09:44:00.000000Z",
+      "rules17Sha256": "45c5a6a0105268a6ecf887c8bc7611595e9626fe0a25b7ce76ca48ee64e3e43e",
+      "fieldsSchema": "fanfan-value-fields-v46",
+      "inputPackageSha256": "59899da9d8f2be478a942b412d3ed6428aa25121e1fab9a2852cd3963943bdcf"
+    },
+    {
+      "postId": "2121277055513862172",
+      "debugOnly": true,
+      "fieldSource": "fixed_debug_input",
+      "structuralSource": "record_file",
+      "scored": false,
+      "humanVerification": "unverified",
+      "selectedAngle": "Envato 于 11 月 19 日 8AM EST 起 24 小时免费不限量提供 MiniMax H3（至 11 月 20 日 8AM EST），免费账号同样可用",
+      "usedClaim": "Envato will offer unlimited MiniMax H3 for 24 hours starting November 19 at 8 AM EST (ending 8 AM EST November 20), including for free Envato accounts.",
+      "primaryClauseId": "useful_software_or_hardware_tools",
+      "clauses": [
+        {
+          "clauseId": "useful_software_or_hardware_tools",
+          "clauseText": "电子产品、好用的软硬件工具（含跟 AI 无关的，例如 iOS 系统工具）",
+          "anchor": "For 24 hours, users get unlimited generations with MiniMax H3 in Envato's AI Video tool",
+          "sourceField": "root",
+          "correspondence": "可视为一般好用软件/工具的使用窗口，但不是电子产品，也尚未构成上手实测，故 review。"
+        },
+        {
+          "clauseId": "ai_tool_hands_on",
+          "clauseText": "AI 工具上手实测",
+          "anchor": "MiniMax H3 is an AI video model focused on expressive movement, cinematic sequences, and high-resolution stereo audio.",
+          "sourceField": "root",
+          "correspondence": "不是「AI 工具上手实测」的完成记录。"
+        },
+        {
+          "clauseId": "general_ai_info",
+          "clauseText": "一般 AI 资讯",
+          "anchor": "Coming soon on Envato. Free unlimited @MiniMax_AI H3 for 24 hours.",
+          "sourceField": "quote",
+          "correspondence": "同时也是一条具体的一般 AI 产品/活动资讯。"
+        }
+      ],
+      "scalars": {
+        "core_material": "in_post",
+        "source_type": "official_first_hand",
+        "independent_confirmation": "unconfirmed",
+        "claim_support": "supported_as_stated_by_source",
+        "direction_status": "review",
+        "preference_sensitive_class": "none",
+        "electronics_or_device_angle": "false",
+        "reader_action": "explicit",
+        "new_information": "substantive",
+        "temporal_state": "future_deadline"
+      },
+      "rootText": "Envato is offering MiniMax H3 unlimited for free on its platform for 24 hours, starting November 19 at 8 AM EST.\n\nMiniMax H3 is an AI video model focused on expressive movement, cinematic sequences, and high-resolution stereo audio.\n\nFor 24 hours, users get unlimited generations with MiniMax H3 in Envato's AI Video tool; the offer ends at 8 AM EST on November 20.\n\nFree Envato accounts also get the same access. \n\nFree to join 👀\nhttps://t.co/5fXmqrPn8O",
+      "quoteText": "Coming soon on Envato. Free unlimited @MiniMax_AI H3 for 24 hours. For everyone.*\n\nStarting from 19 Nov at 8AM EST.\n\nCreate a free account to get access. Get ready to create. https://t.co/Yj5rlAQv3H",
+      "publishedAt": "2026-11-13T16:20:36.000000Z",
+      "rules17Sha256": "45c5a6a0105268a6ecf887c8bc7611595e9626fe0a25b7ce76ca48ee64e3e43e",
+      "fieldsSchema": "fanfan-value-fields-v46",
+      "inputPackageSha256": "8a2b3d5f6d24bc73a2032a6370f70422b54cdb035bc396fd94a418ac57f7f19f"
+    }
+  ]
+}

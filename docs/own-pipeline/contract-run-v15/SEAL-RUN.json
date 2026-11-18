@@ -1,0 +1,21 @@
+{
+  "notTheV14Log": true,
+  "notThe01PrefixMiss": true,
+  "code": {
+    "HEAD": "fde19fcbfed4207c085f9c6a0c377f898fdbfbe5",
+    "parent": "df0c54723813439b1d4627b522ec0ff9ddf786b1",
+    "tree": "a1a14d5b302b4d50158fd634992d85c4eded5012",
+    "savedBase": "d79e6ddb30967f4777939455720e4290af6d4e12"
+  },
+  "commandFile": "COMMAND-RUN.txt",
+  "commandSha256": "d1a4ef29fd4808f8a4d8a7c54857a870a138a2bc86afcedea79258b028bc8f14",
+  "configSha256": "498e9e29d412772d27d5722470a73f014949e75800830bc15f1d3f6073a25ada",
+  "priorSha256": "1e3a6162ab57112956d08e7c864adbbb919fc3845f887c776be7bb95dd5dee65",
+  "beforeDump": "dumps/before-run.dump",
+  "beforeDumpSha256": "caa432778267d1e040161c91ee1a769adcc50709456ec6904e0a7927e0d5c4c8",
+  "beforeCounts": {
+    "articles": 0,
+    "sources": 0,
+    "fetch_runs": 0
+  }
+}

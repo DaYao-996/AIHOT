@@ -244,7 +244,7 @@ function ItemPreview({ preview }: { preview: FeedItemSummary }) {
     <div className="mx-auto max-w-[var(--page-max-reading)] pb-8">
       <PhoneBar back={{ to: preview.selected ? "/" : "/all", label: preview.selected ? "精选" : "全部" }} title={isPost ? preview.x!.authorName : preview.title} />
       <article className="pb-6 pt-3" aria-busy="true">
-        <div className="mb-3 flex flex-wrap items-center gap-x-1.5 gap-y-1 text-[13px] text-ink-3">
+        <div className={`flex flex-wrap items-center gap-x-1.5 gap-y-1 text-[13px] text-ink-3 ${isPost ? "" : "mb-3"}`}>
           <span className="font-semibold text-ink-2">{isX ? preview.x!.authorName : preview.source.name}</span>
           {isX && <span>· @{preview.x!.handle} · X</span>}
           <span>·</span>
@@ -591,7 +591,7 @@ function ItemView({ item, followups }: Loaded) {
             </div>
           )}
 
-          {summaryOnly && <p className="mt-7 rounded-control bg-bg-sunk px-4 py-3 text-[13.5px] leading-relaxed text-ink-3">应来源方要求，这里只提供摘要与原文入口。完整内容请阅读原文。</p>}
+          {summaryOnly && <p className="mt-7 rounded-control bg-bg-sunk px-4 py-3 text-[13.5px] leading-relaxed text-ink-3">本站只提供摘要与原文链接。</p>}
 
           {item.body && bodyHtml && (
             <section className="mt-9 border-t border-line pt-4 xl:mt-10">

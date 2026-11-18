@@ -1,0 +1,9 @@
+{
+  "round": "2026-11-18T08:15:53.274Z",
+  "use": "historical record of the thirteen stored article rows",
+  "blindTestMaterial": false,
+  "rawResponseBytesStored": false,
+  "evidenceVersions": 0,
+  "notReconstructed": "Missing response bytes were not fetched again to fill this snapshot.",
+  "newMaterialList": "NEW_MATERIAL_MANIFEST.json is the mechanical remainder against the nine read URLs. It is not a complete new blind set."
+}

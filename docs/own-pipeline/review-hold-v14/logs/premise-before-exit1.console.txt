@@ -1,0 +1,38 @@
+# Pre-fix test console. Not re-executed after the fix.
+# Command:
+#   DATABASE_URL=postgres://own_test:own_test@127.0.0.1:5432/own_review_hold_premise_test \
+#     node --test-global-setup=tests/databases.ts --import ./tests/databases.ts --test --test-timeout=120000 tests/own-review-hold.test.ts
+# Exit code: 1
+
+{"level":"info","msg":"queue drain","phase":"start","elapsedMs":0,"count":0,"jobs":[]}
+✖ a stale or revised own-review article does not re-enter analysis or a public page (213.101664ms)
+{"level":"info","msg":"queue drain","phase":"complete","elapsedMs":11,"count":0,"jobs":[]}
+ℹ tests 1
+ℹ suites 0
+ℹ pass 0
+ℹ fail 1
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 1488.952526
+
+✖ failing tests:
+
+test at tests/own-review-hold.test.ts:85:1
+✖ a stale or revised own-review article does not re-enter analysis or a public page (213.101664ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:
+
+  'retrying' !== 'held'
+
+      at blocked (file:///workspace/tests/own-review-hold.test.ts:77:10)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async TestContext.<anonymous> (file:///workspace/tests/own-review-hold.test.ts:100:3)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async startSubtestAfterBootstrap (node:internal/test_runner/harness:387:3) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: 'retrying',
+    expected: 'held',
+    operator: 'strictEqual',
+    diff: 'simple'
+  }

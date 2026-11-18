@@ -9,6 +9,7 @@ import { identityKeyFor } from "../content/materials.ts";
 import { sha256, stableJson } from "../lib/ids.ts";
 import { normalizeUrl } from "../lib/url.ts";
 import { isVideoPageUrl } from "../lib/video-url.ts";
+import { HttpStatusError } from "../lib/http-fetch.ts";
 import { FetchError, type Candidate, type SourceRow } from "./types.ts";
 import { readsWhole } from "./uses.ts";
 
@@ -136,10 +137,31 @@ interface RssValidator {
   lastModified: string | null;
 }
 
+export interface RssTrace {
+  httpStatus: number;
+  rawSha256: string;
+  byteLength: number;
+  responseUrl: string;
+  fetchedAt: string;
+  contentType: string | null;
+  requests: number;
+}
+
 export interface RssRead {
   candidates: Candidate[];
   validator: RssValidator;
   notModified: boolean;
+  trace: RssTrace;
+  /** Null on 304. The bytes the hash was computed from. */
+  body: Buffer | null;
+}
+
+export class FeedHttpError extends HttpStatusError {
+  readonly trace: RssTrace;
+  constructor(trace: RssTrace) {
+    super(trace.httpStatus, `HTTP ${trace.httpStatus}`);
+    this.trace = trace;
+  }
 }
 
 export async function fetchRss(source: SourceRow, opts: { force?: boolean } = {}): Promise<RssRead> {
@@ -152,19 +174,30 @@ export async function fetchRss(source: SourceRow, opts: { force?: boolean } = {}
   const headers: Record<string, string> = { ...plain };
   if (previous?.etag) headers["if-none-match"] = previous.etag;
   if (previous?.lastModified) headers["if-modified-since"] = previous.lastModified;
-  let res = await fetchListing(url, { headers, timeoutMs: 25_000 });
+  const started = new Date().toISOString();
+  let res = await fetchListing(url, { sourceId: source.id, headers, timeoutMs: 25_000 });
   // A redirect may have changed destinations, whose ETag namespace is unrelated to the old one.
   if (res.status === 304 && previous && res.url !== previous.responseUrl) {
-    res = await fetchListing(url, { headers: plain, timeoutMs: 25_000 });
+    res = await fetchListing(url, { sourceId: source.id, headers: plain, timeoutMs: 25_000 });
   }
+  const trace: RssTrace = {
+    httpStatus: res.status,
+    rawSha256: sha256(res.body),
+    byteLength: res.body.length,
+    responseUrl: res.url,
+    fetchedAt: started,
+    contentType: res.headers.get("content-type"),
+    requests: res.requests ?? 1,
+  };
   const validator: RssValidator = {
     configHash, responseUrl: res.url,
     etag: res.headers.get("etag") ?? (res.status === 304 ? previous?.etag ?? null : null),
     lastModified: res.headers.get("last-modified") ?? (res.status === 304 ? previous?.lastModified ?? null : null),
   };
   if (res.status === 304 && previous && (previous.etag || previous.lastModified) && res.url === previous.responseUrl) {
-    return { candidates: [], validator, notModified: true };
+    return { candidates: [], validator, notModified: true, trace, body: null };
   }
+  if (res.status !== 200) throw new FeedHttpError(trace);
   requireOk(res);
   let doc: Record<string, any>;
   try {
@@ -190,6 +223,9 @@ export async function fetchRss(source: SourceRow, opts: { force?: boolean } = {}
       const link = page || mediaFile || guid;
       const title = collapseWhitespace(stripTags(text(it.title)));
       if (!link || !title) continue;
+      const statedText = (text(it.pubDate) || text(it["dc:date"]) || text(it.published)).replace(/星期[一二三四五六日天]/, "");
+      const stated = readPublicationDate(statedText, source.config.publishedAtUtcOffset);
+      const timeSource = text(it.pubDate) ? "rss:pubDate" : text(it["dc:date"]) ? "rss:dc:date" : text(it.published) ? "rss:published" : "unknown";
       const contentEncoded = text(it["content:encoded"]);
       const description = text(it.description);
       const video = isVideoPageUrl(link);
@@ -199,22 +235,22 @@ export async function fetchRss(source: SourceRow, opts: { force?: boolean } = {}
       const enclosure = enclosures.find((e) => /^image\//.test(e?.["@type"] ?? ""));
       const media = [
         ...(enclosure ? [{ kind: "image" as const, url: enclosure["@url"]! }] : []),
-        ...(bodyHtmlRaw ? imagesFrom(bodyHtmlRaw, link) : []),
+        ...(bodyHtml ? imagesFrom(bodyHtml, link) : []),
       ];
       out.push({
         url: link,
         ...(mediaFile ? { identityKey: identityKeyFor({ sourceId: source.id, url: guid, title, via: "fetch" }) } : {}),
         title,
         author: text(it["dc:creator"]) || text(it.author) || null,
-        ...readPublicationDate((text(it.pubDate) || text(it["dc:date"]) || text(it.published)).replace(/星期[一二三四五六日天]/, ""), source.config.publishedAtUtcOffset),
+        ...stated,
         ...feedText(bodyHtml, description ? stripTags(description) : null, source, !mediaFile && !video),
         ...(videoExcerpt ? { excerpt: videoExcerpt } : {}),
         media: media.slice(0, 6),
         categories: arr(it.category).map((c) => text(c)).filter(Boolean),
-        raw: { guid: guid || null },
+        raw: { guid: guid || null, timeSource, updated: null, publicationPrecision: stated.publishedAt ? (stated.publicationTime && stated.publicationTime.length === 10 ? "date_only" : "datetime") : "unknown" },
       });
     }
-    return { candidates: out, validator, notModified: false };
+    return { candidates: out, validator, notModified: false, trace, body: res.body };
   }
 
   const feed = doc.feed;
@@ -233,21 +269,27 @@ export async function fetchRss(source: SourceRow, opts: { force?: boolean } = {}
       const plainBody = atomPlainText(body);
       const bodyHtmlRaw = plainBody === null ? text(body) : escapeXml(plainBody);
       const bodyHtml = bodyHtmlRaw ? sanitizeBody(bodyHtmlRaw, entryUrl) : null;
+      const publishedDate = readPublicationDate(text(e.published), source.config.publishedAtUtcOffset);
       out.push({
         url: entryUrl,
         title,
         author: text(arr(e.author)[0]?.name) || null,
-        // Atom updated describes a revision, not the original publication.
-        ...readPublicationDate(text(e.published), source.config.publishedAtUtcOffset),
+        // updated is not a publication time. It stays on the entry as the feed's own field.
+        ...publishedDate,
         sourceUpdatedAt: parseDate(text(e.updated)),
         ...feedText(bodyHtml, summary, source, !video, plainBody),
         ...(videoExcerpt ? { excerpt: videoExcerpt } : {}),
-        media: bodyHtmlRaw ? imagesFrom(bodyHtmlRaw, entryUrl) : [],
+        media: bodyHtml ? imagesFrom(bodyHtml, entryUrl) : [],
         categories: arr(e.category).map((c: any) => c?.["@term"] ?? text(c)).filter(Boolean),
-        raw: { id: text(e.id) || null },
+        raw: {
+          id: text(e.id) || null,
+          timeSource: text(e.published) ? "atom:published" : text(e.updated) ? "atom:updated" : "unknown",
+          updated: text(e.updated) || null,
+          publicationPrecision: !publishedDate.publishedAt ? "unknown" : publishedDate.publicationTime && publishedDate.publicationTime.length === 10 ? "date_only" : "datetime",
+        },
       });
     }
-    return { candidates: out, validator, notModified: false };
+    return { candidates: out, validator, notModified: false, trace, body: res.body };
   }
   throw new FetchError("not an RSS/Atom document");
 }

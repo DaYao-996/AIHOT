@@ -1,0 +1,13 @@
+{
+  "databaseUrl": "postgres://用户:口令@127.0.0.1:5432/名字_test",
+  "publish": false,
+  "listen": "127.0.0.1:18765",
+  "sourceId": "daily-local",
+  "listingState": "var/daily/listing.json",
+  "stateFile": "var/daily/state.json",
+  "samples": {
+    "a": "docs/own-pipeline/product/samples/nvidia-sparse.detail.bin",
+    "b": "docs/own-pipeline/product/samples/nvidia-slurm.detail.bin",
+    "c": "docs/own-pipeline/product/samples/apple-cn-keke.detail.bin"
+  }
+}

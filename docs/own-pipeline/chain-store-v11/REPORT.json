@@ -1,0 +1,42 @@
+{
+  "premiseRejected": "解析和评分可见补充，就等于正常持久化与文件语义真正可消费",
+  "whyRejected": "v10 是调用方把旁路交给证据写入。这一轮只调用 storeCollected，证据和引用都从库里的当前行来。",
+  "database": "own_chain_store_v11_test",
+  "network": false,
+  "bodyChars": 817,
+  "bodyUnchangedAfterLinkEdit": true,
+  "paperCited": true,
+  "unitCited": true,
+  "missingRejected": "引文不在当前正文或引用里",
+  "wrongOffsetRejected": "引文不在当前正文或引用里",
+  "oldHashRejected": "输入证据不是当前版本",
+  "probeDraftStale": true,
+  "otherDraftStale": false,
+  "publications": 0,
+  "samples": [
+    {
+      "url": "https://mistral.ai/news/mistral-large-4-oss/",
+      "stored": true,
+      "bodyChars": 22694,
+      "links": 21,
+      "charts": 9,
+      "bodyMatchesParser": true
+    },
+    {
+      "url": "https://mistral.ai/news/build-with-studio/",
+      "stored": true,
+      "bodyChars": 10928,
+      "links": 15,
+      "charts": 0,
+      "bodyMatchesParser": true
+    },
+    {
+      "url": "https://deepmind.google/blog/introducing-alphaproof-code/",
+      "stored": true,
+      "bodyChars": 5447,
+      "links": 4,
+      "charts": 0,
+      "bodyMatchesParser": true
+    }
+  ]
+}

@@ -1,0 +1,1 @@
+NODE_TEST_CONTEXT=1 COLLECT_ENABLED=false MODEL_CALLS_ENABLED=false DATABASE_URL=postgres://own_test:own_test@127.0.0.1:5432/own_file_chain_v17_test node scripts/own-file-chain.ts --seal docs/own-pipeline/contract-run-v17/SEAL.json --config docs/own-pipeline/contract-run-v17/CONFIG.json --out-dir docs/own-pipeline/contract-run-v17

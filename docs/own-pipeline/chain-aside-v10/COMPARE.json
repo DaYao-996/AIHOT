@@ -1,0 +1,17 @@
+{
+  "database": "own_chain_aside_v10_test",
+  "network": false,
+  "bodySameAsHandoff": true,
+  "bodyChars": 817,
+  "bodySha256": "528feb6b404c623155b9fdf303d123cbfe4e9b28665f3884007be6a05aa8a72a",
+  "handoffBodySha256": "528feb6b404c623155b9fdf303d123cbfe4e9b28665f3884007be6a05aa8a72a",
+  "paperInBody": false,
+  "paperInScoring": true,
+  "suffixInScoring": true,
+  "navKept": false,
+  "oldHash": "46e4d8c8ee9ca139e685d453b840b5158594793ff64d06ffdfb3c5275bd189c7",
+  "currentHash": "4ef37695cfc16da828c0660192a408f635db6eedbd93e428973fc008c81e29ca",
+  "oldBindingRejected": "输入证据不是当前版本",
+  "publications": 0,
+  "queued": 0
+}

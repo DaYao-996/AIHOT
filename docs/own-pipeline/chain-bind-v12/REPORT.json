@@ -1,0 +1,13 @@
+{
+  "database": "own_chain_bind_v12_test",
+  "upsertEvidenceRows": 0,
+  "storeEvidenceHash": "5043bfa669e1fd14ade2b75da17ab726bbfec65e426ce73b8ccd77ba8e52f518",
+  "afterSupplementHash": "07eecf40f2693cfb8fe48a4351fac01e0ddd6d1e1938464ddc33bd0517fe9884",
+  "hashCoversDisplayedAside": true,
+  "paperByteStart": 794,
+  "unitCited": true,
+  "missingRejected": "引文不在当前正文或引用里",
+  "probeJudgmentStale": true,
+  "otherDraftStale": false,
+  "publications": 0
+}

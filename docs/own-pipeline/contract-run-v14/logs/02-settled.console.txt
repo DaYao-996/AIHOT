@@ -1,0 +1,7 @@
+SETTLED thinking_machines_news status=ok found=14 created=0 revised=0
+SETTLED meta_research_blog status=ok found=16 created=0 revised=0
+SETTLED nvidia_newsroom_page status=ok found=3 created=0 revised=1
+SETTLED anthropic_news_page status=ok found=11 created=0 revised=1
+{"ok":true,"settled":[{"id":"thinking_machines_news","status":"ok","found":14,"created":0,"revised":0,"error":null},{"id":"meta_research_blog","status":"ok","found":16,"created":0,"revised":0,"error":null},{"id":"nvidia_newsroom_page","status":"ok","found":3,"created":0,"revised":1,"error":null},{"id":"anthropic_news_page","status":"ok","found":11,"created":0,"revised":1,"error":null}]}
+{"level":"info","msg":"queue drain","phase":"start","elapsedMs":0,"count":0,"jobs":[]}
+{"level":"info","msg":"queue drain","phase":"complete","elapsedMs":11,"count":0,"jobs":[]}

@@ -1,0 +1,115 @@
+[
+  {
+    "id": "antigravity_changelog",
+    "kind": "web_list",
+    "config": {
+      "url": "https://antigravity.google/docs/changelog.md",
+      "parseMode": "markdown_changelog"
+    },
+    "enabled": false
+  },
+  {
+    "id": "antigravity_cli_github_releases",
+    "kind": "rss",
+    "config": {
+      "feedUrl": "https://github.com/google-antigravity/antigravity-cli/releases.atom"
+    },
+    "enabled": false
+  },
+  {
+    "id": "apple_newsroom_cn",
+    "kind": "rss",
+    "config": {
+      "feedUrl": "https://www.apple.com.cn/newsroom/rss-feed.rss"
+    },
+    "enabled": false
+  },
+  {
+    "id": "apple_newsroom_us_rss",
+    "kind": "rss",
+    "config": {
+      "feedUrl": "https://www.apple.com/newsroom/rss-feed.rss"
+    },
+    "enabled": false
+  },
+  {
+    "id": "arxiv_cs_ai",
+    "kind": "rss",
+    "config": {
+      "feedUrl": "https://rss.arxiv.org/rss/cs.AI"
+    },
+    "enabled": false
+  },
+  {
+    "id": "claude_code_releases",
+    "kind": "rss",
+    "config": {
+      "feedUrl": "https://github.com/anthropics/claude-code/releases.atom"
+    },
+    "enabled": false
+  },
+  {
+    "id": "claude_platform_release_notes",
+    "kind": "rss",
+    "config": {
+      "feedUrl": "https://platform.claude.com/docs/en/release-notes/feed.xml"
+    },
+    "enabled": false
+  },
+  {
+    "id": "deepmind_blog",
+    "kind": "rss",
+    "config": {
+      "feedUrl": "https://deepmind.google/blog/rss.xml"
+    },
+    "enabled": false
+  },
+  {
+    "id": "google_ai_blog",
+    "kind": "rss",
+    "config": {
+      "feedUrl": "https://blog.google/innovation-and-ai/technology/ai/rss/"
+    },
+    "enabled": false
+  },
+  {
+    "id": "huggingface_blog",
+    "kind": "rss",
+    "config": {
+      "feedUrl": "https://huggingface.co/blog/feed.xml"
+    },
+    "enabled": false
+  },
+  {
+    "id": "mistral_news",
+    "kind": "rss",
+    "config": {
+      "feedUrl": "https://mistral.ai/news/rss"
+    },
+    "enabled": false
+  },
+  {
+    "id": "nvidia_developer_blog",
+    "kind": "rss",
+    "config": {
+      "feedUrl": "https://developer.nvidia.com/blog/feed/"
+    },
+    "enabled": false
+  },
+  {
+    "id": "openai_codex_github_releases",
+    "kind": "rss",
+    "config": {
+      "feedUrl": "https://github.com/openai/codex/releases.atom"
+    },
+    "enabled": false
+  },
+  {
+    "id": "openai_news",
+    "kind": "rss",
+    "config": {
+      "feedUrl": "https://openai.com/news/rss.xml"
+    },
+    "enabled": false
+  }
+]

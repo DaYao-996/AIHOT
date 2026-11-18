@@ -1,0 +1,40 @@
+{
+  "watermark": {
+    "conclusion": "Two saved HTTP responses exist. They are not one derived from the other. Evidence version 15 binds f22 only. fetch.json binds f5 only.",
+    "getsRecorded": [
+      {
+        "when": "2026-11-18T07:45:46.295Z",
+        "record": "fetch.json",
+        "sha256": "f5d3cb7e7b68557b2917532a8ab7f253fe894bf7cfabe925cd31e2242d0dcf10",
+        "bytes": 247871,
+        "httpStatusRecorded": 200,
+        "boundToEvidence": false,
+        "note": "Exploratory GET before the supplement script. This file is not the ev15 response."
+      },
+      {
+        "when": "2026-11-18T07:46:19.178Z",
+        "record": "SUPPLEMENT_RUN.json watermark",
+        "script": "scripts/own-condition-supplement.ts",
+        "sha256": "f22c5fd0e4e714d5cd32417b4a90f5ce8c9f0b4ed0a60b24c8c8753fcc655570",
+        "bytes": 247871,
+        "httpStatusRecordedByScript": 200,
+        "boundToEvidence": "own_evidence_versions version 15 responseSha256",
+        "rawHeaderCapture": "unknown; the script stored status, finalUrl, byte length, and sha256 of the body it wrote. No separate header dump was kept."
+      }
+    ],
+    "difference": "1512 bytes, 72 runs, all one nonce token repeated 36 times (nonce attribute and data-n-css). After replacing that token the files are equal. The extracted What's-covered-to-model-table text is identical. That does not make one file a derivative of the other; they are two responses.",
+    "reget": false
+  },
+  "xybench": {
+    "conclusion": "Not an intentional split of authority. writeEvidence copies body_text onto the article row even when upsertMaterial refuses a new revision because that content hash was already stored.",
+    "current": {
+      "articles.revision": 4,
+      "articles.bodyLength": 8061,
+      "articles.content_hash": "matches revision 4, whose stored body is 6210 characters",
+      "revision3": "8061 characters, same text the article row and evidence 15 now hold",
+      "evidence15": { "article_revision": 4, "bodyLength": 8061, "hash": "3411f74b7da8b30a3be87bc69fb3017408be1ce8d9db663e2e2253910586e3c5" }
+    },
+    "fixNotApplied": "Appending revision 5 and a new evidence row would change the binding of the live XYBench file judgment. That was not done in this round, so the seven unchanged imports stay idempotent. The next repair should stop the direct body_text write, append a revision whose text is the current 8061-character body, append evidence that records that revision, and stale only that judgment. The parent then rebinds XYBench. History of revision 4 stays.",
+    "otherArticles": "The other fourteen sample rows are not in this state, except the three Codex rows, whose article body is null while the current revision still stores the one-line release text. No file judgment is bound to those three."
+  }
+}

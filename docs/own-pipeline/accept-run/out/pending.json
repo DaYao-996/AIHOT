@@ -1,0 +1,62 @@
+[
+  {
+    "id": "bca1ab3d7a42583f465b1edb3eb5b774b2d7c5d0fc45c51912fb435621a5aac9",
+    "articleId": "fyb8qauws9nhzv3seit4c0l8q",
+    "evidenceHash": "34c089cf3ca0df0bf0732250b81851edd1e3aa9261e4ae924e359dcee3229b8d",
+    "inputRevision": 2,
+    "promptVersion": "real-draft-accept-page-v1",
+    "text": "待审。回放正文写有：「hs from tens of thousands of tokens to hundreds of thousands」。不是新消息，未核，未许可。",
+    "sourceNote": "开发样本。稿件引用当前正文。不是新消息，不是质量验收。",
+    "conditions": [
+      "事实未核",
+      "未许可",
+      "不是新消息"
+    ],
+    "boundSemanticJudgmentId": "39dbf3d7faff8259cd40fe11a3cdc2dba357c5b4b93695d1a59f542f63211073",
+    "boundSelectionJudgmentId": "c93fa3a50d12301c48df078433bc2a3276b4ce1091f5beec7d1ea4566b852043",
+    "technicalFixture": false,
+    "requiresHumanReview": true,
+    "factStatus": "unchecked",
+    "releaseStatus": "not_licensed"
+  },
+  {
+    "id": "2b0e4edc062cd99e4513a2c673b6730e20d49b2b4fb1305ac18e979dad1ca4e7",
+    "articleId": "hlkzihlklb6tm8g4uxefeh3vc",
+    "evidenceHash": "4fa1d4e0423dd9770e25fd6478e057a154b98cd2484a6c9deeb30b1b3be91f29",
+    "inputRevision": 2,
+    "promptVersion": "real-draft-accept-page-v1",
+    "text": "待审。回放正文写有：「诚的好奇心 Apple 播客 2026 年度节目《Baby, this is Keke Palmer》主持人 Keke 」。不是新消息，未核，未许可。",
+    "sourceNote": "开发样本。稿件引用当前正文。不是新消息，不是质量验收。",
+    "conditions": [
+      "事实未核",
+      "未许可",
+      "不是新消息"
+    ],
+    "boundSemanticJudgmentId": "d9e10c6e1932a254b398824abce694d9e126b208c4e8bad7606e5953a860ca68",
+    "boundSelectionJudgmentId": "1b21c41c451330446998bffc34725469802dcf80e3d10aafa07a7a7def2b4ed1",
+    "technicalFixture": false,
+    "requiresHumanReview": true,
+    "factStatus": "unchecked",
+    "releaseStatus": "not_licensed"
+  },
+  {
+    "id": "94a658e36e02ba38405248d5d19c9406ea8f2f45616761bdbb2c7a53b647780f",
+    "articleId": "zvp0amj44s7t60arsbdspi19r",
+    "evidenceHash": "be6665a9848f64099058ddcdb17c8380c0d5e0ef741ae9839e9a04957ef61b87",
+    "inputRevision": 2,
+    "promptVersion": "real-draft-accept-page-v1",
+    "text": "待审。回放正文写有：「ational programs in North America, Europe, and Asia are driv」。不是新消息，未核，未许可。",
+    "sourceNote": "开发样本。稿件引用当前正文。不是新消息，不是质量验收。",
+    "conditions": [
+      "事实未核",
+      "未许可",
+      "不是新消息"
+    ],
+    "boundSemanticJudgmentId": "d711bd8a1fc265caae53491ac8bbe3352e07b272b0a84d8f0375e8de6d48592b",
+    "boundSelectionJudgmentId": "edac574b484c299c37dd5933d3db21405de2134f72b29c7285d6ba616dcfc381",
+    "technicalFixture": false,
+    "requiresHumanReview": true,
+    "factStatus": "unchecked",
+    "releaseStatus": "not_licensed"
+  }
+]

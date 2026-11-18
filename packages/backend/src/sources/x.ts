@@ -234,11 +234,43 @@ export interface XRead {
   /** Stretches still to read, oldest first (kept in the source cursor). */
   backlog: XBacklog[];
   pages: number;
-  /** The new-post search stopped at the page limit; the rest joined the backlog. */
+  /** The provider or the page budget stopped the run. This is not proof the window was fully read. */
   truncated: boolean;
   backlogPages: number;
   /** Stretches given up (too many, too old, or the provider refused to continue one): posts in them may be missing. */
   dropped: number;
+  /** Why this run stopped asking. A platform stop is recorded separately from coverage. */
+  stopReason: XStopReason;
+  /** Never "complete": an empty page or a missing cursor can hide posts that still exist in the window. */
+  coverage: XCoverage;
+}
+
+export type XStopReason = "no_cursor" | "empty_page" | "first_page_bound" | "page_budget" | "backlog_budget" | "provider_error";
+export type XCoverage = "unproven" | "budget_limited";
+
+/** One search page. Tests pass a fake; production uses SocialData. */
+export type XPageFetcher = (query: string, cursor: string | null) => Promise<{ tweets: SdTweet[]; nextCursor: string | null; receiptId: number }>;
+
+/**
+ * A post already in hand. A root, or a quote that is not a reply, stays. A reply stays only when its
+ * parent author is the post's author. This does not build a provider query.
+ */
+export function keptByParentAuthor(post: { author: string; replyToAuthor: string | null }): boolean {
+  if (!post.replyToAuthor) return true;
+  return post.replyToAuthor.toLowerCase() === post.author.toLowerCase();
+}
+
+/**
+ * `-filter:replies` drops every reply, including the author's own thread. The compound
+ * `(-filter:replies OR filter:self_threads)` is not sent: SocialData's public operator list names
+ * `filter:self_threads`, and does not show that grouping. Frozen contracts stay `-filter:retweets`;
+ * other people's replies in those results are dropped locally.
+ */
+export function retainedByReplyFilter(query: string, post: { author: string; replyToAuthor: string | null }): boolean {
+  if (/-filter:retweets/i.test(query) && !/-filter:replies/i.test(query)) return keptByParentAuthor(post);
+  if (!post.replyToAuthor) return true;
+  if (/-filter:replies/i.test(query)) return false;
+  return true;
 }
 
 export interface XFetch extends Omit<XRead, "tweets"> {
@@ -252,7 +284,7 @@ export interface XFetch extends Omit<XRead, "tweets"> {
  * the old watermark, so nothing in between is skipped. Without a watermark (a source's very first
  * fetch) one page is read: its import is bounded anyway.
  */
-export async function readXSearch(base: string, opts: { lastId: string | null; backlog: XBacklog[]; subject: string; type?: "Latest" | "Top" }): Promise<XRead> {
+export async function readXSearch(base: string, opts: { lastId: string | null; backlog: XBacklog[]; subject: string; type?: "Latest" | "Top" }, fetchPage?: XPageFetcher): Promise<XRead> {
   const { lastId } = opts;
   // One stretch per query, and none left over for days. A shard's stretches travel with its accounts, so
   // regrouping can leave copies of the same query at different positions in several shards, each of them
@@ -273,14 +305,17 @@ export async function readXSearch(base: string, opts: { lastId: string | null; b
     })
     .map((b) => ({ ...b }));
   const window = windowKey();
-  const search = (query: string, cursor: string | null) =>
-    searchTweets(query, { purpose: "source_fetch", subject: opts.subject, window, type: opts.type ?? "Latest", cursor });
+  const search = fetchPage ?? ((query: string, cursor: string | null) =>
+    searchTweets(query, { purpose: "source_fetch", subject: opts.subject, window, type: opts.type ?? "Latest", cursor })
+      .then((res) => ({ tweets: res.tweets, nextCursor: res.nextCursor, receiptId: res.receiptId })));
   const all: SdTweet[] = [];
   const receiptIds = new Set<number>();
   const query = lastId ? `${base} since_id:${lastId}` : base;
   let cursor: string | null = null;
   let pages = 0;
   let truncated = false;
+  let stopReason: XStopReason = "no_cursor";
+  let held: XBacklog | null = null;
   for (;;) {
     let res: Awaited<ReturnType<typeof search>>;
     try {
@@ -289,15 +324,25 @@ export async function readXSearch(base: string, opts: { lastId: string | null; b
       // A later page failing keeps the pages already read; the search goes on from there next run.
       if (!cursor) throw error;
       truncated = true;
+      stopReason = "provider_error";
       backlog.push({ query, next: cursor, at: new Date().toISOString() });
       break;
     }
     pages += 1;
     receiptIds.add(res.receiptId);
     all.push(...res.tweets);
-    if (!lastId || !res.nextCursor || res.tweets.length === 0) break;
+    if (!lastId || !res.nextCursor || res.tweets.length === 0) {
+      // A missing cursor or an empty page is the provider stopping. It does not prove the window is finished.
+      if (res.tweets.length === 0) stopReason = "empty_page";
+      else if (!res.nextCursor) stopReason = "no_cursor";
+      else stopReason = "first_page_bound";
+      if (res.nextCursor) held = { query, next: res.nextCursor, at: new Date().toISOString() };
+      truncated = true;
+      break;
+    }
     if (pages >= MAX_PAGES) {
       truncated = true;
+      stopReason = "page_budget";
       backlog.push({ query, next: res.nextCursor, at: new Date().toISOString() });
       break;
     }
@@ -327,14 +372,28 @@ export async function readXSearch(base: string, opts: { lastId: string | null; b
     backlogPages += 1;
     receiptIds.add(res.receiptId);
     all.push(...res.tweets);
+    if (res.tweets.length === 0 && res.nextCursor) {
+      // An empty page that still offers a cursor is not spent. One attempt this run, then the same cursor waits.
+      stretch.next = res.nextCursor;
+      truncated = true;
+      stopReason = "empty_page";
+      break;
+    }
     if (!res.nextCursor || res.tweets.length === 0) backlog.shift();
     else stretch.next = res.nextCursor;
   }
+  if (held && !backlog.some((b) => b.query === held!.query && b.next === held!.next)) backlog.push(held);
+  const budgetLimited = stopReason === "page_budget" || (backlog.length > 0 && backlogPages >= MAX_BACKLOG_PAGES);
+  const coverage: XCoverage = budgetLimited ? "budget_limited" : "unproven";
+  if (budgetLimited && stopReason !== "page_budget") stopReason = "backlog_budget";
 
   const seen = new Set<string>();
-  const tweets = all.filter((t) => !t.retweeted_status && !seen.has(t.id_str) && !!seen.add(t.id_str));
+  const tweets = all.filter((t) => !t.retweeted_status && !seen.has(t.id_str) && !!seen.add(t.id_str) && retainedByReplyFilter(query, {
+    author: t.user.screen_name,
+    replyToAuthor: t.in_reply_to_screen_name ?? null,
+  }));
   const maxId = tweets.reduce<string | null>((m, t) => (m === null || BigInt(t.id_str) > BigInt(m) ? t.id_str : m), lastId);
-  return { tweets, receiptIds: [...receiptIds], lastId: maxId, backlog, pages, truncated, backlogPages, dropped };
+  return { tweets, receiptIds: [...receiptIds], lastId: maxId, backlog, pages, truncated, backlogPages, dropped, stopReason, coverage };
 }
 
 /**
@@ -342,8 +401,7 @@ export async function readXSearch(base: string, opts: { lastId: string | null; b
  * its watermark or from an earlier post (`since`).
  */
 export async function fetchXSearch(source: SourceRow, since?: string): Promise<XFetch> {
-  const handle = selfThreadHandle(source);
-  const base = handle ? `from:${handle} (-filter:replies OR filter:self_threads)` : String(source.config.query ?? "");
+  const base = String(source.config.query ?? "");
   if (!base) throw new FetchError("query missing");
   const { tweets, ...read } = await readXSearch(base, {
     lastId: since ?? source.cursor?.lastTweetId ?? null,
@@ -377,10 +435,9 @@ export function selfThreadHandle(s: Pick<SourceRow, "config">): string | null {
   return SHARDABLE.test(String(s.config.query ?? "")) ? xHandle(s.config) : null;
 }
 
-export function shardQuery(handles: string[], selfThreads: string[] = []): string {
-  const posts = `(${handles.map((h) => `from:${h}`).join(" OR ")}) -filter:replies`;
-  const own = handles.filter((h) => selfThreads.includes(h));
-  return own.length ? `(${posts} OR (${own.map((h) => `from:${h}`).join(" OR ")}) filter:self_threads)` : posts;
+export function shardQuery(handles: string[], _selfThreads: string[] = []): string {
+  // The second argument used to append `filter:self_threads`. That grouping is not sent.
+  return `(${handles.map((h) => `from:${h}`).join(" OR ")}) -filter:replies`;
 }
 
 export interface XShard {
@@ -395,10 +452,10 @@ export interface XShard {
  * accounts stay together between runs; a source added or removed shifts only the shards after it.
  */
 export function planXShards(sources: Array<Pick<SourceRow, "id" | "kind" | "config" | "cursor" | "participation_mode">>): XShard[] {
-  const byMode = new Map<string, Array<{ id: string; handle: string; selfThread: boolean }>>();
+  const byMode = new Map<string, Array<{ id: string; handle: string }>>();
   for (const s of sources) {
     const handle = shardHandle(s);
-    if (handle) byMode.set(s.participation_mode, [...(byMode.get(s.participation_mode) ?? []), { id: s.id, handle, selfThread: !!selfThreadHandle(s) }]);
+    if (handle) byMode.set(s.participation_mode, [...(byMode.get(s.participation_mode) ?? []), { id: s.id, handle }]);
   }
   const shards: XShard[] = [];
   for (const [mode, list] of [...byMode].sort(([a], [b]) => a.localeCompare(b))) {
@@ -409,7 +466,7 @@ export function planXShards(sources: Array<Pick<SourceRow, "id" | "kind" | "conf
       current = [];
     };
     for (const s of list) {
-      if (current.length >= SHARD_MAX_ACCOUNTS || shardQuery([...current, s].map((c) => c.handle), [...current, s].filter((c) => c.selfThread).map((c) => c.handle)).length > SHARD_QUERY_MAX) close();
+      if (current.length >= SHARD_MAX_ACCOUNTS || shardQuery([...current, s].map((c) => c.handle)).length > SHARD_QUERY_MAX) close();
       current.push(s);
     }
     close();

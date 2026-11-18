@@ -1,0 +1,47 @@
+{
+  "version": "accept-run",
+  "entry": "scripts/own-run.ts",
+  "lock": "package-lock.json",
+  "install": "npm ci",
+  "modelStep": "node scripts/own-run.ts --step model",
+  "scheduleStep": "node scripts/own-run.ts --step schedule",
+  "stopStep": "node scripts/own-run.ts --step stop",
+  "publishDefault": false,
+  "items": [
+    {
+      "url": "https://developer.nvidia.com/blog/co-designing-sparse-attention-for-efficient-long-context-inference/",
+      "title": "Co-Designing Sparse Attention for Efficient Long-Context Inference",
+      "publishedAt": "2026-11-17T17:30:00.000Z",
+      "opening": "Agentic workloads, long documents, and large codebases are pushing context lengths from tens of thousands of tokens to hundreds of thousands. At those lengths,... Agentic workloads, long documents, and large codebases are pushing context lengths from tens of thousands of tokens to hundreds of thousands. At those lengths, attention becomes the most expensive part of a transformer layer. Dense attention scores every query against every key, so its cost per query grows with the context length N, and at 128K tokens it can take most of the prefill time in a… Source",
+      "file": "../contract-run-v19/responses/nvidia-sparse.detail.bin",
+      "container": ".entry-content"
+    },
+    {
+      "url": "https://developer.nvidia.com/blog/integrating-qpus-into-supercomputing-centers-using-slurm-hres-plugins/",
+      "title": "Integrating QPUs into Supercomputing Centers Using Slurm HRES Plugins",
+      "publishedAt": "2026-11-17T17:00:00.000Z",
+      "opening": "Quantum processors are being integrated into supercomputing centers worldwide. National programs in North America, Europe, and Asia are driving the installation... Quantum processors are being integrated into supercomputing centers worldwide. National programs in North America, Europe, and Asia are driving the installation of quantum processing units (QPUs) alongside high-performance computing (HPC) systems. Every supercomputer will eventually be a hybrid quantum-classical device, drawing on quantum processors to expand what’s possible in scientific research. Source",
+      "file": "../contract-run-v19/responses/nvidia-slurm.detail.bin",
+      "container": ".entry-content"
+    },
+    {
+      "url": "https://www.apple.com.cn/newsroom/2026/11/apple-podcasts-names-baby-this-is-keke-palmer-the-2026-show-of-the-year/",
+      "title": "《Baby, this is Keke Palmer》获选 Apple 播客 2026 年度节目",
+      "publishedAt": null,
+      "opening": "",
+      "file": "../contract-run-v19/responses/apple-cn-keke.detail.bin",
+      "container": "article"
+    }
+  ],
+  "fileChain": {
+    "rulesetVersion": "file-read-accept",
+    "shortPrompt": "assistant-file-semantics-accept-opening-v1",
+    "shortSelection": "assistant-selection-accept-opening-v1",
+    "shortDraft": "real-draft-accept-opening-v1",
+    "fullPrompt": "assistant-file-semantics-accept-page-v1",
+    "fullSelection": "assistant-selection-accept-page-v1",
+    "fullDraft": "real-draft-accept-page-v1"
+  },
+  "priorCoverage": "../contract-run-v16/PRIOR17.json",
+  "xNotRun": 174
+}

@@ -1,0 +1,18 @@
+# throwaway own_collect_branches_v13_test. No worker. COLLECT_ENABLED and MODEL_CALLS_ENABLED false.
+# The premise test failed before the detail-budget fix (PREMISE.json). This run is after that fix.
+
+DATABASE_URL=postgres://own_test:own_test@127.0.0.1:5432/own_collect_branches_v13_test npm run db:migrate
+NODE_TEST_CONTEXT=1 COLLECT_ENABLED=false MODEL_CALLS_ENABLED=false \
+  DATABASE_URL=postgres://own_test:own_test@127.0.0.1:5432/own_collect_branches_v13_test \
+  node scripts/own-collect-branches-v13.ts --out-dir docs/own-pipeline/collect-branches-v13
+
+# EXIT 0
+# isolated chain blocked, page not requested, role stayed isolated
+# editorial dated and undated pages both read; replay created 0 revised 0
+# processArticle state held; publishArticle null; public publications 0; receipts 0; deliveries 0; release jobs 0
+# paper byte 794; missing citation rejected; supplement hash covers the displayed aside; only that article staled
+# dumps:
+#   after-collect.dump     f796e36927928ba25a3223400d641a2a3c4e8a904c2c0fb5183557e84eb2844a
+#   after-judgments.dump   1232e3333168468e86b28798caa855c7d27486f1e28751f7616a6f402e1e9166
+#   after-supplement.dump  b7d79cb4516f9c0be55de7d7ee7f3ea75f9ab4573e263e7afe8b7e9e293a53cf
+# The independent 01-entry SIGTERM 143 log is not overwritten.

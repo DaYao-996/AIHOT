@@ -1,0 +1,92 @@
+{
+  "version": "contract-run-v15",
+  "frozen": true,
+  "notTheV14Log": true,
+  "network": "localhost replay of saved listing bytes; detail budget 0 so article hosts are not requested",
+  "doNotEnableRoles": ["excluded", "observe", "manual_gap", "optional", "checklist"],
+  "budget": { "detailMaxFetches": 0, "initialBackfillLimit": 2 },
+  "connect": [
+    {
+      "sourceId": "thinking_machines_news",
+      "role": "operational",
+      "intervalMinutes": 1440,
+      "kind": "web_list",
+      "config": {
+        "url": "http://127.0.0.1:8765/thinking_machines_news.html",
+        "parseMode": "html",
+        "itemSelector": "ol.post-group > li",
+        "linkSelector": "a.post-item-link",
+        "titleSelector": "h2.post-title",
+        "publishedAtSelector": "time",
+        "publishedAtUtcOffset": "+00:00",
+        "allowUrlPrefixes": ["http://127.0.0.1:8765/", "https://thinkingmachines.ai/news/"],
+        "detail": { "maxFetches": 0 },
+        "_aihot": { "initialBackfillLimit": 2 }
+      }
+    },
+    {
+      "sourceId": "meta_research_blog",
+      "role": "operational",
+      "intervalMinutes": 1440,
+      "kind": "web_list",
+      "config": {
+        "url": "http://127.0.0.1:8765/meta_research_blog.html",
+        "parseMode": "html",
+        "itemSelector": "article[data-blog-post-summary='card']",
+        "linkSelector": "a[href*='/blog/']",
+        "titleSelector": "h2",
+        "publishedAtSelector": "time",
+        "publishedAtUtcOffset": "+00:00",
+        "allowUrlPrefixes": ["http://127.0.0.1:8765/", "https://research.meta.ai/blog/"],
+        "detail": { "maxFetches": 0 },
+        "_aihot": { "initialBackfillLimit": 2 }
+      }
+    },
+    {
+      "sourceId": "nvidia_newsroom_page",
+      "role": "operational",
+      "intervalMinutes": 1440,
+      "kind": "web_list",
+      "listingScope": "featured carousel only; the rest of the newsroom is not a stable card",
+      "config": {
+        "url": "http://127.0.0.1:8765/nvidia_newsroom_page.html",
+        "parseMode": "html",
+        "itemSelector": "article.carousel-item-wrapper",
+        "linkSelector": "h2 a",
+        "titleSelector": "h2 a",
+        "allowUrlPrefixes": ["http://127.0.0.1:8765/", "https://nvidianews.nvidia.com/news/"],
+        "detail": { "maxFetches": 0 },
+        "_aihot": { "initialBackfillLimit": 2 }
+      }
+    },
+    {
+      "sourceId": "anthropic_news_page",
+      "role": "operational",
+      "intervalMinutes": 1440,
+      "kind": "web_list",
+      "listingDates": "headline anchor does not contain the card time",
+      "config": {
+        "url": "http://127.0.0.1:8765/anthropic_news_page.html",
+        "parseMode": "html",
+        "itemSelector": "a:has([data-component='Headline'])",
+        "titleSelector": "[data-component='Headline']",
+        "allowUrlPrefixes": ["http://127.0.0.1:8765/", "https://www.anthropic.com/"],
+        "detail": { "maxFetches": 0 },
+        "_aihot": { "initialBackfillLimit": 2 }
+      }
+    },
+    {
+      "sourceId": "chatgpt_help_release_notes",
+      "role": "required",
+      "action": "one_get",
+      "url": "http://127.0.0.1:8765/oversize.bin",
+      "note": "local oversized body for failure accounting; not a replay of the historical help.openai.com GET or its 403"
+    },
+    {
+      "sourceId": "github_fast_rising",
+      "role": "required",
+      "action": "unverified",
+      "missing": ["contract endpoint is not an http URL", "no GitHub credential in this run", "historical gh_rising.py is not in this repository"]
+    }
+  ]
+}

@@ -1,0 +1,40 @@
+{
+  "database": "own_collect_branches_v13_test",
+  "entry": "collectSource",
+  "calledApplyDetail": false,
+  "calledStoreCollected": false,
+  "isolated": {
+    "chain": "blocked",
+    "participationMode": "isolated",
+    "bodyStatus": "pending",
+    "evidence": 0,
+    "pageRequested": false
+  },
+  "editorial": {
+    "datedPage": true,
+    "undatedPage": true,
+    "replayCreated": 0,
+    "replayRevised": 0
+  },
+  "paperByteStart": 794,
+  "missingRejected": "引文不在当前正文或引用里",
+  "hashCoversDisplayedAside": true,
+  "afterSupplementHash": "f7dff0e3dae62faa44cbb161405e17132798430a2bd6e6e45b213716ceb4192e",
+  "probeJudgmentStale": true,
+  "otherDraftStale": false,
+  "consumer": {
+    "processArticle": "held",
+    "publishArticle": null,
+    "publicPublications": 0,
+    "receipts": 0,
+    "deliveries": 0,
+    "releaseJobs": 0
+  },
+  "requests": [
+    "/feed/ed",
+    "/probe",
+    "/other",
+    "/feed/iso",
+    "/feed/ed"
+  ]
+}

@@ -12,7 +12,8 @@ const numberType = (oid: number) => ({
 export const sql = postgres(config.databaseUrl, {
   max: Number(process.env.DATABASE_POOL_MAX || 10),
   // Keep connections through quiet minutes: a reconnect costs a SCRAM exchange on the next request.
-  idle_timeout: 600,
+  // Tests close the pool when the file ends. A 10-minute idle timer keeps that process alive after the assertions.
+  idle_timeout: process.env.NODE_TEST_CONTEXT ? 1 : 600,
   connect_timeout: 10,
   onnotice: () => {},
   // Prepared statements keep PostgreSQL's plan cache: planning a detail read took longer than running
@@ -42,7 +43,9 @@ export function withCustomPlans<T>(fn: (db: Tx) => Promise<T>): Promise<T> {
 }
 
 export async function closeDb(): Promise<void> {
-  await sql.end({ timeout: 5 });
+  // timeout 0 destroys pooled sockets immediately. A reserved connection otherwise waits on a close
+  // that never arrives, and the process stays inside sql.end until it is killed.
+  await sql.end({ timeout: 0 });
 }
 
 /** First row of a query that always returns one (aggregates). */

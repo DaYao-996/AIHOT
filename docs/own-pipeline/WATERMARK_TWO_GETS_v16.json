@@ -1,0 +1,39 @@
+{
+  "originalOneGetReport": {
+    "file": "/tmp/condition-supplement/SUPPLEMENT_RUN.json",
+    "tampered": false,
+    "watermark": {
+      "requestedUrl": "https://support.claude.com/en/articles/16266773-how-claude-marks-ai-generated-content",
+      "fetchedAt": "2026-11-18T07:46:19.178Z",
+      "status": 200,
+      "finalUrl": "https://support.claude.com/en/articles/16266773-how-claude-marks-ai-generated-content",
+      "bytes": 247871,
+      "sha256": "f22c5fd0e4e714d5cd32417b4a90f5ce8c9f0b4ed0a60b24c8c8753fcc655570",
+      "followedFurtherLinks": false
+    },
+    "error": "That report records one GET. Reading it as the only GET, and calling f22 the HTTP 200 in fetch.json, was wrong."
+  },
+  "correction": {
+    "gets": 2,
+    "first": {
+      "utc": "2026-11-18T07:45:46.295Z",
+      "taipei": "2026-11-18T15:45:46.295+08:00",
+      "record": "fetch.json",
+      "httpStatus": 200,
+      "bytes": 247871,
+      "sha256": "f5d3cb7e7b68557b2917532a8ab7f253fe894bf7cfabe925cd31e2242d0dcf10",
+      "boundToEvidence15": false
+    },
+    "second": {
+      "utc": "2026-11-18T07:46:19.178Z",
+      "taipei": "2026-11-18T15:46:19.178+08:00",
+      "record": "SUPPLEMENT_RUN.json watermark",
+      "httpStatusRecordedByScript": 200,
+      "bytes": 247871,
+      "sha256": "f22c5fd0e4e714d5cd32417b4a90f5ce8c9f0b4ed0a60b24c8c8753fcc655570",
+      "boundToEvidence15": true,
+      "rawHeaderCapture": "unknown"
+    }
+  },
+  "reget": false
+}

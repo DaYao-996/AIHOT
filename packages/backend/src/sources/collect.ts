@@ -5,7 +5,7 @@ import { fillScheduledPublications, FUTURE_TOLERANCE_MS, identityKeyFor, materia
 import { PresentationMismatch } from "../content/presentation.ts";
 import { HttpStatusError } from "../lib/http-fetch.ts";
 import { identityKeyForUrl } from "../lib/url.ts";
-import { sha256 } from "../lib/ids.ts";
+import { sha256, stableJson } from "../lib/ids.ts";
 import { enqueue, QUEUES, shutdownSignal } from "../jobs/queue.ts";
 import { runOwner } from "../jobs/runs.ts";
 import { queueProcessing } from "../jobs/content.ts";
@@ -15,10 +15,12 @@ import { fetchDetail, fetchWebList, isCallToActionTitle, needsTitle, type Detail
 import { unsupportedConfig } from "./config-keys.ts";
 import { admitListing, filterPublicationWindow } from "./filters.ts";
 import { fetchJsonList } from "./json-list.ts";
-import { fetchXSearch, planXShards, readXSearch, shardHandle, shardQuery, selfThreadHandle, SHARDABLE_SQL, tweetToCandidate, type XBacklog } from "./x.ts";
+import { fetchXSearch, planXShards, readXSearch, shardHandle, shardQuery, SHARDABLE_SQL, tweetToCandidate, type XBacklog } from "./x.ts";
 import { FetchError, type Candidate, type SourceRow } from "./types.ts";
 import { readsWhole, usePace } from "./uses.ts";
 import { pageFetchable } from "../content/extract.ts";
+import { recordCollectedEvidence } from "../own-pipeline-store.ts";
+import type { ContentAside } from "./saved-supplements.ts";
 import { fetchArticleCover, hasPicture, type Cover } from "../content/cover.ts";
 
 export interface CollectResult {
@@ -28,11 +30,13 @@ export interface CollectResult {
   created: number;
   revised: number;
   error?: string;
+  listingBytes?: Buffer | null;
+  detailCaptures?: DetailReads["captures"];
 }
 
 export async function loadSource(id: string): Promise<SourceRow | null> {
   const [s] = await sql<SourceRow[]>`
-    SELECT id, name, kind, config, tier, participation_mode, uses, first_party, interval_minutes, enabled, cursor, fail_count
+    SELECT id, name, kind, config, tier, participation_mode, uses, interval_minutes, enabled, cursor, fail_count
     FROM sources WHERE id = ${id}`;
   return s ?? null;
 }
@@ -61,7 +65,11 @@ export async function storedDetails(identities: string[]): Promise<Map<string, S
 const DAY_MS = 86_400_000;
 
 /** `cover`: what the entry's detail page declared (null: none), when its body came from that page. */
-export type CollectionCandidate = Candidate & { detailRules?: string; cover?: Cover | null };
+export type CollectionCandidate = Candidate & {
+  detailRules?: string;
+  cover?: Cover | null;
+  contentAside?: ContentAside | null;
+};
 
 /** The detail rules in force; a page read under other rules is read again. */
 const detailRulesOf = (source: SourceRow) => (source.config.detail ? sha256(JSON.stringify(source.config.detail)) : null);
@@ -135,6 +143,8 @@ export interface DetailReads {
   listed: Map<string, DatedOut[string]>;
   /** Listed entries whose page still fails with a recoverable error. */
   retries: Retries;
+  /** Detail responses already fetched. Not a second request. */
+  captures: Array<{ url: string; status: number; finalUrl: string; truncated: boolean; requests: number; bytes: Buffer; sectionText: string | null; attemptId: string | null }>;
 }
 
 /**
@@ -163,11 +173,13 @@ function detailNeed(c: CollectionCandidate, stored: StoredDetail | undefined, so
     summary: !!d.summarySelector && !(stored?.excerpt || c.excerpt),
     body: readsWhole(source) && stored?.body_status !== "ok" && !c.bodyText && (!c.bodyStatus || c.bodyStatus === "pending"),
   };
-  return need.date || need.title || need.summary ? need : null;
+  // A listing date does not supply the body. Sources approved to read the whole article spend the
+  // detail budget on that missing body. Isolation is not approved: need.body stays false.
+  return need.date || need.title || need.summary || need.body ? need : null;
 }
 
 /** A detail page's findings. A body comes from the same Readability path as extraction, using bytes already fetched. */
-function applyDetail(c: CollectionCandidate, got: Awaited<ReturnType<typeof fetchDetail>>, rules: string): void {
+export function applyDetail(c: CollectionCandidate, got: Awaited<ReturnType<typeof fetchDetail>>, rules: string): void {
   c.detailRules = rules;
   if (got.title) c.title = got.title;
   if (got.summary) c.excerpt = got.summary;
@@ -176,6 +188,7 @@ function applyDetail(c: CollectionCandidate, got: Awaited<ReturnType<typeof fetc
     c.bodyHtml = got.body.html;
     c.bodyText = got.body.text;
     c.bodyStatus = "ok";
+    c.contentAside = got.body.aside ?? null;
     if (!c.media?.length) c.media = got.body.images;
     c.cover = got.body.cover ?? null;
   }
@@ -201,7 +214,7 @@ function applyDetail(c: CollectionCandidate, got: Awaited<ReturnType<typeof fetc
 export async function enrichDetails(candidates: CollectionCandidate[], source: SourceRow, known: Map<string, StoredDetail>,
   opts: { budget: number; after?: string; datedOut: DatedOut; retries: Retries; admits: (c: Candidate) => boolean }): Promise<DetailReads> {
   const rules = detailRulesOf(source);
-  const reads: DetailReads = { attempts: 0, pending: 0, failures: [], refused: [], listed: new Map(), retries: {} };
+  const reads: DetailReads = { attempts: 0, pending: 0, failures: [], refused: [], listed: new Map(), retries: {}, captures: [] };
   let providerBudgetSpent = false;
   const start = candidates.findIndex(c => c.identityKey === opts.after) + 1;
   const ordered = [...candidates.slice(start), ...candidates.slice(0, start)];
@@ -229,6 +242,11 @@ export async function enrichDetails(candidates: CollectionCandidate[], source: S
       reads.after = c.identityKey;
       try {
         const got = await fetchDetail(c.url, source, need);
+        if (got.response) reads.captures.push({
+          url: c.url, status: got.response.status, finalUrl: got.response.url, truncated: got.response.truncated,
+          requests: got.response.requests, bytes: got.response.bytes, sectionText: got.body?.text ?? null,
+          attemptId: got.response.attemptId,
+        });
         if (got.publishedAt) c.publishedAt = listed ? new Date(listed) : null;
         applyDetail(c, got, rules!);
         reads.listed.set(c.identityKey!, [listed, c.publishedAt?.toISOString() ?? null, Date.now()]);
@@ -268,7 +286,14 @@ async function storeCover(articleId: string, created: boolean, c: CollectionCand
   if (cover) await sql`UPDATE articles SET cover = ${sql.json(cover as never)} WHERE id = ${articleId} AND cover IS NULL`;
 }
 
-async function store(sourceId: string, kind: string, candidates: CollectionCandidate[], backfill: string | null) {
+/** Undated identities that were not stored. Retrievable after the run, not only a line in that run's log. */
+export async function listUndatedRetries(sourceId: string): Promise<{ identityKey: string; url: string; state: "retryable" | "page_has_no_time"; firstSeenAt: Date; lastSeenAt: Date }[]> {
+  const rows = await sql<{ identity_key: string; url: string; state: "retryable" | "page_has_no_time"; first_seen_at: Date; last_seen_at: Date }[]>`
+    SELECT identity_key, url, state, first_seen_at, last_seen_at FROM own_collect_retries WHERE source_id = ${sourceId} ORDER BY url`;
+  return rows.map((row) => ({ identityKey: row.identity_key, url: row.url, state: row.state, firstSeenAt: row.first_seen_at, lastSeenAt: row.last_seen_at }));
+}
+
+export async function storeCollected(sourceId: string, kind: string, candidates: CollectionCandidate[], backfill: string | null) {
   let created = 0;
   let revised = 0;
   for (const c of candidates) {
@@ -286,6 +311,7 @@ async function store(sourceId: string, kind: string, candidates: CollectionCandi
     if (c.detailRules) await sql`UPDATE articles SET raw = jsonb_set(
       CASE WHEN jsonb_typeof(raw) = 'object' THEN raw ELSE '{}'::jsonb END,
       '{collectionDetail}', ${sql.json({ rules: c.detailRules })}) WHERE id = ${res.articleId} AND source_id = ${sourceId}`;
+    await recordCollectedEvidence(res.articleId, c.contentAside);
     await storeCover(res.articleId, res.created, c, kind);
     if (res.created) created += 1;
     if (res.revised) revised += 1;
@@ -300,10 +326,23 @@ async function store(sourceId: string, kind: string, candidates: CollectionCandi
  * one interval later. A failure counts toward "failing" (5 in a row) and waits longer after each one,
  * up to six hours; a full budget is not the source's failure: it waits 15 minutes and counts nothing.
  */
-async function recordFetch(db: Db, sourceId: string, runId: number, run: { found: number; created: number; detail: object | null } & ({ cursor: Record<string, unknown> } | { error: string; budget: boolean })): Promise<void> {
+function listingReceipt(requests: number, httpStatus: number, rawSha256: string | null, byteLength: number, responseUrl: string, candidates: Candidate[]) {
+  return {
+    requests, httpStatus, rawSha256, byteLength, responseUrl,
+    parsedSha256: sha256(stableJson(candidates.map((item) => ({
+      url: item.url, title: item.title, publicationTime: item.publicationTime ?? null,
+      timeSource: item.raw && typeof item.raw === "object" ? (item.raw as { timeSource?: string }).timeSource ?? null : null,
+      bodyStatus: item.bodyStatus ?? null, bodySha256: sha256(item.bodyText ?? ""),
+    })))),
+  };
+}
+
+async function recordFetch(db: Db, sourceId: string, runId: number, run: { found: number; created: number; detail: object | null; response?: Buffer | null } & ({ cursor: Record<string, unknown> } | { error: string; budget: boolean })): Promise<void> {
   const detail = run.detail ? db.json(run.detail as never) : null;
+  const response = run.response ?? null;
   if ("cursor" in run) {
     const changed = await db`UPDATE fetch_runs SET status = 'ok', finished_at = now(), found_count = ${run.found}, new_count = ${run.created},
+      response = ${response},
       detail = nullif(coalesce(detail,'{}'::jsonb) || coalesce(${detail}::jsonb,'{}'::jsonb),'{}'::jsonb) WHERE id = ${runId} AND status = 'running'`;
     if (!changed.count) return;
     await db`
@@ -349,6 +388,7 @@ export async function collectSource(sourceId: string, opts: { force?: boolean; x
     let paidReceiptIds: number[] = [];
     let nextCursor: Record<string, unknown> = { ...(source.cursor ?? {}) };
     let detail: Record<string, unknown> | null = null;
+    let responseBody: Buffer | null = null;
     const d = source.config.detail;
     const rules = detailRulesOf(source);
     if (source.kind === "rss") {
@@ -356,14 +396,21 @@ export async function collectSource(sourceId: string, opts: { force?: boolean; x
       const expiredDates = Object.values(source.cursor?.detailDatedOut ?? {}).some(read => !currentDateRead(read as DatedOut[string]));
       const rss = await fetchRss(source, { force: opts.force || expiredDates || !!rules && source.cursor?.detailRules !== rules });
       candidates = rss.candidates;
+      responseBody = rss.body;
+      detail = { ...(detail ?? {}), response: listingReceipt(rss.trace.requests, rss.trace.httpStatus, rss.trace.rawSha256, rss.trace.byteLength, rss.trace.responseUrl, candidates) };
       // The first import keeps only part of the listing: the next run reads all of it once before
       // accepting 304s, for the recent entries the import left out. Persist validators only after store succeeds.
       if (!firstImport) nextCursor.rss = rss.validator;
       else delete nextCursor.rss;
-      if (rss.notModified) detail = { notModified: true, httpStatus: 304 };
+      if (rss.notModified) detail = { ...detail, notModified: true, httpStatus: 304 };
     }
-    else if (source.kind === "web_list") candidates = await fetchWebList(source);
-    else if (source.kind === "json_list") candidates = await fetchJsonList(source);
+    else if (source.kind === "web_list" || source.kind === "json_list") {
+      const retained = { body: null as Buffer | null, requests: 1 };
+      candidates = source.kind === "web_list" ? await fetchWebList(source, retained) : await fetchJsonList(source, retained);
+      responseBody = retained.body;
+      const rawSha256 = retained.body ? sha256(retained.body) : null;
+      detail = { ...(detail ?? {}), response: listingReceipt(retained.requests, 200, rawSha256, retained.body?.length ?? 0, String(source.config.url ?? ""), candidates) };
+    }
     else {
       const x = await fetchXSearch(source, opts.xSince);
       candidates = x.candidates;
@@ -372,10 +419,24 @@ export async function collectSource(sourceId: string, opts: { force?: boolean; x
       // A search longer than one run keeps its position for the next runs (shown in the admin).
       if (x.backlog.length) nextCursor.xBacklog = x.backlog;
       else delete nextCursor.xBacklog;
-      detail = { pages: x.pages, truncated: x.truncated, backlog: x.backlog.length, backlogPages: x.backlogPages, dropped: x.dropped };
+      detail = { pages: x.pages, truncated: x.truncated, backlog: x.backlog.length, backlogPages: x.backlogPages, dropped: x.dropped, stopReason: x.stopReason, coverage: x.coverage };
     }
     found = candidates.length;
     candidates = await listingEntries(source, candidates);
+    // The next run reads the durable retry rows, including a URL that has left the listing.
+    let retryRead = 0;
+    if (!firstImport) {
+      const queued = await sql<{ identity_key: string; url: string }[]>`
+        SELECT identity_key, url FROM own_collect_retries WHERE source_id = ${sourceId} ORDER BY first_seen_at`;
+      const seen = new Set(candidates.map((c) => c.identityKey));
+      const recovered = queued.filter((row) => !seen.has(row.identity_key)).map((row) => ({
+        url: row.url, title: row.url, identityKey: row.identity_key, publishedAt: null, publicationTime: null,
+      }));
+      if (recovered.length) {
+        candidates = [...recovered, ...candidates];
+        retryRead = recovered.length;
+      }
+    }
     // Admission of old archive entries and detail recovery both need the same stored identities.
     // A later date correction must still reach material that was already admitted without a date.
     const known = d || (!firstImport && source.kind !== "x_search")
@@ -386,7 +447,7 @@ export async function collectSource(sourceId: string, opts: { force?: boolean; x
     if (firstImport) candidates = candidates.slice(0, Number(source.config._aihot?.initialBackfillLimit ?? 30));
     const reads = await enrichDetails(candidates, source, known, {
       budget: Number(d?.maxFetches ?? 0), admits,
-      after: source.cursor?.detailRules === rules ? source.cursor?.detailAfter : undefined,
+      after: retryRead > 0 ? undefined : source.cursor?.detailRules === rules ? source.cursor?.detailAfter : undefined,
       datedOut: source.cursor?.detailRules === rules ? source.cursor?.detailDatedOut ?? {} : {},
       retries: source.cursor?.detailRules === rules ? source.cursor?.detailRetries ?? {} : {},
     });
@@ -400,8 +461,22 @@ export async function collectSource(sourceId: string, opts: { force?: boolean; x
 
     // Detail pages can establish a date the listing did not have, including an old archive date: such an
     // entry is not stored, and the cursor remembers what its page said (enrichDetails).
+    // After the first import, an identity that is still undated is not stored either. Initializing the
+    // cursor must not release the rest of an undated listing on the next run.
     const datedOut: DatedOut = {};
+    let undatedNotStored = 0;
+    const undatedRetry: { url: string; identityKey: string; state: "retryable" | "page_has_no_time" }[] = [];
     candidates = candidates.filter((c) => {
+      const already = known.get(c.identityKey!);
+      if (!firstImport && !c.publishedAt && !(already && already.source_id === source.id)) {
+        undatedNotStored += 1;
+        const listed = reads.listed.get(c.identityKey!);
+        // A page that was opened and still has no time stays marked for another look.
+        // One that the budget did not reach stays retryable. Neither is stored, and neither is forgotten.
+        if (listed !== undefined) datedOut[c.identityKey!] = listed;
+        undatedRetry.push({ url: c.url, identityKey: c.identityKey!, state: listed !== undefined ? "page_has_no_time" : "retryable" });
+        return false;
+      }
       if (admits(c)) return true;
       // A future entry can become admissible without changing the feed's bytes or validator.
       if (source.kind === "rss" && c.publishedAt && c.publishedAt.getTime() > Date.now() + FUTURE_TOLERANCE_MS) delete nextCursor.rss;
@@ -411,19 +486,36 @@ export async function collectSource(sourceId: string, opts: { force?: boolean; x
     });
     // Kept while the listing offers them; a 304 offers no entries and keeps the last ones.
     if (found) { nextCursor.detailDatedOut = datedOut; nextCursor.detailRetries = reads.retries; }
+    if (undatedRetry.length) nextCursor.undatedRetry = undatedRetry;
+    else delete nextCursor.undatedRetry;
+    detail = { ...(detail ?? {}), undatedNotStored, undatedRetry, retryRead };
     if (!d || !Object.keys(nextCursor.detailDatedOut ?? {}).length) delete nextCursor.detailDatedOut;
     if (!d || !Object.keys(nextCursor.detailRetries ?? {}).length) delete nextCursor.detailRetries;
-    const stored = await store(sourceId, source.kind, candidates, firstImport ? "first-import" : null);
+    const stored = await storeCollected(sourceId, source.kind, candidates, firstImport ? "first-import" : null);
     ({ created, revised } = stored);
     for (const id of await fillScheduledPublications(sourceId)) await queueProcessing(id);
 
     if (firstImport) nextCursor.initializedAt = new Date().toISOString();
     nextCursor.lastOkAt = new Date().toISOString();
     await sql.begin(async (tx) => {
-      await recordFetch(tx, sourceId, run!.id, { found, created, detail, cursor: nextCursor });
+      await recordFetch(tx, sourceId, run!.id, { found, created, detail, cursor: nextCursor, response: responseBody });
+      for (const row of undatedRetry) {
+        await tx`INSERT INTO own_collect_retries (source_id, identity_key, url, state)
+          VALUES (${sourceId}, ${row.identityKey}, ${row.url}, ${row.state})
+          ON CONFLICT (source_id, identity_key) DO UPDATE
+          SET url = EXCLUDED.url, state = EXCLUDED.state, last_seen_at = now()`;
+      }
+      const kept = candidates.map((c) => c.identityKey!).filter(Boolean);
+      if (kept.length) await tx`DELETE FROM own_collect_retries WHERE source_id = ${sourceId} AND identity_key IN ${tx(kept)}`;
+      for (const cap of reads.captures) {
+        const extracted = cap.sectionText ? Buffer.byteLength(cap.sectionText) : null;
+        await tx`INSERT INTO own_detail_responses (source_id, url, http_status, response, response_sha256, truncated, extracted_bytes, attempt_id, extraction_note)
+          VALUES (${sourceId}, ${cap.url}, ${cap.status}, ${cap.bytes}, ${sha256(cap.bytes)}, ${cap.truncated}, ${extracted}, ${cap.attemptId},
+            ${cap.truncated ? "response truncated; extracted text is not this response" : "extracted text is the readability slice of this response, not a claim the page ends there"})`;
+      }
       for (const receiptId of paidReceiptIds) await completeReceipt(tx, receiptId);
     });
-    return { sourceId, status: "ok", found, created, revised };
+    return { sourceId, status: "ok", found, created, revised, listingBytes: responseBody, detailCaptures: reads.captures };
   } catch (error) {
     if (shutdownSignal.signal.aborted) {
       await sql`UPDATE fetch_runs SET status = 'skipped', finished_at = now(), found_count = ${found}, new_count = ${created},
@@ -464,7 +556,7 @@ function coveredTo(m: SourceRow): bigint {
 export async function collectXShard(key: string, sourceIds: string[]): Promise<{ key: string; status: "ok" | "failed" | "skipped"; accounts: number; found: number; created: number; error?: string }> {
   const members = (
     await sql<SourceRow[]>`
-      SELECT id, name, kind, config, tier, participation_mode, uses, first_party, interval_minutes, enabled, cursor, fail_count
+      SELECT id, name, kind, config, tier, participation_mode, uses, interval_minutes, enabled, cursor, fail_count
       FROM sources WHERE id IN ${sql(sourceIds)} ORDER BY id`
   ).filter((m) => m.enabled && shardHandle(m));
   if (members.length === 0) return { key, status: "skipped", accounts: 0, found: 0, created: 0 };
@@ -478,13 +570,14 @@ export async function collectXShard(key: string, sourceIds: string[]): Promise<{
     const since = members.map(coveredTo).reduce((a, b) => (b < a ? b : a));
     // readXSearch keeps one copy per query and gives up stretches left over for days.
     const backlog: XBacklog[] = members.flatMap((m) => (Array.isArray(m.cursor?.xBacklog) ? m.cursor.xBacklog as XBacklog[] : []));
-    const read = await readXSearch(shardQuery(members.map((m) => shardHandle(m)!), members.map(selfThreadHandle).filter((h): h is string => h !== null)), { lastId: String(since), backlog, subject: `x-shard:${key}` });
-    const detail = { shard: key, accounts: members.length, pages: read.pages, truncated: read.truncated, backlog: read.backlog.length, backlogPages: read.backlogPages, dropped: read.dropped };
+    const handles = members.map((m) => shardHandle(m)!);
+    const read = await readXSearch(shardQuery(handles), { lastId: String(since), backlog, subject: `x-shard:${key}` });
+    const detail = { shard: key, accounts: members.length, pages: read.pages, truncated: read.truncated, backlog: read.backlog.length, backlogPages: read.backlogPages, dropped: read.dropped, stopReason: read.stopReason, coverage: read.coverage };
     const counts = new Map<string, { found: number; created: number; newest: string }>();
     for (const m of members) {
       const handle = shardHandle(m)!.toLowerCase();
       const mine = read.tweets.filter((t) => t.user.screen_name.toLowerCase() === handle);
-      const stored = await store(m.id, m.kind, admitListing(mine.map(tweetToCandidate), m), null);
+      const stored = await storeCollected(m.id, m.kind, admitListing(mine.map(tweetToCandidate), m), null);
       found += mine.length;
       created += stored.created;
       const newest = mine.reduce((a, t) => (BigInt(t.id_str) > BigInt(a) ? t.id_str : a), String(m.cursor!.lastTweetId));
@@ -496,12 +589,12 @@ export async function collectXShard(key: string, sourceIds: string[]): Promise<{
     const strays = read.tweets.filter((t) => !here.has(t.user.screen_name.toLowerCase()));
     if (strays.length) {
       const owners = await sql<SourceRow[]>`
-        SELECT id, name, kind, config, tier, participation_mode, uses, first_party, interval_minutes, enabled, cursor, fail_count
+        SELECT id, name, kind, config, tier, participation_mode, uses, interval_minutes, enabled, cursor, fail_count
         FROM sources WHERE enabled AND ${sharded()}`;
       for (const owner of owners) {
         const handle = shardHandle(owner)?.toLowerCase();
         const mine = strays.filter((t) => t.user.screen_name.toLowerCase() === handle);
-        if (mine.length) created += (await store(owner.id, owner.kind, admitListing(mine.map(tweetToCandidate), owner), null)).created;
+        if (mine.length) created += (await storeCollected(owner.id, owner.kind, admitListing(mine.map(tweetToCandidate), owner), null)).created;
       }
     }
     // Only a fully stored search advances coverage. A failed write can replay every paid page;

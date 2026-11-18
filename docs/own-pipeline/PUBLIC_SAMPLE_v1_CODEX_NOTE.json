@@ -1,0 +1,37 @@
+{
+  "asOf": "2026-11-18T08:50:56.014Z",
+  "requests": 1,
+  "endpoint": "https://api.github.com/repos/openai/codex/releases/tags/rust-v0.171.0-alpha.13",
+  "database": "own_codex_note_test",
+  "doesNotReplace": "public-sample-v1",
+  "item": {
+    "url": "https://github.com/openai/codex/releases/tag/rust-v0.171.0-alpha.13",
+    "title": "0.171.0-alpha.13",
+    "bodyText": "Release 0.171.0-alpha.13",
+    "publicationTime": "2026-11-18T05:47:55.000Z",
+    "timeSource": "json:published_at",
+    "publicationPrecision": "datetime"
+  },
+  "evidence": {
+    "articleId": "gctv5f7aq4tvlz7fwsz6g20kd",
+    "articleRevision": 1,
+    "evidenceVersion": 1,
+    "evidenceHash": "b7fdea97246aff6f78c9b7da70b307915a1853c31051063cc5f9dc1998bac909",
+    "idempotent": false,
+    "createdArticle": true,
+    "revisedArticle": false,
+    "gaps": [
+      "quote_absent",
+      "x_post_not_attached"
+    ],
+    "storedFileSha": "a7b07857e797942e61e37eab19a9d2f5b3179e072c04e4cccc67cfb85f0b6d08",
+    "matchesResponse": true,
+    "bodyLength": 24,
+    "version": 1
+  },
+  "articlePublicationTime": "2026-11-18T05:47:55.000Z",
+  "bodyStatus": "ok",
+  "otherThirtyTwoDetailsNotFetched": true,
+  "scores": null,
+  "decisions": null
+}

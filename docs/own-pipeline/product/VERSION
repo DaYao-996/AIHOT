@@ -1,0 +1,10 @@
+node 24.22.2
+node-accepts 24.22.x
+npm 11.19.1
+postgres-client 16
+verified-server PostgreSQL 16.15
+lock-sha256 9cfff21323a1ba3e5c42c940ca4aae7218f58ed5f4194a8445bf7f2f50da0618
+database-url required, with user and password, host 127.0.0.1 or localhost, name ends with _test or _ci
+database-role must be allowed to create that database; the installer does not switch to a local superuser and does not accept an empty password
+listen 127.0.0.1 ephemeral
+publish false

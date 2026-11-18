@@ -1,0 +1,7 @@
+COLLECT thinking_machines_news status=ok found=14 created=2 body=2 evidence=2 detail=1 incremental=0 reason=capped_sample_not_full_pool
+COLLECT meta_research_blog status=ok found=16 created=2 body=2 evidence=2 detail=1 incremental=0 reason=capped_sample_not_full_pool
+COLLECT nvidia_newsroom_page status=ok found=3 created=2 body=2 evidence=2 detail=1 incremental=1 reason=partial_body_or_evidence_not_pool
+COLLECT anthropic_news_page status=ok found=11 created=2 body=2 evidence=2 detail=1 incremental=9 reason=partial_body_or_evidence_not_pool
+GET chatgpt_help_release_notes status=null error=Response too large from help.openai.com
+UNVERIFIED github_fast_rising contract endpoint is not an http URL; no GitHub credential in this run; historical gh_rising.py is not in this repository
+{"ok":true,"x":{"total":174,"daily132":132,"nonDaily":42,"fetched":0,"reason":"no_free_x_api"},"disabledNotEnabled":63,"connected":[{"id":"thinking_machines_news","reason":"capped_sample_not_full_pool"},{"id":"meta_research_blog","reason":"capped_sample_not_full_pool"},{"id":"nvidia_newsroom_page","reason":"partial_body_or_evidence_not_pool"},{"id":"anthropic_news_page","reason":"partial_body_or_evidence_not_pool"},{"id":"chatgpt_help_release_notes","reason":"page_not_a_list"},{"id":"github_fast_rising","reason":"no_http_endpoint"}]}

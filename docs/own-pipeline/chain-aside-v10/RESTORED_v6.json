@@ -1,0 +1,33 @@
+{
+  "readOnly": true,
+  "database": "own_public_sample_v6_test",
+  "items": [
+    {
+      "url": "https://deepmind.google/blog/introducing-alphaproof-code/",
+      "bodyChars": 5447,
+      "scoringHasValueSuffixLine": false,
+      "scoringHasDocsHost": false,
+      "scoringHasCodeVerification": true,
+      "linkCount": 2,
+      "chartCount": 0
+    },
+    {
+      "url": "https://mistral.ai/news/build-with-studio/",
+      "bodyChars": 10928,
+      "scoringHasValueSuffixLine": false,
+      "scoringHasDocsHost": true,
+      "scoringHasCodeVerification": false,
+      "linkCount": 6,
+      "chartCount": 0
+    },
+    {
+      "url": "https://mistral.ai/news/mistral-large-4-oss/",
+      "bodyChars": 21435,
+      "scoringHasValueSuffixLine": true,
+      "scoringHasDocsHost": false,
+      "scoringHasCodeVerification": false,
+      "linkCount": 0,
+      "chartCount": 18
+    }
+  ]
+}

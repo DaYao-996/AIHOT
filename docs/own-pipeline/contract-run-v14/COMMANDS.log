@@ -1,0 +1,10 @@
+node --import ./tests/standalone.ts --test tests/own-contract-pages.standalone.test.ts
+# exit 0, saved pages keep title and url together
+psql postgres://own_test:own_test@127.0.0.1:5432/postgres -c "DROP DATABASE IF EXISTS own_contract_entry_v14_test" -c "CREATE DATABASE own_contract_entry_v14_test"
+DATABASE_URL=postgres://own_test:own_test@127.0.0.1:5432/own_contract_entry_v14_test npm run db:migrate
+# logs/00-migrate.log
+NODE_TEST_CONTEXT=1 COLLECT_ENABLED=false MODEL_CALLS_ENABLED=false DATABASE_URL=postgres://own_test:own_test@127.0.0.1:5432/own_contract_entry_v14_test node scripts/own-contract-entry.ts --out-dir docs/own-pipeline/contract-run-v14
+# logs/01-entry.exit is 0. This pass recorded the first read and the backfill remainder.
+# logs/02-settled.exit is 0. A later read with the source enabled created 0 on all four.
+# chatgpt_help_release_notes was one GET and was not retried. github_fast_rising made no request.
+# v13 LEDGER.json was not rewritten. No worker, no publication, no receipt.

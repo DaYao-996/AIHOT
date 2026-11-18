@@ -1,0 +1,70 @@
+{
+  "qualityPass": false,
+  "oldSampleIsNotNewAcceptance": true,
+  "styleScored": false,
+  "manuscriptsWritten": 0,
+  "workerStarted": false,
+  "modelCalls": 0,
+  "paid": false,
+  "v3Frozen": true,
+  "database": "own_review_loop_test",
+  "entries": [
+    "scripts/own-sample-restore.ts",
+    "scripts/own-file-result.ts",
+    "scripts/own-selection-decision.ts",
+    "scripts/own-pending-review.ts"
+  ],
+  "restore": {
+    "packSha256": "328058ffe668a7b1eca9f61ee60ac2f1172d82a72b641172dfb96db77698a01c",
+    "articles": 15,
+    "liveFileJudgmentsBeforeXy": 8,
+    "staleFileJudgmentsBeforeXy": 3,
+    "publications": 0
+  },
+  "xy": {
+    "resultsSha256": "ba776241bc5c3581063b9d5dec933ebca630c6f8b9806edc7156a0355214dc64",
+    "evidenceHash": "639ef0411ebbb9a163d330b968c04e9230c0fcf11c49e83baacfe04a7eb9332d",
+    "evidenceVersion": 16,
+    "outputSha256": "560d31efd004e01f79734eb205e341e001ceee9b65604fd5a1bdd4237d666564",
+    "firstImportIdempotent": false,
+    "secondImportIdempotent": true,
+    "factStatus": "unchecked",
+    "releaseStatus": "not_licensed"
+  },
+  "selections": {
+    "fileSha256": "2340b4861b3f2c9a48d5a73085bef30ccd772e44ab87949b18e4a665332e0e98",
+    "count": 9,
+    "acceptedBatch": false,
+    "secondImportIdempotent": true
+  },
+  "queueBeforeProbe": {
+    "file": "/opt/cursor/artifacts/pending-review-before.json",
+    "sha256": "7852a62fa5ac3d9b63fade4ee5326f41ff5ee400476dfdb6dca18e9246dc6930",
+    "pending": 9,
+    "eachBindsCurrentEvidenceAndSemantic": true,
+    "eachHasClaimRationaleAndLimits": true,
+    "processingState": "skipped",
+    "publications": 0,
+    "analyses": 0,
+    "bossJobs": null,
+    "heldOutOfSendQueue": true
+  },
+  "materialProbe": {
+    "articleId": "j990zr6w58a7lxqye639td6ch",
+    "url": "https://blog.google/innovation-and-ai/products/gemini-app/tasks-in-gemini-free-new-features/",
+    "marker": "技术回归标记。",
+    "selectionStale": true,
+    "semanticStale": true,
+    "semanticOutputSha256Unchanged": "ee67341663de8b5482f7ceaecaf2414c5dd62a09d48daf005001fc6357e9f903",
+    "otherSelectionsLive": 8,
+    "otherSelectionsStale": 0,
+    "processingState": "skipped",
+    "publications": 0
+  },
+  "queueAfterProbe": {
+    "file": "/opt/cursor/artifacts/pending-review-after.json",
+    "sha256": "4251f2712be3cc7a0574668872a1fc560b0c47d97821f8fff7a5b0b92b655b88",
+    "pending": 8,
+    "heldOutOfSendQueue": true
+  }
+}

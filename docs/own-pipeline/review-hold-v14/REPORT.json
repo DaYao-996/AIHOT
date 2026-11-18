@@ -1,0 +1,45 @@
+{
+  "database": "own_review_hold_v14_test",
+  "live": {
+    "process": "held",
+    "publish": null,
+    "publicRows": 0,
+    "anyRows": 0,
+    "receipts": 0,
+    "analyses": 0,
+    "deliveries": 0
+  },
+  "bodyRevised": {
+    "process": "held",
+    "publish": null,
+    "publicRows": 0,
+    "anyRows": 0,
+    "receipts": 0,
+    "analyses": 0,
+    "deliveries": 0
+  },
+  "afterStale": {
+    "process": "held",
+    "publish": null,
+    "publicRows": 0,
+    "anyRows": 0,
+    "receipts": 0,
+    "analyses": 0,
+    "deliveries": 0
+  },
+  "afterRecollect": {
+    "process": "held",
+    "publish": null,
+    "publicRows": 0,
+    "anyRows": 0,
+    "receipts": 0,
+    "analyses": 0,
+    "deliveries": 0
+  },
+  "jobs": {
+    "unrelated": 1,
+    "isolated": 1,
+    "probeRelease": 0
+  },
+  "publicationsPublic": 0
+}

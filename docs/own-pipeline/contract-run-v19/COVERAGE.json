@@ -1,0 +1,417 @@
+{
+  "articles": 41,
+  "missingDate": 12,
+  "missingDateAfter": 11,
+  "items": [
+    {
+      "sourceId": "openai_news",
+      "url": "https://openai.com/index/astra-law-6-2",
+      "bodyBytes": 0,
+      "body": "pending",
+      "date": true,
+      "sourceEvidence": 0,
+      "raw": false,
+      "label": "pending_body"
+    },
+    {
+      "sourceId": "openai_news",
+      "url": "https://openai.com/index/expanding-chatgpt-for-academic-researchers",
+      "bodyBytes": 0,
+      "body": "pending",
+      "date": true,
+      "sourceEvidence": 0,
+      "raw": false,
+      "label": "pending_body"
+    },
+    {
+      "sourceId": "openai_news",
+      "url": "https://openai.com/index/introducing-chatgpt-for-sales",
+      "bodyBytes": 0,
+      "body": "pending",
+      "date": true,
+      "sourceEvidence": 0,
+      "raw": false,
+      "label": "pending_body"
+    },
+    {
+      "sourceId": "openai_news",
+      "url": "https://openai.com/index/introducing-gpt-6-2-astra-sol",
+      "bodyBytes": 0,
+      "body": "pending",
+      "date": true,
+      "sourceEvidence": 0,
+      "raw": false,
+      "label": "pending_body"
+    },
+    {
+      "sourceId": "openai_news",
+      "url": "https://openai.com/index/introducing-openai-for-chile",
+      "bodyBytes": 0,
+      "body": "pending",
+      "date": true,
+      "sourceEvidence": 0,
+      "raw": false,
+      "label": "pending_body"
+    },
+    {
+      "sourceId": "openai_news",
+      "url": "https://openai.com/index/le-groupe-figaro-and-openai-announce-partnership",
+      "bodyBytes": 0,
+      "body": "unconfirmed",
+      "date": true,
+      "sourceEvidence": 0,
+      "raw": false,
+      "label": "rejected_page"
+    },
+    {
+      "sourceId": "openai_news",
+      "url": "https://openai.com/index/science-at-the-frontier",
+      "bodyBytes": 0,
+      "body": "pending",
+      "date": true,
+      "sourceEvidence": 0,
+      "raw": false,
+      "label": "pending_body"
+    },
+    {
+      "sourceId": "openai_news",
+      "url": "https://openai.com/index/strengthening-nato-allied-cyber-defences-ai",
+      "bodyBytes": 0,
+      "body": "pending",
+      "date": true,
+      "sourceEvidence": 0,
+      "raw": false,
+      "label": "pending_body"
+    },
+    {
+      "sourceId": "openai_news",
+      "url": "https://openai.com/index/strengthening-online-child-safety",
+      "bodyBytes": 0,
+      "body": "pending",
+      "date": true,
+      "sourceEvidence": 0,
+      "raw": false,
+      "label": "pending_body"
+    },
+    {
+      "sourceId": "google_ai_blog",
+      "url": "https://blog.google/innovation-and-ai/products/gemini-app/tasks-in-gemini-free-new-features/",
+      "bodyBytes": 8333,
+      "body": "ok",
+      "date": true,
+      "sourceEvidence": 1,
+      "raw": false,
+      "label": "has_body_date_and_evidence"
+    },
+    {
+      "sourceId": "google_ai_blog",
+      "url": "https://blog.google/products-and-platforms/products/maps/ask-maps-holiday-travel-features-2026/",
+      "bodyBytes": 0,
+      "body": "pending",
+      "date": true,
+      "sourceEvidence": 0,
+      "raw": false,
+      "label": "pending_body"
+    },
+    {
+      "sourceId": "huggingface_blog",
+      "url": "https://huggingface.co/blog/nvidia/simready-assets-robot-pick-and-place",
+      "bodyBytes": 0,
+      "body": "pending",
+      "date": true,
+      "sourceEvidence": 0,
+      "raw": false,
+      "label": "pending_body"
+    },
+    {
+      "sourceId": "huggingface_blog",
+      "url": "https://huggingface.co/blog/openrouter",
+      "bodyBytes": 5613,
+      "body": "ok",
+      "date": true,
+      "sourceEvidence": 1,
+      "raw": false,
+      "label": "has_body_date_and_evidence"
+    },
+    {
+      "sourceId": "hf_models_trending",
+      "url": "https://huggingface.co/MiniMaxAI/MiniMax-H3-Image",
+      "bodyBytes": 11724,
+      "body": "ok",
+      "date": true,
+      "sourceEvidence": 1,
+      "raw": false,
+      "label": "has_body_date_and_evidence"
+    },
+    {
+      "sourceId": "hf_models_trending",
+      "url": "https://huggingface.co/Qwen/Qwen3.8-27B",
+      "bodyBytes": 0,
+      "body": "pending",
+      "date": true,
+      "sourceEvidence": 0,
+      "raw": false,
+      "label": "pending_body"
+    },
+    {
+      "sourceId": "hf_daily_papers",
+      "url": "https://huggingface.co/papers/2611.17048",
+      "bodyBytes": 3946,
+      "body": "ok",
+      "date": true,
+      "sourceEvidence": 1,
+      "raw": false,
+      "label": "has_body_date_and_evidence"
+    },
+    {
+      "sourceId": "hf_daily_papers",
+      "url": "https://huggingface.co/papers/2611.19857",
+      "bodyBytes": 0,
+      "body": "pending",
+      "date": true,
+      "sourceEvidence": 0,
+      "raw": false,
+      "label": "pending_body"
+    },
+    {
+      "sourceId": "github_trending_daily",
+      "url": "https://github.com/cursor/plugins",
+      "bodyBytes": 18050,
+      "body": "ok",
+      "date": false,
+      "sourceEvidence": 1,
+      "raw": false,
+      "label": "pending_date"
+    },
+    {
+      "sourceId": "github_trending_daily",
+      "url": "https://github.com/elementalsouls/Claude-BugHunter",
+      "bodyBytes": 0,
+      "body": "pending",
+      "date": false,
+      "sourceEvidence": 0,
+      "raw": false,
+      "label": "pending_body"
+    },
+    {
+      "sourceId": "github_trending_weekly",
+      "url": "https://github.com/GoogleChrome/modern-web-guidance-src",
+      "bodyBytes": 0,
+      "body": "pending",
+      "date": false,
+      "sourceEvidence": 0,
+      "raw": false,
+      "label": "pending_body"
+    },
+    {
+      "sourceId": "github_trending_weekly",
+      "url": "https://github.com/backnotprop/plannotator",
+      "bodyBytes": 22527,
+      "body": "ok",
+      "date": false,
+      "sourceEvidence": 1,
+      "raw": false,
+      "label": "pending_date"
+    },
+    {
+      "sourceId": "claude_code_releases",
+      "url": "https://github.com/anthropics/claude-code/releases/tag/v2.1.326",
+      "bodyBytes": 46746,
+      "body": "ok",
+      "date": false,
+      "sourceEvidence": 0,
+      "raw": false,
+      "label": "pending_evidence"
+    },
+    {
+      "sourceId": "claude_code_releases",
+      "url": "https://github.com/anthropics/claude-code/releases/tag/v2.1.327",
+      "bodyBytes": 22165,
+      "body": "ok",
+      "date": false,
+      "sourceEvidence": 0,
+      "raw": false,
+      "label": "pending_evidence"
+    },
+    {
+      "sourceId": "openai_codex_github_releases",
+      "url": "https://github.com/openai/codex/releases/tag/rust-v0.170.0",
+      "bodyBytes": 4809,
+      "body": "ok",
+      "date": false,
+      "sourceEvidence": 0,
+      "raw": false,
+      "label": "pending_evidence"
+    },
+    {
+      "sourceId": "openai_codex_github_releases",
+      "url": "https://github.com/openai/codex/releases/tag/rust-v0.171.0-alpha.13",
+      "bodyBytes": 0,
+      "body": "unconfirmed",
+      "date": false,
+      "sourceEvidence": 0,
+      "raw": false,
+      "label": "rejected_page"
+    },
+    {
+      "sourceId": "deepmind_blog",
+      "url": "https://deepmind.google/blog/alphagenome-2-deciphering-how-cells-read-dna-to-better-understand-disease/",
+      "bodyBytes": 0,
+      "body": "pending",
+      "date": true,
+      "sourceEvidence": 0,
+      "raw": false,
+      "label": "pending_body"
+    },
+    {
+      "sourceId": "deepmind_blog",
+      "url": "https://deepmind.google/blog/introducing-gemini-4-hydrogen/",
+      "bodyBytes": 10638,
+      "body": "ok",
+      "date": true,
+      "sourceEvidence": 1,
+      "raw": false,
+      "label": "has_body_date_and_evidence"
+    },
+    {
+      "sourceId": "arxiv_cs_ai",
+      "url": "https://arxiv.org/abs/2611.21682",
+      "bodyBytes": 0,
+      "body": "pending",
+      "date": true,
+      "sourceEvidence": 0,
+      "raw": false,
+      "label": "pending_body"
+    },
+    {
+      "sourceId": "arxiv_cs_ai",
+      "url": "https://arxiv.org/abs/2611.21799",
+      "bodyBytes": 1922,
+      "body": "ok",
+      "date": true,
+      "sourceEvidence": 1,
+      "raw": false,
+      "label": "has_body_date_and_evidence"
+    },
+    {
+      "sourceId": "nvidia_developer_blog",
+      "url": "https://developer.nvidia.com/blog/co-designing-sparse-attention-for-efficient-long-context-inference/",
+      "bodyBytes": 17289,
+      "body": "ok",
+      "date": true,
+      "sourceEvidence": 1,
+      "raw": true,
+      "label": "pending_evidence"
+    },
+    {
+      "sourceId": "nvidia_developer_blog",
+      "url": "https://developer.nvidia.com/blog/integrating-qpus-into-supercomputing-centers-using-slurm-hres-plugins/",
+      "bodyBytes": 16811,
+      "body": "ok",
+      "date": true,
+      "sourceEvidence": 1,
+      "raw": true,
+      "label": "pending_evidence"
+    },
+    {
+      "sourceId": "mistral_news",
+      "url": "https://mistral.ai/news/build-with-studio/",
+      "bodyBytes": 10949,
+      "body": "ok",
+      "date": true,
+      "sourceEvidence": 1,
+      "raw": false,
+      "label": "has_body_date_and_evidence"
+    },
+    {
+      "sourceId": "mistral_news",
+      "url": "https://mistral.ai/news/mistral-large-4-oss/",
+      "bodyBytes": 0,
+      "body": "pending",
+      "date": true,
+      "sourceEvidence": 0,
+      "raw": false,
+      "label": "pending_body"
+    },
+    {
+      "sourceId": "antigravity_changelog",
+      "url": "https://antigravity.google/releases?tab=hub&version=2.32.2",
+      "bodyBytes": 541,
+      "body": "ok",
+      "date": true,
+      "sourceEvidence": 0,
+      "raw": false,
+      "label": "pending_evidence"
+    },
+    {
+      "sourceId": "antigravity_changelog",
+      "url": "https://antigravity.google/releases?tab=hub&version=2.33.0",
+      "bodyBytes": 7799,
+      "body": "ok",
+      "date": true,
+      "sourceEvidence": 0,
+      "raw": false,
+      "label": "pending_evidence"
+    },
+    {
+      "sourceId": "antigravity_cli_github_releases",
+      "url": "https://github.com/google-antigravity/antigravity-cli/releases/tag/1.5.10",
+      "bodyBytes": 7728,
+      "body": "ok",
+      "date": false,
+      "sourceEvidence": 0,
+      "raw": false,
+      "label": "pending_evidence"
+    },
+    {
+      "sourceId": "antigravity_cli_github_releases",
+      "url": "https://github.com/google-antigravity/antigravity-cli/releases/tag/1.5.11",
+      "bodyBytes": 2270,
+      "body": "ok",
+      "date": false,
+      "sourceEvidence": 0,
+      "raw": false,
+      "label": "pending_evidence"
+    },
+    {
+      "sourceId": "apple_newsroom_cn",
+      "url": "https://www.apple.com.cn/newsroom/2026/11/apple-podcasts-names-baby-this-is-keke-palmer-the-2026-show-of-the-year/",
+      "bodyBytes": 3632,
+      "body": "ok",
+      "date": true,
+      "sourceEvidence": 1,
+      "raw": true,
+      "label": "pending_body"
+    },
+    {
+      "sourceId": "apple_newsroom_cn",
+      "url": "https://www.apple.com.cn/newsroom/2026/11/olivia-dean-is-apple-musics-artist-of-the-year-for-2026/",
+      "bodyBytes": 4060,
+      "body": "ok",
+      "date": true,
+      "sourceEvidence": 1,
+      "raw": false,
+      "label": "has_body_date_and_evidence"
+    },
+    {
+      "sourceId": "apple_newsroom_us_rss",
+      "url": "https://www.apple.com/newsroom/2026/11/apple-podcasts-names-baby-this-is-keke-palmer-the-2026-show-of-the-year/",
+      "bodyBytes": 3956,
+      "body": "ok",
+      "date": true,
+      "sourceEvidence": 1,
+      "raw": false,
+      "label": "has_body_date_and_evidence"
+    },
+    {
+      "sourceId": "apple_newsroom_us_rss",
+      "url": "https://www.apple.com/newsroom/2026/11/formula-1-las-vegas-grand-prix-streams-live-on-apple-tv-this-weekend/",
+      "bodyBytes": 0,
+      "body": "pending",
+      "date": false,
+      "sourceEvidence": 0,
+      "raw": false,
+      "label": "pending_body"
+    }
+  ]
+}

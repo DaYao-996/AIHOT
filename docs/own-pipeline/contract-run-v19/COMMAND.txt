@@ -1,0 +1,1 @@
+NODE_TEST_CONTEXT=1 COLLECT_ENABLED=false MODEL_CALLS_ENABLED=false DATABASE_URL=postgres://own_test:own_test@127.0.0.1:5432/own_gap_v19_test node scripts/own-run.ts --step gap --seal docs/own-pipeline/contract-run-v19/SEAL.json --config docs/own-pipeline/contract-run-v19/CONFIG.json --out-dir docs/own-pipeline/contract-run-v19

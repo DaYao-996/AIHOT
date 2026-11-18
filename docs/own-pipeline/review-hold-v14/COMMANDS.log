@@ -1,0 +1,17 @@
+# New database own_review_hold_v14_test. Does not write own_collect_branches_v13_test or own_contract_run_v13_test.
+# COLLECT_ENABLED and MODEL_CALLS_ENABLED false. No worker.
+
+DATABASE_URL=postgres://own_test:own_test@127.0.0.1:5432/own_review_hold_v14_test npm run db:migrate
+NODE_TEST_CONTEXT=1 COLLECT_ENABLED=false MODEL_CALLS_ENABLED=false \
+  DATABASE_URL=postgres://own_test:own_test@127.0.0.1:5432/own_review_hold_v14_test \
+  node scripts/own-review-hold-v14.ts --out-dir docs/own-pipeline/review-hold-v14
+# logs/01-hold.exit is 0
+
+# Pre-fix console, not re-run: logs/premise-before-exit1.console.txt exit 1
+# processArticle returned retrying after the body revision left no current judgment.
+
+# dumps
+# after-live-hold.dump       10f26296ab702afc4b07c8e52bd347664a0c603bdeabc3f5007f722be8efe08c
+# after-body-revision.dump   b73e2b5b7a05cbbec7228f3a8423a447901ea6923d1602bd7e9bd17c9ae152cc
+# after-supplement.dump      56770b15e1898c0399d802082398934f9a05ad4764a2f0bc9a3dbb32a551e20e
+# after-recollect.dump       a0f0d04005602038c542d10671670d6cf5b5dc243d9bab27c76915e2e9ee7708

@@ -1,0 +1,8 @@
+{
+  "round": "2026-11-18T08:15:53.274Z",
+  "database": "own_source_coverage_test",
+  "articles": 13,
+  "evidenceRows": 0,
+  "rawResponseBytesStored": false,
+  "note": "HTTP bodies were hashed inside fetchRss and not kept. Article rows are the stored samples. No own_evidence_versions rows were written by that run."
+}

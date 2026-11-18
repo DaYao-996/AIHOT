@@ -1,0 +1,14 @@
+{
+  "version": "contract-run-v17",
+  "code": {
+    "HEAD": "943f7507229dfb67f70327e4729768042485b257",
+    "parent": "a21845e5c601947d7f820465b7087f0c74edec44",
+    "tree": "496a6f07c74c718cea4c0fc6b2fb072c1d2fdaf4"
+  },
+  "files": {
+    "docs/own-pipeline/contract-run-v17/CONFIG.json": "56ba3c5c1c714dd7aa52678620e523ebfbd665678f181f175ec7c8c4a26d2591",
+    "docs/own-pipeline/contract-run-v17/COMMAND.txt": "e3117046db407249b8b5fd4e78a905d8a978a4774c276f02b7cba51f99b104ef",
+    "docs/own-pipeline/contract-run-v17/dumps/before.dump": "102edad5802e63e497b9ec4a458f99c30f0783a33adc05aa0aa91009220b6d6b"
+  },
+  "startedFrom": "v16 after.dump restored, then migrations 0184 and 0185"
+}

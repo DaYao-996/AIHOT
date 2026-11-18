@@ -1,0 +1,79 @@
+{
+  "pending": 3,
+  "heldOutOfSendQueue": true,
+  "items": [
+    {
+      "articleId": "i5d3e8sv1zup81f7dqbryixtj",
+      "technicalFixture": false,
+      "requiresHumanReview": true,
+      "factStatus": "unchecked",
+      "releaseStatus": "not_licensed",
+      "promptVersion": "real-draft-inputs-v2",
+      "textSha": "cb7e5f7bf0da5be11aed4323b6875ed74f023b8e41795a8fda30bcf2ac980a9d",
+      "manuscriptSha": "cb7e5f7bf0da5be11aed4323b6875ed74f023b8e41795a8fda30bcf2ac980a9d",
+      "textEqualsManuscript": true,
+      "valueBasisEqualsCompletion": true,
+      "additionEqualsCompletion": true,
+      "semanticPrompt": "assistant-file-semantics-public40-two-completion-v1",
+      "modelVersion": "file:assistant-file",
+      "counts": {
+        "processing_state": "skipped",
+        "revision": 2,
+        "publications": 0,
+        "analyses": 0,
+        "deliveries": 0
+      }
+    },
+    {
+      "articleId": "jk79pbnj03bz0waacxw54sybm",
+      "technicalFixture": true,
+      "requiresHumanReview": false,
+      "factStatus": "unchecked",
+      "releaseStatus": "not_licensed",
+      "promptVersion": "prompt@draft",
+      "textSha": "29feb60599bcfd065621e3d2cafbe8eb1f52b8a5e906ad233e536d899b64b388",
+      "manuscriptSha": null,
+      "textEqualsManuscript": null,
+      "valueBasisEqualsCompletion": null,
+      "additionEqualsCompletion": null,
+      "semanticPrompt": "prompt@semantic",
+      "modelVersion": "file:assistant-file",
+      "counts": {
+        "processing_state": "skipped",
+        "revision": 3,
+        "publications": 0,
+        "analyses": 0,
+        "deliveries": 0
+      }
+    },
+    {
+      "articleId": "uxdnh10q3y7lvo9xsp4cld41e",
+      "technicalFixture": false,
+      "requiresHumanReview": true,
+      "factStatus": "unchecked",
+      "releaseStatus": "not_licensed",
+      "promptVersion": "real-draft-inputs-v2",
+      "textSha": "87eec413ddeb316463d37b12c959831ca978820db11671c56e8be8c99897f329",
+      "manuscriptSha": "87eec413ddeb316463d37b12c959831ca978820db11671c56e8be8c99897f329",
+      "textEqualsManuscript": true,
+      "valueBasisEqualsCompletion": true,
+      "additionEqualsCompletion": true,
+      "semanticPrompt": "assistant-file-semantics-public40-two-completion-v1",
+      "modelVersion": "file:assistant-file",
+      "counts": {
+        "processing_state": "skipped",
+        "revision": 1,
+        "publications": 0,
+        "analyses": 0,
+        "deliveries": 0
+      }
+    }
+  ],
+  "totals": {
+    "judgments": 12,
+    "stale": 3,
+    "publications": 0,
+    "analyses": 0,
+    "deliveries": 0
+  }
+}

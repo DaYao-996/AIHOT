@@ -1,0 +1,11 @@
+node scripts/own-file-result.ts --file <results.json> [--dry-run]
+
+The file must match docs/own-pipeline/FILE_RESULT_SCHEMA_v1.json.
+A successful run inserts own_judgments with origin=file and comparison.fileResult.
+model_version is file:assistant-file or file:human-file. It is not a vendor model name.
+model_receipt_id stays null. No row is written to receipts.
+fact_status stays unchecked, including when executionSource is human-file.
+release_status stays not_licensed.
+modelKnowledge=unknown requires knownModel=null. Do not invent a model id.
+The same file again is idempotent. A different output for the same evidence conflicts and keeps the stored row.
+A new evidence version marks the old row stale. Submitting the old evidenceHash is rejected.

@@ -1,12 +1,14 @@
 // Web list pages: HTML with selectors, Markdown through Jina Reader, and dated changelog sections.
 import * as cheerio from "cheerio";
 import { marked } from "marked";
-import { guardedFetch, languageHeaders, requireOk } from "../lib/http-fetch.ts";
+import { guardedFetch, HttpStatusError, languageHeaders, requireOk } from "../lib/http-fetch.ts";
 import { contentDocument, UnavailablePageError } from "../lib/page-content.ts";
 import { fetchListing } from "./listing-fetch.ts";
+import { finishRequest, openRequest } from "./request-ledger.ts";
 import { identityKeyForUrl, normalizeUrl } from "../lib/url.ts";
 import { collapseWhitespace, stripTags } from "../lib/text.ts";
 import { isSignInRedirect, isSignInUrl, pagePublicationDate, pageRules, readableDocument, type ExtractedBody } from "../content/extract.ts";
+import { contentAside } from "./saved-supplements.ts";
 import { sanitizeBody } from "../content/sanitize.ts";
 import { articleCover } from "../content/cover.ts";
 import { JINA_PREFIX, jinaRead } from "../providers/jina.ts";
@@ -72,7 +74,7 @@ function absolute(href: string | undefined, base: string): string | null {
   }
 }
 
-async function fetchListingText(source: SourceRow): Promise<{ text: string; viaJina: boolean; base: string }> {
+async function fetchListingText(source: SourceRow): Promise<{ text: string; viaJina: boolean; base: string; body: Buffer | null; requests: number }> {
   const url = String(source.config.url ?? "");
   if (!url) throw new FetchError("url missing");
   if (url.startsWith(JINA_PREFIX)) {
@@ -81,12 +83,12 @@ async function fetchListingText(source: SourceRow): Promise<{ text: string; viaJ
     // still gets its dates and titles from the markup); otherwise Jina's Markdown.
     const format = source.config.parseMode === "html" ? "html" : undefined;
     const page = await jinaRead(target, { purpose: "source_listing", subject: `source:${source.id}`, cacheToleranceSeconds: source.config.cacheToleranceSeconds, format, perRead: true });
-    return { text: page.markdown, viaJina: true, base: source.config.baseUrl ?? target };
+    return { text: page.markdown, viaJina: true, base: source.config.baseUrl ?? target, body: Buffer.from(page.markdown), requests: 1 };
   }
-  const res = requireOk(await fetchListing(url, { headers: { accept: "text/html,application/xhtml+xml,application/json;q=0.9,*/*;q=0.8", ...languageHeaders(source.config.acceptLanguage) }, timeoutMs: 25_000 }));
+  const res = requireOk(await fetchListing(url, { sourceId: source.id, headers: { accept: "text/html,application/xhtml+xml,application/json;q=0.9,*/*;q=0.8", ...languageHeaders(source.config.acceptLanguage) }, timeoutMs: 25_000 }));
   const text = res.text();
   contentDocument(text);
-  return { text, viaJina: false, base: source.config.baseUrl ?? res.url };
+  return { text, viaJina: false, base: source.config.baseUrl ?? res.url, body: res.body, requests: res.requests ?? 1 };
 }
 
 /** A listing title that is no headline: a label that swallowed its summary, or a call to action. */
@@ -263,6 +265,73 @@ function fromDocusaurusChangelog(html: string, base: string, source: SourceRow):
   return out;
 }
 
+/**
+ * The article element, without the site navigation or embedded chart payloads.
+ * A long article stays whole: length is not a reason to drop it or to call it the whole page.
+ */
+export function locateArticleText(html: string): { text: string; articleChars: number; navChars: number; headerChars: number; footerChars: number } | null {
+  const $ = cheerio.load(html);
+  const article = $("article").first();
+  if (!article.length) return null;
+  const chars = (sel: string) => $(sel).toArray().reduce((n, el) => n + collapseWhitespace($(el).text()).length, 0);
+  const articleChars = collapseWhitespace(article.text()).length;
+  const navChars = chars("nav");
+  const headerChars = chars("header");
+  const footerChars = chars("footer");
+  article.find([
+    "nav", "header", "footer", "script", "style",
+    "mistral-section-hero-post-ml4-oss", "mistral-atom-text-vibe", "mistral-section-blog-footer",
+    "mistral-atom-navigation-scroll-progress", "mistral-block-card-model", "mistral-block-chart",
+    "mistral-atom-button-copy-clipboard", "mistral-atom-button-tooltip",
+  ].join(",")).remove();
+  article.find("figure").each((_, el) => {
+    const t = $(el).text();
+    if (t.includes('{"data"') || t.includes("Download PNG")) $(el).remove();
+  });
+  const text = collapseWhitespace(article.text());
+  return text ? { text, articleChars, navChars, headerChars, footerChars } : null;
+}
+
+/** Antigravity's changelog is version links, then a calendar day, then one title. No {% id %} anchors. */
+export function fromAntigravityChangelog(markdown: string, base: string, source: SourceRow): Candidate[] {
+  const versionRe = /^### \[([^\]]+)\]\(([^)\s]+)(?:\s+"[^"]*")?\)\s*$/;
+  const lines = markdown.split("\n");
+  const starts: number[] = [];
+  for (let i = 0; i < lines.length; i++) if (versionRe.test(lines[i]!.trim())) starts.push(i);
+  const out: Candidate[] = [];
+  for (let n = 0; n < starts.length; n++) {
+    const at = starts[n]!;
+    const version = versionRe.exec(lines[at]!.trim())!;
+    const following = starts[n + 1];
+    const heading = lines.findIndex((line, index) => index > at && /^## /.test(line));
+    const end = following ?? (heading >= 0 ? heading : lines.length);
+    const section = lines.slice(at + 1, end);
+    let date = readPublicationDate("", source.config.publishedAtUtcOffset);
+    let title = version[1]!;
+    const body: string[] = [];
+    let titled = false;
+    for (const line of section) {
+      const trimmed = line.trim();
+      if (!titled && trimmed.startsWith("### ") && !versionRe.test(trimmed)) {
+        title = trimmed.slice(4).trim();
+        titled = true;
+        continue;
+      }
+      if (!date.publishedAt && trimmed.length < 40) {
+        const parsed = readPublicationDate(trimmed, source.config.publishedAtUtcOffset ?? "+00:00");
+        if (parsed.publishedAt) { date = parsed; continue; }
+      }
+      body.push(line);
+    }
+    let url = "";
+    try { url = new URL(version[2]!, base).toString(); } catch { continue; }
+    if (!allowed(url, source)) continue;
+    const bodyText = collapseWhitespace(body.join("\n"));
+    out.push({ url, title: collapseWhitespace(title), ...date, bodyText, bodyStatus: bodyText ? "ok" : "pending" });
+  }
+  return out;
+}
+
 /** Markdown documentation keeps section addresses in explicit {% id="…" %} heading annotations. */
 function fromMarkdownChangelog(markdown: string, base: string, source: SourceRow): Candidate[] {
   const tokens = marked.lexer(markdown);
@@ -355,14 +424,16 @@ async function fromMimoHome(html: string, base: string, source: SourceRow): Prom
   throw new FetchError("mimo_home: no Blog list in the homepage's chunks");
 }
 
-export async function fetchWebList(source: SourceRow): Promise<Candidate[]> {
-  const { text, viaJina, base } = await fetchListingText(source);
+export async function fetchWebList(source: SourceRow, retained?: { body: Buffer | null; requests: number }): Promise<Candidate[]> {
+  const { text, viaJina, base, body, requests } = await fetchListingText(source);
+  if (retained) { retained.body = body; retained.requests = requests; }
   const mode = source.config.adapter === "mimo_home" ? "mimo_home" : source.config.parseMode ?? (viaJina ? "markdown" : "html");
   let out: Candidate[];
   if (mode === "mimo_home") out = await fromMimoHome(text, base, source);
   else if (mode === "markdown") out = fromMarkdown(text, base, source);
   else if (mode === "docusaurus_changelog") out = fromDocusaurusChangelog(text, base, source);
   else if (mode === "markdown_changelog") out = fromMarkdownChangelog(text, base, source);
+  else if (mode === "antigravity_changelog") out = fromAntigravityChangelog(text, base, source);
   else if (mode === "intercom_changelog") out = fromIntercomChangelog(text, base, source);
   else out = fromHtml(text, base, source);
   if (out.length === 0) throw new FetchError(`no items matched (${mode})`);
@@ -383,7 +454,7 @@ export interface DetailNeed {
  * text ("Published Time: …", "# Heading"), so that paid rendering is bought only when such a rule is
  * needed; selectors and page metadata read the page's own HTML.
  */
-export async function fetchDetail(url: string, source: SourceRow, need: DetailNeed): Promise<PublicationDate & { title: string | null; summary: string | null; body: ExtractedBody | null }> {
+export async function fetchDetail(url: string, source: SourceRow, need: DetailNeed): Promise<PublicationDate & { title: string | null; summary: string | null; body: ExtractedBody | null; response: { bytes: Buffer; status: number; url: string; truncated: boolean; requests: number } | null }> {
   const d = source.config.detail ?? {};
   const offset = articleUtcOffset(source.config);
   const jinaListing = String(source.config.url ?? "").startsWith(JINA_PREFIX);
@@ -391,15 +462,36 @@ export async function fetchDetail(url: string, source: SourceRow, need: DetailNe
   const titleInJina = need.title && jinaListing && !!d.titleRegex;
   const jina = dateInJina || titleInJina ? (await jinaRead(url, { purpose: "source_detail", subject: `source:${source.id}` })).raw : null;
   let html: string | null = null;
+  let requestId: string | null = null;
+  let response: { bytes: Buffer; status: number; url: string; truncated: boolean; requests: number; attemptId: string } | null = null;
   let page: { document: ReturnType<typeof contentDocument>; url: string; whole: boolean } | null = null;
-  if ((need.date && !dateInJina) || (need.title && !titleInJina) || need.summary) {
+  const needsHtml = (need.date && !dateInJina) || (need.title && !titleInJina) || need.summary;
+  if (needsHtml || need.body) {
     // The rules read a page's head and byline. A page past the size limit (a long paper with inline
     // figures) is read up to it rather than failing on every run; a body cut there is not kept.
-    const res = requireOk(await guardedFetch(url, { headers: languageHeaders(source.config.acceptLanguage), timeoutMs: 20_000, truncate: true }), "detail");
-    // A sign-in form is no detail page: its title, date and text are not the post's.
-    if (isSignInRedirect(url, res.url)) throw new UnavailablePageError("redirected to a sign-in form");
-    html = res.text();
-    page = { document: contentDocument(html), url: res.url, whole: !res.truncated && /html/.test(res.headers.get("content-type") ?? "") };
+    // A body read that fails must not throw away a date or title already taken from the paid renderer.
+    let res;
+    requestId = await openRequest(source.id, url);
+    try {
+      const got = await guardedFetch(url, { headers: languageHeaders(source.config.acceptLanguage), timeoutMs: 20_000, truncate: true });
+      await finishRequest(requestId, {
+        status: got.status, bytes: got.body, truncated: got.truncated,
+        error: got.status >= 400 ? `HTTP ${got.status}` : undefined,
+      });
+      res = requireOk(got, "detail");
+    } catch (error) {
+      const status = error instanceof HttpStatusError ? error.status : null;
+      await finishRequest(requestId, { status, error: error instanceof Error ? error.message : String(error) });
+      if (needsHtml || !(dateInJina || titleInJina)) throw error;
+      res = null;
+    }
+    if (res) {
+      // A sign-in form is no detail page: its title, date and text are not the post's.
+      if (isSignInRedirect(url, res.url)) throw new UnavailablePageError("redirected to a sign-in form");
+      html = res.text();
+      response = { bytes: res.body, status: res.status, url: res.url, truncated: res.truncated, requests: res.requests ?? 1, attemptId: requestId! };
+      page = { document: contentDocument(html), url: res.url, whole: !res.truncated && /html/.test(res.headers.get("content-type") ?? "") };
+    }
   }
   const $ = html === null ? null : cheerio.load(html);
 
@@ -427,13 +519,21 @@ export async function fetchDetail(url: string, source: SourceRow, need: DetailNe
     summary = collapseWhitespace(el.attr("content") ?? el.text()) || null;
   }
 
-  // The body last, from the same document: Readability changes what it reads.
+  // A named element is that section, including a short release note. It is not the whole page.
   let body: ExtractedBody | null = null;
-  if (need.body && page?.whole && !d.bodyUrlSuffix) {
+  if (need.body && $ && d.bodySelector) {
+    const el = $(d.bodySelector).first();
+    const text = collapseWhitespace(el.text());
+    const html = el.html();
+    if (text && html) body = { html, text, images: [], via: "text", cover: null };
+  }
+  // The body last, from the same document: Readability changes what it reads.
+  if (!body && need.body && page?.whole && !d.bodyUrlSuffix) {
     try { body = readableDocument(page.document, page.url, pageRules(source.config)); }
     catch { /* A failed extraction must not discard the detail metadata. */ }
     // Outside it: a failure of the store while checking the cover fails the read, which is retried.
     if (body) body = { ...body, cover: await articleCover(body.cover ?? null, url, page.url) };
   }
-  return { ...date, title, summary, body };
+  if (body && html) body = { ...body, aside: contentAside(html, page?.url ?? url, body.text) };
+  return { ...date, title, summary, body, response };
 }

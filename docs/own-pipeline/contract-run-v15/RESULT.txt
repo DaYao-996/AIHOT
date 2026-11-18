@@ -1,0 +1,13 @@
+这不是 v14 的 01-entry。那份日志的字段是 incremental=，钉住的 d79e6dd 脚本字段是 remainder 和 settled。01-entry 保持原样，不补改，也不算这次脚本的输出。
+
+这次运行的源码是 fde19fcbfed4207c085f9c6a0c377f898fdbfbe5，父 df0c54723813439b1d4627b522ec0ff9ddf786b1，树 a1a14d5b302b4d50158fd634992d85c4eded5012。相对保存的 d79e6dd 的补丁在源码包里，应用到 d79e6dd 后相对 fde19fc 的 diff 是空的。
+
+02-run.exit 是 0。命令、配置和事前 dump 的哈希写在 SEAL-RUN.json，是运行之前封存的。库是 own_contract_entry_v15_run_test。事前 articles、sources、fetch_runs 都是 0。
+
+本地回放保存的列表字节，详情预算 0，没有请求外网文章页。Anthropic 找到 11，第一次 created 2，之后两次 created 0，undatedNotStored 9，库里仍是 2 篇且没有发布时间、没有正文。NVIDIA 找到 3，第一次 created 2，之后 created 0，undatedNotStored 1。Thinking Machines 和 Meta 第二次 created 0 是因为条目带有早于初始化的日期，不是上限 2 还在切它们。四条都不算入池。
+
+帮助页这次没有重访 help.openai.com。本地超大响应记了一条 failed fetch_runs，没有响应体，没有重试。github_fast_rising 没有请求，也没有源行。
+
+非自动角色是 24。X 里同名角色 39 已经在未抓的 174 条里，不另算成覆盖。X 状态是 not_run。旧 17 按每篇文章分成有正文日期和证据、待补正文、待补证据、待补日期、页面被拒。没有一个源因此通过。合同整体不通过。
+
+01-run 是允许前缀丢掉本机相对链接的那次，不是这次证明。

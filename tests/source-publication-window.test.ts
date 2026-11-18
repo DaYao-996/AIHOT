@@ -219,7 +219,7 @@ test("source admission rechecks detail publication dates without discarding know
   assert.ok(!rows.some(row => row.url.endsWith("/ancient")), "an old archive dated by the detail page must not be newly imported");
   assert.equal(rows.find(row => row.id === known.articleId)!.published_at?.toISOString(), dates.knownAncient);
   assert.ok(rows.some(row => row.url.endsWith("/fresh")), "genuine new material remains admitted");
-  assert.equal(rows.find(row => row.url.endsWith("/missing"))!.published_at, null, "a missing original date stays unknown");
+  assert.equal(rows.find(row => row.url.endsWith("/missing")), undefined, "a later run does not create an entry the page never dates");
 });
 
 // The initial history month limit must also be applied to dates learned from article pages.

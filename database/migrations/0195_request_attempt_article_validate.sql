@@ -1,0 +1,1 @@
+ALTER TABLE own_request_attempts VALIDATE CONSTRAINT own_request_attempts_article_id_fkey;

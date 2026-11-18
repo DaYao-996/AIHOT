@@ -1,0 +1,115 @@
+{
+  "contractPassed": false,
+  "workerStarted": false,
+  "modelCalls": 0,
+  "lost": [
+    {
+      "id": "1251c459-6657-4ab4-b54f-324ebd39c5da",
+      "url": "https://nvidianews.nvidia.com/news/nvidia-expands-commitments-with-supply-chain-partners-to-support-ai-infrastructure-buildout"
+    },
+    {
+      "id": "72ad7a92-cf00-4edd-9d46-ad6f95d0dca8",
+      "url": "https://www.anthropic.com/claude-fable-and-mythos-5-2"
+    }
+  ],
+  "refusal": {
+    "hits": 1,
+    "rows": 1,
+    "phase": "failed",
+    "bytes": 7
+  },
+  "results": [
+    {
+      "url": "https://developer.nvidia.com/blog/co-designing-sparse-attention-for-efficient-long-context-inference/",
+      "status": 200,
+      "rawBytes": 328819,
+      "sha256": "b5aee4d36cc0deb96dfb904c2e6b3f807a961b6a5154f882fa05b9e2fbd20e81",
+      "previousBytes": 568,
+      "revise": "revised",
+      "staled": 3,
+      "bodyBytes": 17289,
+      "revision": 2,
+      "publishedAt": "2026-11-17T17:30:00.000Z",
+      "dateFromPageMetadata": false,
+      "short": {
+        "url": "https://developer.nvidia.com/blog/co-designing-sparse-attention-for-efficient-long-context-inference/",
+        "semanticId": "892b8e72df5b9560afbc2a5a927702dd29d1ae1cdeebf7e6dcfa65c5cd5d861e",
+        "selectionId": "4e33195ddac6f0402a9b1cd2b5713cc514f6362252a9465380fb2b464b635716",
+        "draftId": "7b675f3497f53a6d7d53bab6dc2aeb722ca261a9bcb18f498c0856b781d92666",
+        "bodyBytes": 568
+      },
+      "full": {
+        "url": "https://developer.nvidia.com/blog/co-designing-sparse-attention-for-efficient-long-context-inference/",
+        "semanticId": "5d22c2feb37bb4cdda185d681b69cad15f68c3387552440067a33e6a6b91f27c",
+        "selectionId": "65da57ba7053ab4f06531e5063520d5ba0f6b00ab8cf21c1780e26df4f171142",
+        "draftId": "72c644a1e671276caac5cc3542044107828753a7cbfcc265b9d400774f56b923",
+        "bodyBytes": 17289
+      },
+      "retried": false
+    },
+    {
+      "url": "https://developer.nvidia.com/blog/integrating-qpus-into-supercomputing-centers-using-slurm-hres-plugins/",
+      "status": 200,
+      "rawBytes": 281172,
+      "sha256": "bdd9896f65c23b47871ac56894ceb256391ace1f5fcb8d8c79df4f4a85216ab6",
+      "previousBytes": 574,
+      "revise": "revised",
+      "staled": 3,
+      "bodyBytes": 16811,
+      "revision": 2,
+      "publishedAt": "2026-11-17T17:00:00.000Z",
+      "dateFromPageMetadata": false,
+      "short": {
+        "url": "https://developer.nvidia.com/blog/integrating-qpus-into-supercomputing-centers-using-slurm-hres-plugins/",
+        "semanticId": "e157b297d60aa7edf818f59eaa569740ab5d7f776294c0c5783c63667339c1b8",
+        "selectionId": "d0b853e46e264486597754c69d85f434cddc3c7f8329fe22b7ffcb303937580b",
+        "draftId": "181868e38ed9df874818934803db111b1fda8e71d3e88f2266b68438f3f13d9d",
+        "bodyBytes": 574
+      },
+      "full": {
+        "url": "https://developer.nvidia.com/blog/integrating-qpus-into-supercomputing-centers-using-slurm-hres-plugins/",
+        "semanticId": "e0c195e8588c4e61a7ae2e2b64f27e19e205471f57928a79421ef00d2fc4dbee",
+        "selectionId": "482cb3f6f0b8886b184905c23fdc184a5adfdfc6e6ade1acfd60ad105c48faf6",
+        "draftId": "4eb26a36c86c5c948bc7e3edb97af0fc19157e702e66ac1adf22f33e0c131516",
+        "bodyBytes": 16811
+      },
+      "retried": false
+    },
+    {
+      "url": "https://www.apple.com.cn/newsroom/2026/11/apple-podcasts-names-baby-this-is-keke-palmer-the-2026-show-of-the-year/",
+      "status": 200,
+      "rawBytes": 150452,
+      "sha256": "7da967e2f7234410dd07eca0e78a0c3455e0a76af110e8f940e3cec86a302cb2",
+      "previousBytes": 0,
+      "revise": "revised",
+      "staled": 0,
+      "bodyBytes": 3632,
+      "revision": 2,
+      "publishedAt": "2026-11-16T16:00:00.000Z",
+      "dateFromPageMetadata": true,
+      "short": null,
+      "full": {
+        "url": "https://www.apple.com.cn/newsroom/2026/11/apple-podcasts-names-baby-this-is-keke-palmer-the-2026-show-of-the-year/",
+        "semanticId": "c79a65a2f9110b14ea10bb20f44e47ccc7f10982b4bc3bb6225d73d10dbfdb95",
+        "selectionId": "08d205b6e4ff731d29f645209487f57c7d44f49b7a6f1e0175c8aa8f67374ffa",
+        "draftId": "76909f93ba4282d8577038c235f078574f56ad5614e0a757b3ecdc134ef2ce24",
+        "bodyBytes": 3632
+      },
+      "retried": false
+    }
+  ],
+  "coverage": {
+    "missingDateBefore": 12,
+    "articles": 41
+  },
+  "restored": {
+    "articles": 3,
+    "dump": "a61acabc255b59055d23a0e77f6e5e192eab698f9fafafe93580e447ef6a6dd1"
+  },
+  "counts": {
+    "publications": 0,
+    "receipts": 0,
+    "fetch_runs": 0,
+    "attempts": 6
+  }
+}

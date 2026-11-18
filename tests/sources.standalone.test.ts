@@ -13,7 +13,8 @@ import { config } from "@aihot/backend/config";
 import { extractFromUrl, pageRules } from "@aihot/backend/content/extract";
 import { sanitizeBody, trimTrailingChrome } from "@aihot/backend/content/sanitize";
 import { unsupportedConfig } from "@aihot/backend/sources/config-keys";
-import { fetchDetail, fetchWebList, fromHtml, fromMarkdown } from "@aihot/backend/sources/web-list";
+import { chartAxisParts, contentAside, storedContentLink } from "@aihot/backend/sources/saved-supplements";
+import { fetchDetail, fetchWebList, fromHtml, fromMarkdown, locateArticleText } from "@aihot/backend/sources/web-list";
 import { fetchRss } from "@aihot/backend/sources/rss";
 import { fetchJsonList } from "@aihot/backend/sources/json-list";
 import { noiseFiltered } from "@aihot/backend/sources/filters";
@@ -38,6 +39,8 @@ const pages: Record<string, () => string> = {
     `<published>2026-09-30T00:00:00Z</published><summary type="html">How leaders build confidence with their team.</summary></entry></feed>`,
   // A list API that gives wall-clock times without a zone, and a page whose metadata does too.
   "/zoneless.json": () => JSON.stringify({ result: [{ id: "a", title: "采购公告", publishDate: "2026-09-30 17:43:58" }, { id: "b", title: "Zoned", publishDate: "2026-09-30T17:43:58Z" }, { id: "c", title: "Abbreviated zone", publishDate: "Wed, 30 Sep 2026 17:43:58 EST" }] }),
+  "/one-release.json": () => JSON.stringify({ tag_name: "v1", name: "v1", html_url: "https://example.org/releases/tag/v1", body: "Release v1", published_at: "2026-11-18T05:21:54Z" }),
+  "/short-release": () => `<html><body><header>GitHub chrome</header><div class="markdown-body"><p>Release v1</p></div><footer>${"nav ".repeat(80)}</footer></body></html>`,
   "/zoneless-post": () => `<html><head><meta property="article:published_time" content="2026-09-30 17:43:58"></head><body><p>Post</p></body></html>`,
   // A Next.js page whose embedded posts hold arrays and brackets of their own.
   "/flight": () => `<html><body><script>self.__next_f.push([1,${JSON.stringify(`5:["$","div",null,{"children":[],"posts":${JSON.stringify([
@@ -58,6 +61,10 @@ const pages: Record<string, () => string> = {
   "/large/post": () => article("LFM3", `Benchmarks for the new models. ${"Each row compares the same task. ".repeat(12)}</p><table><tr><th>Benchmark</th><th>LFM3</th></tr><tr><td><p>LiveClaw</p></td><td><p>45.60</p></td></tr></table><p>`)
     .replace("</body>", `<script>${"x".repeat(9 * 1024 * 1024)}</script></body>`),
   "/en/items.json": () => JSON.stringify([{ title: "Improved token efficiency", url: `${site}/en/post` }]),
+  "/date-post": () => `<html><head><meta name="date" content="2026-09-11T19:58:33Z"></head><body><article><a href="/date-post">A real article</a><span title="Unix: 1789171113866">Sep 11, 2026</span></article></body></html>`,
+  "/date-modified": () => `<meta property="article:modified_time" content="2026-10-14T00:00:00Z"><time itemprop="dateModified" datetime="2026-10-14T00:00:00Z">Updated today</time>`,
+  "/date-unlabelled": () => `<time datetime="2026-10-14T00:00:00Z">2026-10-14</time>`,
+  "/date-published": () => `<time itemprop="datePublished" datetime="2020-02-15T00:00:00Z">Published February 15, 2020</time>`,
 };
 function article(title: string, text: string) {
   return `<html><head><title>${title}</title><meta property="article:published_time" content="2026-09-23T12:00:00Z"></head><body><article><h1>${title}</h1><p>${text}</p></article></body></html>`;
@@ -125,18 +132,32 @@ test("posts addressed by a query on the listing's path are posts, its pages and 
   assert.equal(fromHtml('<a href="https://www.example.org/">Home on www</a>', "https://example.org/", source({ url: "https://example.org/" })).length, 1);
 });
 
-test("promotions a feed rotates inside its posts are left out of the body", () => {
+test("promotions a feed rotates inside its posts are left out of the body and media", async () => {
   // Microsoft Research's feed puts a different podcast or product promotion into each post on every load.
   const promo = (label: string, name: string) =>
     `<div class="border-bottom border-top mt-5 mb-5 msr-promo text-center alignwide" data-bi-aN="promo">` +
     `<p class="msr-promo__label text-uppercase"><span>${label}</span></p><div class="row"><div class="msr-promo__content">` +
-    `<h2 class="h4">${name}</h2><p>Join Microsoft researchers.</p><a href="https://example.org/podcast">Listen now</a></div></div></div>`;
-  const post = (p: string) => `<p>Skala is now available in the tools scientists use.</p>${p}<p>From community release to native integration.</p>`;
+    `<img src="https://example.org/${name}.jpg"><h2 class="h4">${name}</h2><p>Join Microsoft researchers.</p><a href="https://example.org/podcast">Listen now</a></div></div></div>`;
+  const post = (p: string) => `<p>Skala is now available in the tools scientists use.</p><img src="/chart.png">${p}<p>From community release to native integration.</p><img data-src="/detail.png">`;
   const a = sanitizeBody(post(promo("PODCAST SERIES", "Ideas")), "https://example.org/post");
   const b = sanitizeBody(post(promo("", "Foundry Labs")), "https://example.org/post");
   assert.equal(a, b, "the same post whichever promotion it carried");
   assert.ok(!/PODCAST SERIES|Ideas|Foundry Labs|Listen now/.test(a));
   assert.ok(a.includes("native integration"), "the post's own text stays");
+  for (const name of ["Ideas", "Foundry Labs"]) {
+    const html = post(promo("PODCAST SERIES", name));
+    pages["/promo.xml"] = () => `<rss version="2.0" xmlns:content="http://purl.org/rss/1.0/modules/content/"><channel><item><title>Research</title><link>https://example.org/post</link><enclosure type="image/jpeg" url="https://example.org/cover.jpg"/><content:encoded><![CDATA[${html}]]></content:encoded></item></channel></rss>`;
+    pages["/promo.atom"] = () => `<feed xmlns="http://www.w3.org/2005/Atom"><entry><title>Research</title><link href="https://example.org/post"/><content type="html"><![CDATA[${html}]]></content></entry></feed>`;
+    for (const path of ["/promo.xml", "/promo.atom"]) {
+      const [item] = (await fetchRss({ id: "test-feed", config: { feedUrl: site + path, summaryIsBody: true }, participation_mode: "editorial" } as never)).candidates;
+      assert.equal(item!.bodyHtml, a);
+      assert.deepEqual(item!.media, [
+        ...(path === "/promo.xml" ? [{ kind: "image", url: "https://example.org/cover.jpg" }] : []),
+        { kind: "image", url: "https://example.org/chart.png" },
+        { kind: "image", url: "https://example.org/detail.png" },
+      ]);
+    }
+  }
 });
 
 test("a listing that links other articles in its teasers takes only the links that begin a line", () => {
@@ -250,6 +271,71 @@ test("posts embedded in a flight payload keep their own arrays and brackets insi
   assert.deepEqual(posts.map((c) => [c.title, c.url]), [["First [draft] post", "https://example.org/blog/first"], ["Second post", "https://example.org/blog/second"]]);
 });
 
+test("a single release object is one item, and its published_at is the publication time", async () => {
+  const config = { url: `${site}/one-release.json`, singleObject: true, titlePaths: ["name"], urlTemplate: "{raw:html_url}", summaryPaths: ["body"], summaryIsBody: true, publishedAtPath: "published_at" };
+  assert.deepEqual(unsupportedConfig("json_list", config), []);
+  const [item] = await fetchJsonList({ id: "test-json", config } as never);
+  assert.equal(item!.url, "https://example.org/releases/tag/v1");
+  assert.equal(item!.bodyText, "Release v1");
+  assert.equal(item!.publicationTime, "2026-11-18T05:21:54.000Z");
+  assert.equal((item!.raw as { timeSource: string }).timeSource, "json:published_at");
+  await assert.rejects(fetchJsonList({ id: "test-json", config: { ...config, singleObject: false } } as never), /array/);
+});
+
+test("a stored content link keeps its label and absolute address, and a chart keeps its unit", () => {
+  const page = "https://example.org/blog/post";
+  const html = `<main><p>See the <a href="/paper.pdf">technical paper</a>.</p><a href="https://example.org/blog/post">this page</a><footer><a href="https://example.org/social">social</a></footer></main><script type="application/json">{"value":{"label":"Score","suffix":"%","decimals":1}}</script><mistral-block-chart>{"title":"Frontier","type":"bar","value":{"label":"Score","suffix":"%","decimals":1,"max":20},"data":[{"label":"Model","value":19.7}]}</mistral-block-chart>`;
+  const paperAt = html.indexOf("/paper.pdf");
+  const paper = storedContentLink(html, page, "See the technical paper.", { label: "technical paper", href: "/paper.pdf", absoluteUrl: "https://example.org/paper.pdf", byteOffset: paperAt });
+  assert.ok(!("skipped" in paper));
+  if (!("skipped" in paper)) {
+    assert.equal(paper.absoluteUrl, "https://example.org/paper.pdf");
+    assert.equal(paper.linkedPageRead, false);
+  }
+  const selfAt = html.indexOf("https://example.org/blog/post");
+  const selfLink = storedContentLink(html, page, "", { label: "this page", href: "https://example.org/blog/post", absoluteUrl: page, byteOffset: selfAt });
+  assert.equal("skipped" in selfLink && selfLink.skipped, "指向本页，不是外链");
+  const socialAt = html.indexOf("https://example.org/social");
+  const social = storedContentLink(html, page, "the address is already https://example.org/social here", { label: "social", href: "https://example.org/social", absoluteUrl: "https://example.org/social", byteOffset: socialAt });
+  assert.equal("skipped" in social && social.skipped, "地址已经在正文里");
+  const chart = chartAxisParts(html)[0]!;
+  assert.match(chart.text, /value\.label: Score/);
+  assert.match(chart.text, /value\.suffix: %/);
+  assert.match(chart.text, /value\.decimals: 1/);
+  assert.match(chart.text, /label=Model value=19\.7/);
+});
+
+test("a page parse keeps the article link and the chart unit without being told the anchor", () => {
+  const html = `<!doctype html><html><body><nav><a href="https://example.org/nav">Home</a></nav><article><p>${"The release note explains how to call the model and what the price table means. ".repeat(8)}</p><p>Read the <a href="https://example.org/paper.pdf">technical paper</a> before you start.</p><mistral-block-chart>{"title":"Frontier","type":"bar","value":{"label":"Score","suffix":"%","decimals":1,"max":20},"data":[{"label":"Model","value":19.7}]}</mistral-block-chart></article><footer><a href="https://example.org/privacy">Privacy</a></footer></body></html>`;
+  const aside = contentAside(html, "https://example.org/post", "Read the technical paper before you start.");
+  assert.deepEqual(aside.links.map((link) => link.absoluteUrl), ["https://example.org/paper.pdf"]);
+  assert.equal(aside.links[0]!.label, "technical paper");
+  assert.equal(aside.links[0]!.linkedPageRead, false);
+  assert.ok(aside.links[0]!.byteStart >= 0);
+  assert.match(aside.charts[0]!.text, /value\.suffix: %/);
+});
+
+test("a long article stays the article, and the navigation and chart payload stay out", () => {
+  const prose = "The model release note continues with the same sentence. ".repeat(500);
+  const html = `<html><body><nav>Home Pricing</nav><header>Site header</header><article><p>${prose}</p><figure>Chart Download PNG {"data":[{"x":1}]}</figure><mistral-atom-text-vibe>Thinking Summary A generated blurb.</mistral-atom-text-vibe></article><footer>Privacy</footer></body></html>`;
+  const located = locateArticleText(html);
+  assert.ok(located);
+  assert.ok(located!.text.length > 20000);
+  assert.match(located!.text, /model release note/);
+  assert.equal(located!.text.includes("Home Pricing"), false);
+  assert.equal(located!.text.includes("Privacy"), false);
+  assert.equal(located!.text.includes('{"data"'), false);
+  assert.equal(located!.text.includes("Thinking Summary"), false);
+  assert.ok(located!.navChars > 0);
+});
+
+test("a short release note element is that note, not a truncated page", async () => {
+  const got = await fetchDetail(`${site}/short-release`, { id: "test-feed", config: { detail: { bodySelector: ".markdown-body" } } } as never, { date: false, title: false, summary: false, body: true });
+  assert.equal(got.body?.text, "Release v1");
+  assert.equal(got.body?.via, "text");
+  assert.ok((got.response?.bytes.length ?? 0) > got.body!.text.length);
+});
+
 test("dates in yyyymmdd and in JSON-LD are read", async () => {
   const days = await fetchJsonList({ id: "test-json", config: { url: `${site}/days.json`, itemsPath: "data.list", titlePaths: ["ttl"], urlTemplate: "https://example.org/blog/view?seq={seq}", publishedAtPath: "day", publishedAtUnit: "yyyymmdd" } } as never);
   assert.deepEqual(days.map((c) => c.publishedAt?.toISOString() ?? null), ["2026-09-21T16:00:00.000Z", null], "calendar days use the source offset; February 30 is no date");
@@ -296,4 +382,50 @@ test("a source's language is an Accept-Language value, refused by kinds that rea
     }
   }
   for (const kind of ["x_search", "mp_account", "external"] as const) assert.deepEqual(unsupportedConfig(kind, { acceptLanguage: "en" }), ["acceptLanguage"], kind);
+});
+
+const mdSource = source({ url: "https://publisher.example/blog", allowUrlPrefixes: ["https://publisher.example/blog/"] });
+const readRepeated = (labels: string[]) => fromMarkdown(labels.map(label => `[${label}](https://publisher.example/blog/new-release)`).join("\n\n"), "https://publisher.example", mdSource);
+
+test("a repeated article takes its actual headline after an earlier call to action", () => {
+  assert.deepEqual(readRepeated(["Read more", "A new model release", "Read more"]), [{ url: "https://publisher.example/blog/new-release", title: "A new model release" }]);
+});
+
+test("a clean headline replaces a repeated card label that swallowed its whole summary", () => {
+  assert.equal(readRepeated(["An overlong card label with article description. ".repeat(4), "A concise actual headline"])[0]!.title, "A concise actual headline");
+});
+
+test("the first clean headline stays stable and a lone call to action can still be enriched from its detail page", () => {
+  assert.equal(readRepeated(["A clean actual headline", "Another title for the same story", "Read more"])[0]!.title, "A clean actual headline");
+  assert.equal(readRepeated(["Read more"])[0]!.title, "Read more");
+});
+
+test("parentheses in card image URLs cannot enter the headline or make it change with an asset deployment", () => {
+  const headline = "Hallo, Deutschland! Mistral Opens German Hub in Munich";
+  const card = (deployment: string) => `[![Image 5](https://publisher.example/_astro/Linkedin_Mistral02%20(1)_3Uubi.webp?dpl=${deployment}) ![Image 6](https://publisher.example/_astro/Linkedin_Mistral02%20(1)_3Uubi.webp?dpl=${deployment}) Company ## ${headline} September 28, 2026 By Mistral](https://publisher.example/blog/new-release)`;
+  const expected = [{ url: "https://publisher.example/blog/new-release", title: `Company ${headline} September 28, 2026 By Mistral` }];
+  for (const deployment of ["first", "second"]) assert.deepEqual(fromMarkdown(card(deployment), "https://publisher.example", mdSource), expected);
+  assert.deepEqual(fromMarkdown(`[![Image](https://publisher.example/a_(b_(c)).webp)](https://publisher.example/blog/image-only)\n${card("third")}`, "https://publisher.example", mdSource), expected);
+});
+
+test("a listing uses the visible date when its tooltip is not a publication date", () => {
+  const items = fromHtml(pages["/date-post"]!(), site, source({ url: site, itemSelector: "article", publishedAtSelector: "span[title^='Unix:']", publishedAtUtcOffset: "+00:00" }));
+  assert.equal(items[0]!.publishedAt?.toISOString(), "2026-09-11T00:00:00.000Z");
+});
+
+test("a detail date selector reads meta content and an invalid tooltip does not mask visible text", async () => {
+  for (const [publishedAtSelector, expected] of [["meta[name='date']", "2026-09-11T19:58:33.000Z"], ["span", "2026-09-11T00:00:00.000Z"]]) {
+    const item = await fetchDetail(site + "/date-post", source({ detail: { publishedAtSelector, publishedAtAuthoritative: true, publishedAtUtcOffset: "+00:00" } }), { date: true, title: false, summary: false });
+    assert.equal(item.publishedAt?.toISOString(), expected);
+  }
+});
+
+test("generic detail metadata does not promote modified or unlabelled time elements to publication", async () => {
+  const detailSource = source({ detail: { maxFetches: 1 } });
+  for (const path of ["/date-modified", "/date-unlabelled"]) {
+    const detail = await fetchDetail(site + path, detailSource, { date: true, title: false, summary: false });
+    assert.equal(detail.publishedAt, null, path);
+  }
+  const published = await fetchDetail(site + "/date-published", detailSource, { date: true, title: false, summary: false });
+  assert.equal(published.publishedAt?.toISOString(), "2020-02-15T00:00:00.000Z");
 });

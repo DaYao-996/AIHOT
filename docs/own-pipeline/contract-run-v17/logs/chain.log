@@ -1,0 +1,7 @@
+CHAIN https://research.meta.ai/blog/muse-ember body=10917 date=2026-11-09 draft=2eb99ee503adfa548a5a1189bc974fed50644de9d4e06515d118a46386ca6586
+CHAIN https://research.meta.ai/blog/specialized-models-for-muse-and-metaai body=3281 date=2026-11-06 draft=8c8ad501c334c85dcdb5fe4803d7631234c4cd9c473f87d4654686360018129c
+CHAIN https://thinkingmachines.ai/news/inkling-2-small/ body=52295 date=2026-11-05 draft=6155d0ffb975c272bc980828194f02f0fd2734eb56a5e57e1f2597da8098fad7
+CHAIN https://thinkingmachines.ai/news/one-year-of-tinker/ body=12312 date=2026-10-15 draft=1e9dead3e7045be2224d911b276263c0cf76978a420aa838ce19ea5f18aa5b02
+CHAIN https://www.anthropic.com/news/public-benefit-fund body=2812 date=2026-10-18 draft=4a807e81907b7aed14cfb305887dedb115bd97ee436110a0ee9566b93f370ed4
+PROBE https://nvidianews.nvidia.com/news/nvidia-announces-financial-results-for-third-quarter-fiscal-2027 status=200 raw=398481 extracted=20335
+{"ok":true,"drafts":5,"publications":0,"receipts":0}

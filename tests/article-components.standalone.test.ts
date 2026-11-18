@@ -255,3 +255,25 @@ test("document theme classes do not remove the article's plain text paragraphs",
   assert.ok(body.text.includes(introduction.trim()));
   assert.doesNotMatch(body.text, /HIDDEN_CONTENT|SIDEBAR_CONTENT/);
 });
+
+test("a new-window control and a downloads label are not the article", () => {
+  const html = `<html><head><title>Show</title></head><body><main><span id="opens-in-new-window" class="large-hide">在新窗口中打开</span><article><p>${prose}</p><p>The closing sentence of the article stays.</p></article><div class="docsanddownloads"><p class="docsanddownloads__text">新闻文章</p></div></main></body></html>`;
+  const body = readable(html, "https://publisher.example/show");
+  assert.ok(body);
+  assert.equal(body.text.includes("在新窗口中打开"), false);
+  assert.equal(body.text.includes("新闻文章"), false);
+  assert.ok(body.text.includes("The closing sentence of the article stays."));
+  assert.ok(body.text.startsWith("The article explains"));
+});
+
+test("a press release closing in the next sibling stays once, and the site footer stays out", () => {
+  const table = "<table><tr><td>Q4 outlook last row 10.7</td></tr></table>";
+  const closing = "<p><strong>About Example</strong></p><p>Example builds tools for the release.</p><p>Certain statements in this press release are forward-looking.</p>";
+  const html = `<html><head><title>Results</title></head><body><div class="main-content"><div class="article"><div class="article-body"><p>${prose}</p>${table}</div></div><div class="article-bottom mobile">${closing}</div></div><div class="article-bottom desktop">${closing}</div><div class="page-footer"><p>Investors Careers NVIDIA Partner Network</p><p>About Example</p></div></body></html>`;
+  const body = readable(html, "https://publisher.example/results");
+  assert.ok(body);
+  assert.equal(body.text.split("About Example").length - 1, 1);
+  assert.ok(body.text.includes("Q4 outlook last row 10.7"));
+  assert.ok(body.text.includes("forward-looking"));
+  assert.equal(body.text.includes("NVIDIA Partner Network"), false);
+});
