@@ -1,0 +1,34 @@
+{
+  "schema": "own-file-result-v1",
+  "writes": "own_judgments",
+  "origin": "file",
+  "modelVersionColumn": "file:assistant-file or file:human-file. This is the execution source, not a vendor model id.",
+  "modelReceiptId": null,
+  "vendorReceipt": false,
+  "factStatus": "unchecked",
+  "releaseStatus": "not_licensed",
+  "command": "node scripts/own-file-result.ts --file <results.json> [--dry-run]",
+  "items": [
+    {
+      "articleId": "<current article id>",
+      "evidenceHash": "<64 hex of the current evidence row>",
+      "evidenceVersion": 1,
+      "inputRevision": 1,
+      "rulesetVersion": "<rules version actually used>",
+      "promptVersion": "<prompt version actually used>",
+      "executionSource": "assistant-file",
+      "modelKnowledge": "unknown",
+      "knownModel": null,
+      "output": {
+        "narrowClaim": "<narrow claim grounded in the stored text>",
+        "quoteLocation": { "excerpt": "<substring of the current body or quote>", "start": null, "end": null },
+        "conditions": ["<condition>"],
+        "time": "<time scope, or 未知>",
+        "valueBasis": "<why it matters, not an A-F score>",
+        "audience": [],
+        "substantiveAddition": "",
+        "clauses": [{ "id": "<clause id>", "text": "<clause text>" }]
+      }
+    }
+  ]
+}

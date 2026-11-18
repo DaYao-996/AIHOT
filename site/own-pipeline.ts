@@ -206,6 +206,8 @@ export interface FileSemanticOutput {
   narrowClaim: string;
   quoteLocation: { excerpt: string; start: number | null; end: number | null };
   conditions: string[];
+  time: string;
+  valueBasis: string;
   audience: string[];
   substantiveAddition: string;
   clauses: { id: string; text: string }[];
@@ -214,6 +216,7 @@ export interface FileSemanticOutput {
 /** 存在判断行上的文件结果。outputSha256 由输出重算，不是外部厂商回执。 */
 export interface FileResultRecord {
   executionSource: FileExecutionSource;
+  modelKnowledge: "unknown" | "known";
   knownModel: string | null;
   output: FileSemanticOutput;
   outputSha256: string;
@@ -228,6 +231,7 @@ export interface FileResultItem {
   rulesetVersion: string;
   promptVersion: string;
   executionSource: FileExecutionSource;
+  modelKnowledge: "unknown" | "known";
   knownModel: string | null;
   output: FileSemanticOutput;
 }
@@ -236,16 +240,16 @@ export function fileExecutionIdentity(source: FileExecutionSource): string {
   return `file:${source}`;
 }
 
-export function fileOutputCanonical(input: Pick<FileResultRecord, "executionSource" | "knownModel" | "output">): { executionSource: FileExecutionSource; knownModel: string | null; output: FileSemanticOutput } {
-  return { executionSource: input.executionSource, knownModel: input.knownModel, output: input.output };
+export function fileOutputCanonical(input: Pick<FileResultRecord, "executionSource" | "modelKnowledge" | "knownModel" | "output">): { executionSource: FileExecutionSource; modelKnowledge: "unknown" | "known"; knownModel: string | null; output: FileSemanticOutput } {
+  return { executionSource: input.executionSource, modelKnowledge: input.modelKnowledge, knownModel: input.knownModel, output: input.output };
 }
 
-export function fileOutputSha256(input: Pick<FileResultRecord, "executionSource" | "knownModel" | "output">): string {
+export function fileOutputSha256(input: Pick<FileResultRecord, "executionSource" | "modelKnowledge" | "knownModel" | "output">): string {
   return sha256(stableJson(fileOutputCanonical(input)));
 }
 
-const FILE_ITEM_KEYS = new Set(["articleId", "evidenceHash", "evidenceVersion", "inputRevision", "rulesetVersion", "promptVersion", "executionSource", "knownModel", "output"]);
-const FILE_OUTPUT_KEYS = new Set(["narrowClaim", "quoteLocation", "conditions", "audience", "substantiveAddition", "clauses"]);
+const FILE_ITEM_KEYS = new Set(["articleId", "evidenceHash", "evidenceVersion", "inputRevision", "rulesetVersion", "promptVersion", "executionSource", "modelKnowledge", "knownModel", "output"]);
+const FILE_OUTPUT_KEYS = new Set(["narrowClaim", "quoteLocation", "conditions", "time", "valueBasis", "audience", "substantiveAddition", "clauses"]);
 const FILE_QUOTE_KEYS = new Set(["excerpt", "start", "end"]);
 const FILE_CLAUSE_KEYS = new Set(["id", "text"]);
 const FILE_BANNED_KEY = /^(?:score|grade|band|points|prioritize|verify|exclude|expected|automatic_route|modelreceiptid|modelversion|factstatus|releasestatus)$/i;
@@ -285,7 +289,9 @@ export function parseFileResultDocument(value: unknown): FileResultItem[] {
     if (typeof item.rulesetVersion !== "string" || !item.rulesetVersion.trim()) throw new Error(`items[${index}].rulesetVersion 无效`);
     if (typeof item.promptVersion !== "string" || !item.promptVersion.trim()) throw new Error(`items[${index}].promptVersion 无效`);
     if (!FILE_EXECUTION_SOURCES.includes(item.executionSource as FileExecutionSource)) throw new Error(`items[${index}].executionSource 无效`);
-    if (item.knownModel !== null && (typeof item.knownModel !== "string" || !item.knownModel.trim())) throw new Error(`items[${index}].knownModel 无效`);
+    if (item.modelKnowledge !== "unknown" && item.modelKnowledge !== "known") throw new Error(`items[${index}].modelKnowledge 无效`);
+    if (item.modelKnowledge === "unknown" && item.knownModel !== null) throw new Error(`items[${index}].knownModel 未知时必须是 null`);
+    if (item.modelKnowledge === "known" && (typeof item.knownModel !== "string" || !item.knownModel.trim())) throw new Error(`items[${index}].knownModel 无效`);
     if (!item.output || typeof item.output !== "object" || Array.isArray(item.output)) throw new Error(`items[${index}].output 无效`);
     const output = item.output as Record<string, unknown>;
     if (ownKeys(output).some((key) => !FILE_OUTPUT_KEYS.has(key)) || ownKeys(output).length !== FILE_OUTPUT_KEYS.size) throw new Error(`items[${index}].output 无效`);
@@ -316,11 +322,14 @@ export function parseFileResultDocument(value: unknown): FileResultItem[] {
       rulesetVersion: item.rulesetVersion.trim(),
       promptVersion: item.promptVersion.trim(),
       executionSource: item.executionSource as FileExecutionSource,
+      modelKnowledge: item.modelKnowledge,
       knownModel: item.knownModel === null ? null : (item.knownModel as string).trim(),
       output: {
         narrowClaim: (output.narrowClaim as string).trim(),
         quoteLocation: { excerpt: (quote.excerpt as string).trim(), start: start as number | null, end: end as number | null },
         conditions: stringList(output.conditions, `items[${index}].output.conditions`),
+        time: typeof output.time === "string" && output.time.trim() ? output.time.trim() : (() => { throw new Error(`items[${index}].output.time 无效`); })(),
+        valueBasis: typeof output.valueBasis === "string" && output.valueBasis.trim() ? output.valueBasis.trim() : (() => { throw new Error(`items[${index}].output.valueBasis 无效`); })(),
         audience: stringList(output.audience, `items[${index}].output.audience`),
         substantiveAddition: typeof output.substantiveAddition === "string" ? output.substantiveAddition.trim() : (() => { throw new Error(`items[${index}].output.substantiveAddition 无效`); })(),
         clauses: parsedClauses,

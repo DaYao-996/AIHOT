@@ -549,6 +549,105 @@ test("a receipt must name this evidence, and checked facts need a human excerpt"
   assert.ok(identity!.identity_key);
 });
 
+test("the file command stores a result, repeats, rejects a changed output, and stales it when evidence moves", async () => {
+  const dir = mkdtempSync(path.join(tmpdir(), "own-file-result-"));
+  const url = `https://example.com/file-result-${tag()}`;
+  const body = "窄主张的原句在正文里。后面还有条件。";
+  const excerpt = "窄主张的原句在正文里";
+  const saved = await appendControlledEvidence({
+    sourceId: SOURCE, url, title: "文件结果", raw: { n: 1 }, bodyText: body,
+  });
+  const output = {
+    narrowClaim: "正文把范围限在这一句",
+    quoteLocation: { excerpt, start: body.indexOf(excerpt), end: body.indexOf(excerpt) + excerpt.length },
+    conditions: ["只在这段正文里"],
+    time: "2026-11-18",
+    valueBasis: "正文写明了限制",
+    audience: ["读这一段的人"],
+    substantiveAddition: "比标题多了范围",
+    clauses: [{ id: "scope", text: "只覆盖这一句" }],
+  };
+  const document = (evidence: typeof saved, claim = output.narrowClaim) => ({
+    schema: "own-file-result-v1",
+    items: [{
+      articleId: evidence.articleId, evidenceHash: evidence.evidenceHash, evidenceVersion: evidence.evidenceVersion,
+      inputRevision: evidence.articleRevision, rulesetVersion: "rules@file", promptVersion: "prompt@file",
+      executionSource: "assistant-file", modelKnowledge: "unknown", knownModel: null,
+      output: { ...output, narrowClaim: claim },
+    }],
+  });
+  const run = (doc: unknown) => {
+    const file = path.join(dir, `result-${tag()}.json`);
+    writeFileSync(file, JSON.stringify(doc));
+    return spawnSync(process.execPath, [path.join(process.cwd(), "scripts/own-file-result.ts"), "--file", file], {
+      cwd: process.cwd(), encoding: "utf8",
+      env: { ...process.env, DATABASE_URL: process.env.DATABASE_URL, COLLECT_ENABLED: "false", MODEL_CALLS_ENABLED: "false" },
+    });
+  };
+  const first = run(document(saved));
+  assert.equal(first.status, 0, first.stderr);
+  const firstJson = JSON.parse(first.stdout);
+  assert.equal(firstJson.vendorReceipt, false);
+  assert.equal(firstJson.items[0].idempotent, false);
+  assert.equal(firstJson.items[0].factStatus, "unchecked");
+  assert.equal(firstJson.items[0].releaseStatus, "not_licensed");
+  assert.equal(firstJson.items[0].fileReceipt.vendorReceipt, false);
+  const [row] = await sql<{ origin: string; fact_status: string; release_status: string; model_version: string; model_receipt_id: number | null; file_result: { modelKnowledge: string; knownModel: string | null; output: { narrowClaim: string; time: string; valueBasis: string } }; vendor: boolean }[]>`
+    SELECT origin, fact_status, release_status, model_version, model_receipt_id,
+      comparison->'fileResult' AS file_result,
+      (comparison->'fileResult'->>'vendorReceipt')::boolean AS vendor
+    FROM own_judgments WHERE article_id = ${saved.articleId} AND stale = false`;
+  assert.equal(row!.origin, "file");
+  assert.equal(row!.fact_status, "unchecked");
+  assert.equal(row!.release_status, "not_licensed");
+  assert.equal(row!.model_version, "file:assistant-file");
+  assert.equal(row!.model_receipt_id, null);
+  assert.equal(row!.vendor, false);
+  assert.equal(row!.file_result.modelKnowledge, "unknown");
+  assert.equal(row!.file_result.knownModel, null);
+  assert.equal(row!.file_result.output.time, "2026-11-18");
+  assert.equal(row!.file_result.output.valueBasis, "正文写明了限制");
+  const [receipts] = await sql<{ n: number }[]>`SELECT count(*)::int AS n FROM receipts WHERE subject = ${`article:${saved.articleId}`}`;
+  assert.equal(receipts!.n, 0);
+  const again = run(document(saved));
+  assert.equal(again.status, 0, again.stderr);
+  assert.equal(JSON.parse(again.stdout).items[0].idempotent, true);
+  const changed = run(document(saved, "另一条窄主张"));
+  assert.notEqual(changed.status, 0);
+  assert.match(changed.stdout, /同一判断身份出现不同结果/);
+  const [kept] = await sql<{ claim: string; n: number }[]>`
+    SELECT comparison->'fileResult'->'output'->>'narrowClaim' AS claim, count(*)::int AS n
+    FROM own_judgments WHERE article_id = ${saved.articleId} GROUP BY claim`;
+  assert.equal(kept!.claim, "正文把范围限在这一句");
+  assert.equal(kept!.n, 1);
+  const next = await appendControlledEvidence({
+    sourceId: SOURCE, url, title: "文件结果", raw: { n: 1 }, bodyText: `${body}补充了一句。`,
+  });
+  assert.notEqual(next.evidenceHash, saved.evidenceHash);
+  const [stale] = await sql<{ stale: boolean }[]>`SELECT stale FROM own_judgments WHERE id = ${firstJson.items[0].judgmentId}`;
+  assert.equal(stale!.stale, true);
+  const expired = run(document(saved));
+  assert.notEqual(expired.status, 0);
+  assert.match(expired.stdout, /输入证据不是当前版本/);
+  const humanUrl = `https://example.com/file-human-${tag()}`;
+  const human = await appendControlledEvidence({
+    sourceId: SOURCE, url: humanUrl, title: "人工文件", raw: { n: 2 }, bodyText: body,
+  });
+  const humanRun = run({
+    schema: "own-file-result-v1",
+    items: [{
+      ...document(human).items[0], executionSource: "human-file",
+    }],
+  });
+  assert.equal(humanRun.status, 0, humanRun.stderr);
+  const [humanRow] = await sql<{ origin: string; fact_status: string; model_version: string; model_receipt_id: number | null }[]>`
+    SELECT origin, fact_status, model_version, model_receipt_id FROM own_judgments WHERE article_id = ${human.articleId}`;
+  assert.equal(humanRow!.origin, "file");
+  assert.equal(humanRow!.fact_status, "unchecked");
+  assert.equal(humanRow!.model_version, "file:human-file");
+  assert.equal(humanRow!.model_receipt_id, null);
+});
+
 test("three unblinded public samples go through the import command", { skip: existsSync(SAMPLES) ? false : "public samples are not in this checkout" }, () => {
   const result = spawnSync(process.execPath, [path.join(process.cwd(), "scripts/own-unblinded-drill.ts"), SAMPLES], {
     cwd: process.cwd(), encoding: "utf8", env: {

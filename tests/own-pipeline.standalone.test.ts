@@ -337,11 +337,13 @@ test("a model judgement cannot hide behind an empty version", () => {
 test("a file result schema accepts a narrow claim and rejects a score or a claimed hash", () => {
   const item = {
     articleId: "article-1", evidenceHash: "a".repeat(64), evidenceVersion: 2, inputRevision: 3,
-    rulesetVersion: "rules@1", promptVersion: "prompt@1", executionSource: "assistant-file", knownModel: null,
+    rulesetVersion: "rules@1", promptVersion: "prompt@1", executionSource: "assistant-file", modelKnowledge: "unknown", knownModel: null,
     output: {
       narrowClaim: "这是一个窄主张",
       quoteLocation: { excerpt: "原句在这里", start: null, end: null },
       conditions: ["只在正文出现时"],
+      time: "2026-11-17",
+      valueBasis: "正文给出了使用限制",
       audience: ["读发布说明的人"],
       substantiveAddition: "相对标题多了一句限制",
       clauses: [{ id: "scope", text: "只覆盖这一段" }],
@@ -349,7 +351,11 @@ test("a file result schema accepts a narrow claim and rejects a score or a claim
   };
   const parsed = parseFileResultDocument({ schema: "own-file-result-v1", items: [item] });
   assert.equal(parsed[0]!.output.narrowClaim, "这是一个窄主张");
+  assert.equal(parsed[0]!.output.time, "2026-11-17");
+  assert.equal(parsed[0]!.output.valueBasis, "正文给出了使用限制");
+  assert.equal(parsed[0]!.modelKnowledge, "unknown");
   assert.equal(parsed[0]!.knownModel, null);
+  assert.throws(() => parseFileResultDocument({ schema: "own-file-result-v1", items: [{ ...item, modelKnowledge: "unknown", knownModel: "gpt-4o" }] }), /knownModel/);
   assert.throws(() => parseFileResultDocument({ schema: "own-file-result-v1", items: [{ ...item, outputSha256: "b".repeat(64) }] }), /格式无法解析/);
   assert.throws(() => parseFileResultDocument({ schema: "own-file-result-v1", items: [{ ...item, output: { ...item.output, score: 80 } }] }), /score|格式无法解析/);
   assert.throws(() => parseFileResultDocument({ schema: "own-file-result-v1", items: [{ ...item, executionSource: "gpt-4o" }] }), /executionSource/);

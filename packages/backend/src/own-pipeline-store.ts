@@ -505,6 +505,7 @@ export async function recordFileResult(item: FileResultItem, recordedAt: string,
   const derived = !current.body_text ? "missing_body" as const : current.quoted_text ? "complete" as const : "missing_quote" as const;
   const fileResult: FileResultRecord = {
     executionSource: item.executionSource,
+    modelKnowledge: item.modelKnowledge,
     knownModel: item.knownModel,
     output: item.output,
     outputSha256: fileOutputSha256(fileOutputCanonical(item)),
