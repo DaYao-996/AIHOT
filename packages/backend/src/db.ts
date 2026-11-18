@@ -43,7 +43,9 @@ export function withCustomPlans<T>(fn: (db: Tx) => Promise<T>): Promise<T> {
 }
 
 export async function closeDb(): Promise<void> {
-  await sql.end({ timeout: 1 });
+  // timeout 0 destroys pooled sockets immediately. A reserved connection otherwise waits on a close
+  // that never arrives, and the process stays inside sql.end until it is killed.
+  await sql.end({ timeout: 0 });
 }
 
 /** First row of a query that always returns one (aggregates). */

@@ -4,6 +4,7 @@
 import { contentHash, fillPublicationTime, identityKeyFor, reviseMaterial, upsertMaterial, type XPostData } from "./content/materials.ts";
 import { asideFromGate, asideQuoteFits, type ContentAside } from "./sources/saved-supplements.ts";
 import { sql, type Db } from "./db.ts";
+import { holdBackAutomaticRelease } from "./own-pipeline-hold.ts";
 import { sha256, stableJson } from "./lib/ids.ts";
 import { type BodyGate, type ModelFileItem } from "./body-gate.ts";
 import {
@@ -389,6 +390,7 @@ async function writeJudgment(tx: Db, identity: JudgmentIdentity, body: JudgmentB
       FROM own_judgments WHERE id = ${id} FOR UPDATE`;
   if (existing) {
     if (stableJson(canonicalBody(bodyFromRow(existing))) !== stableJson(canonicalBody(body))) throw new JudgmentConflict(`同一判断身份出现不同结果：${id}`);
+    if (body.releaseStatus === "not_licensed") await holdBackAutomaticRelease(tx, canonical.articleId);
     return { id, identity: canonical, body, stale: existing.stale, idempotent: true };
   }
   await tx`UPDATE own_judgments SET stale = true
@@ -403,6 +405,7 @@ async function writeJudgment(tx: Db, identity: JudgmentIdentity, body: JudgmentB
       ${canonical.promptVersion}, ${canonical.modelVersion}, ${body.informationTypeId}, ${body.contentLine},
       ${body.materialStatus}, ${body.factStatus}, ${body.valueStatus}, ${body.releaseStatus}, ${body.origin}, ${tx.json(body.reasons as never)}, ${recordedAt},
       ${judgmentComparison(body) ? tx.json(judgmentComparison(body) as never) : null}, ${body.modelReceiptId ?? null})`;
+  if (body.releaseStatus === "not_licensed") await holdBackAutomaticRelease(tx, canonical.articleId);
   return { id, identity: canonical, body, stale: false, idempotent: false };
 }
 

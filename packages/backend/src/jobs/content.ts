@@ -13,6 +13,7 @@ import { publishArticle } from "../publication/publish.ts";
 import { BudgetExceededError, failedReceiptId, failureKind } from "../providers/receipts.ts";
 import { editorialPolicy } from "../modules.ts";
 import { readsWhole } from "../sources/uses.ts";
+import { unlicensedReleaseHold } from "../own-pipeline-hold.ts";
 import { enqueue, QUEUES, shutdownSignal, work } from "./queue.ts";
 
 /** Minutes to wait after the n-th failed attempt; one more failure after the last ends in "failed". */
@@ -130,6 +131,10 @@ async function processingInput(articleId: string) {
 export async function processArticle(articleId: string, opts: { attemptTag?: string } = {}): Promise<{ state: string; retryAt?: Date }> {
   const row = await processingInput(articleId);
   if (!row) return { state: "missing" };
+  if (await unlicensedReleaseHold(sql, articleId)) {
+    await sql`UPDATE articles SET processing_state = 'skipped', processing_queued_at = NULL WHERE id = ${articleId} AND processing_state = 'new'`;
+    return { state: "held" };
+  }
   try {
     return await processRevision(articleId, row, opts);
   } catch (error) {

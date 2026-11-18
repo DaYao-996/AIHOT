@@ -463,15 +463,25 @@ export async function fetchDetail(url: string, source: SourceRow, need: DetailNe
   let html: string | null = null;
   let response: { bytes: Buffer; status: number; url: string; truncated: boolean; requests: number } | null = null;
   let page: { document: ReturnType<typeof contentDocument>; url: string; whole: boolean } | null = null;
-  if ((need.date && !dateInJina) || (need.title && !titleInJina) || need.summary || need.body) {
+  const needsHtml = (need.date && !dateInJina) || (need.title && !titleInJina) || need.summary;
+  if (needsHtml || need.body) {
     // The rules read a page's head and byline. A page past the size limit (a long paper with inline
     // figures) is read up to it rather than failing on every run; a body cut there is not kept.
-    const res = requireOk(await guardedFetch(url, { headers: languageHeaders(source.config.acceptLanguage), timeoutMs: 20_000, truncate: true }), "detail");
-    // A sign-in form is no detail page: its title, date and text are not the post's.
-    if (isSignInRedirect(url, res.url)) throw new UnavailablePageError("redirected to a sign-in form");
-    html = res.text();
-    response = { bytes: res.body, status: res.status, url: res.url, truncated: res.truncated, requests: res.requests ?? 1 };
-    page = { document: contentDocument(html), url: res.url, whole: !res.truncated && /html/.test(res.headers.get("content-type") ?? "") };
+    // A body read that fails must not throw away a date or title already taken from the paid renderer.
+    let res;
+    try {
+      res = requireOk(await guardedFetch(url, { headers: languageHeaders(source.config.acceptLanguage), timeoutMs: 20_000, truncate: true }), "detail");
+    } catch (error) {
+      if (needsHtml || !(dateInJina || titleInJina)) throw error;
+      res = null;
+    }
+    if (res) {
+      // A sign-in form is no detail page: its title, date and text are not the post's.
+      if (isSignInRedirect(url, res.url)) throw new UnavailablePageError("redirected to a sign-in form");
+      html = res.text();
+      response = { bytes: res.body, status: res.status, url: res.url, truncated: res.truncated, requests: res.requests ?? 1 };
+      page = { document: contentDocument(html), url: res.url, whole: !res.truncated && /html/.test(res.headers.get("content-type") ?? "") };
+    }
   }
   const $ = html === null ? null : cheerio.load(html);
 

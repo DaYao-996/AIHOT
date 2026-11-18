@@ -1,0 +1,11 @@
+{
+  "premise": "一条没有日期的编辑源能读到正文，就说明所有已批准的 RSS 都有正文",
+  "checkedBeforeFix": {
+    "test": "tests/own-collect-branches.test.ts",
+    "assertion": "有 pubDate、详情预算 2 的编辑源仍会打开 /probe",
+    "actual": false,
+    "result": "AssertionError，进程退出码 1",
+    "contrast": "无日期的 /other 会打开；隔离源即使有同样预算也不打开 /iso-probe，角色保持 isolated"
+  },
+  "afterFix": "need.body 单独为真也会占用详情预算。隔离源 readsWhole 为假，仍是 blocked，没有改成编辑源。"
+}

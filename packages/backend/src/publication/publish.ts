@@ -4,6 +4,7 @@
 import { toPublicApiCategory } from "@aihot/contracts/taxonomy";
 import { SITE } from "@aihot/site";
 import { one, sql, type Tx } from "../db.ts";
+import { unlicensedReleaseHold } from "../own-pipeline-hold.ts";
 import { sha256, stableJson } from "../lib/ids.ts";
 import { collapseWhitespace, isChineseText } from "../lib/text.ts";
 import type { XPostData } from "../content/materials.ts";
@@ -268,6 +269,14 @@ export async function publishArticleTx(tx: Tx, articleId: string, options: Publi
     WHERE fa.article_id = ${articleId} AND NOT ${latestCompositeCondition(sql`${articleId}`)} AND fa.role IN ('primary', 'report') AND (s.id IS NULL OR s.merged_into IS NULL)
     ORDER BY (fa.role = 'primary') DESC, fa.created_at LIMIT 1`;
   const [previous] = await tx<PublicationRow[]>`SELECT * FROM publications WHERE article_id = ${articleId}`;
+  if (await unlicensedReleaseHold(tx, articleId)) {
+    if (previous && (previous.visibility !== "withdrawn" || previous.eligible || previous.selected)) {
+      await tx`UPDATE publications SET visibility = 'withdrawn', eligible = false, selected = false, selection_candidate = false,
+        indexable = false, updated_at = now() WHERE article_id = ${articleId}`;
+      return { articleId, changed: true, changeKind: "content", selected: false, visibility: "withdrawn", ledger: "remove", reduced: true };
+    }
+    return null;
+  }
   // The seats of this article's facts (before and after) are settled in this transaction: take the
   // facts' locks first, in a fixed order, so two reports of one fact never settle it at once.
   const seatFacts = [...new Set([previous?.fact_id, membership?.fact_id].filter((x): x is number => typeof x === "number"))].sort((a, b) => a - b);

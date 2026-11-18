@@ -173,7 +173,9 @@ function detailNeed(c: CollectionCandidate, stored: StoredDetail | undefined, so
     summary: !!d.summarySelector && !(stored?.excerpt || c.excerpt),
     body: readsWhole(source) && stored?.body_status !== "ok" && !c.bodyText && (!c.bodyStatus || c.bodyStatus === "pending"),
   };
-  return need.date || need.title || need.summary ? need : null;
+  // A listing date does not supply the body. Sources approved to read the whole article spend the
+  // detail budget on that missing body. Isolation is not approved: need.body stays false.
+  return need.date || need.title || need.summary || need.body ? need : null;
 }
 
 /** A detail page's findings. A body comes from the same Readability path as extraction, using bytes already fetched. */
