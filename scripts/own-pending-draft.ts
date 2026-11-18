@@ -25,11 +25,11 @@ async function main() {
   }
   const held = items.every((item) => item.processingState === "skipped" && item.publications === 0 && item.analyses === 0 && item.factStatus === "unchecked" && item.releaseStatus === "not_licensed" && (item.technicalFixture === true || item.requiresHumanReview === true));
   const report = {
-    qualityPass: false, realManuscripts: 0, styleScored: false, workerStarted: false, modelCalls: 0, paid: false,
+    qualityPass: false, realManuscripts: items.filter((item) => item.technicalFixture === false).length, styleScored: false, workerStarted: false, modelCalls: 0, paid: false,
     pending: items.length, heldOutOfSendQueue: held, items,
   };
   writeFileSync(out, JSON.stringify(report, null, 2));
-  console.log(JSON.stringify({ ok: true, pending: report.pending, heldOutOfSendQueue: report.heldOutOfSendQueue, qualityPass: false }));
+  console.log(JSON.stringify({ ok: true, pending: report.pending, realManuscripts: report.realManuscripts, heldOutOfSendQueue: report.heldOutOfSendQueue, qualityPass: false }));
 }
 
 try { await main(); }

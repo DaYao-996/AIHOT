@@ -9,7 +9,8 @@ import type { ContentPart } from "../providers/llm.ts";
 import { MAX_BODY_CHARS } from "./writing.ts";
 import { withXArticle } from "../content/posts.ts";
 import { collectImageUrls, htmlAltText, mediaAltText } from "../content/presentation.ts";
-import { asideFromGate, contentAside, type ContentAside } from "../sources/saved-supplements.ts";
+import { asideFromGate, type ContentAside } from "../sources/saved-supplements.ts";
+import { cumulativeEvidenceHash } from "../../../../site/own-pipeline.ts";
 
 export interface AnalyzeInputArticle {
   id: string;
@@ -55,24 +56,25 @@ export async function loadAnalyzeInput(articleId: string): Promise<AnalyzeInputA
     id: string; revision: number; title: string; url: string; author: string | null; published_at: Date | null; publication_time: string | null; discovered_at: Date;
     body_text: string | null; body_html: string | null; excerpt: string | null; body_status: string; x_post: Record<string, any> | null; x_article: { title?: string; text?: string; html?: string } | null;
     cover: Record<string, any> | null; media: Array<Record<string, any>>; source_name: string; source_kind: string; tier: string; selection_class: string | null; source_tags: string[]; owner_entity_id: string | null;
-    config: Record<string, any>; translation_zh: string | null; body_gate: unknown;
+    config: Record<string, any>; translation_zh: string | null; body_gate: unknown; evidence_hash: string | null;
+    evidence_raw: unknown; evidence_body: string | null; evidence_quote: string | null; evidence_x: unknown;
   }[]>`
     SELECT a.id, a.revision, a.title, a.url, a.author, a.published_at, a.publication_time, a.discovered_at, a.body_text, a.body_html, a.excerpt, a.body_status, a.x_post, a.x_article, a.cover, a.media,
            s.name AS source_name, s.kind AS source_kind, s.tier, s.selection_class, s.tags AS source_tags, s.owner_entity_id, s.config,
-           tr.body_text AS translation_zh, ev.body_gate
+           tr.body_text AS translation_zh, ev.body_gate, ev.evidence_hash, ev.raw AS evidence_raw, ev.body_text AS evidence_body,
+           ev.quoted_text AS evidence_quote, ev.x_post AS evidence_x
     FROM articles a JOIN sources s ON s.id = a.source_id
     LEFT JOIN translations tr ON tr.article_id = a.id AND tr.lang = 'zh' AND tr.revision >= a.revision
     LEFT JOIN LATERAL (
-      SELECT body_gate FROM own_evidence_versions WHERE article_id = a.id ORDER BY version DESC LIMIT 1
+      SELECT body_gate, evidence_hash, raw, body_text, quoted_text, x_post FROM own_evidence_versions WHERE article_id = a.id ORDER BY version DESC LIMIT 1
     ) ev ON true
     WHERE a.id = ${articleId}`;
   if (!row) return null;
-  const aside = asideFromGate(row.body_gate);
-  const fromHtml = row.body_html ? contentAside(row.body_html, row.url, row.body_text ?? "") : { links: [], charts: [] };
-  const merged = {
-    links: [...aside.links, ...fromHtml.links.filter((link) => !aside.links.some((have) => have.absoluteUrl === link.absoluteUrl && have.label === link.label))],
-    charts: aside.charts.length ? aside.charts : fromHtml.charts,
-  };
+  const parsedAside = asideFromGate(row.body_gate);
+  const asideBound = !!row.evidence_hash && cumulativeEvidenceHash({
+    title: row.title, raw: row.evidence_raw, bodyText: row.evidence_body, quotedText: row.evidence_quote, xPost: row.evidence_x as never, aside: parsedAside,
+  }) === row.evidence_hash;
+  const aside = asideBound ? parsedAside : { links: [], charts: [] };
   return {
     id: row.id, revision: row.revision, title: row.title, url: row.url, author: row.author, publishedAt: row.published_at, publicationTime: row.publication_time, discoveredAt: row.discovered_at,
     bodyText: row.body_text,
@@ -88,7 +90,7 @@ export async function loadAnalyzeInput(articleId: string): Promise<AnalyzeInputA
       fetchesBody: row.config?.fetchPublicContent === true || !!row.config?.detail || row.source_kind === "web_list",
     },
     translationZh: row.translation_zh,
-    ...(merged.links.length || merged.charts.length ? { aside: merged } : {}),
+    ...(aside.links.length || aside.charts.length ? { aside } : {}),
   };
 }
 

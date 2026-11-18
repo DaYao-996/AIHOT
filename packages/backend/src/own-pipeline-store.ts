@@ -510,15 +510,17 @@ export async function appendLocatedSupplement(articleId: string, supplement: {
       responseSha256: supplement.responseSha256,
       parts: supplement.parts.map((part) => ({ id: part.id, role: part.role, text: part.text })),
     };
+    const gate = { ...(latest.body_gate ?? {}), supplements: [...((latest.body_gate?.supplements as unknown[]) ?? []), { ...supplement, mainBodyUnchanged: true }] };
+    const raw = { previousEvidenceHash: latest.evidence_hash, supplement: located };
     const evidenceHash = cumulativeEvidenceHash({
       title: article.title,
-      raw: { previousEvidenceHash: latest.evidence_hash, supplement: located },
+      raw,
       bodyText: latest.body_text, quotedText: latest.quoted_text, xPost: latest.x_post as never,
+      aside: asideFromGate(gate),
     });
-    const gate = { ...(latest.body_gate ?? {}), supplements: [...((latest.body_gate?.supplements as unknown[]) ?? []), { ...supplement, mainBodyUnchanged: true }] };
     await tx`INSERT INTO own_evidence_versions
-      (article_id, version, article_revision, body_text, quoted_text, x_post, evidence_hash, raw_identity, raw_file, body_gate)
-      VALUES (${articleId}, ${version}, ${latest.article_revision}, ${latest.body_text}, ${latest.quoted_text},
+      (article_id, version, article_revision, raw, body_text, quoted_text, x_post, evidence_hash, raw_identity, raw_file, body_gate)
+      VALUES (${articleId}, ${version}, ${latest.article_revision}, ${tx.json(raw as never)}, ${latest.body_text}, ${latest.quoted_text},
         ${latest.x_post ? tx.json(latest.x_post as never) : null}, ${evidenceHash},
         ${latest.raw_identity ? tx.json(latest.raw_identity as never) : null}, ${latest.raw_file}, ${tx.json(gate as never)})`;
     const staled = await tx<{ id: string }[]>`UPDATE own_judgments SET stale = true
@@ -536,8 +538,9 @@ export async function recordCollectedEvidence(articleId: string, aside: ContentA
     const [article] = await tx<{ title: string; body_text: string | null; revision: number; raw: unknown }[]>`
       SELECT title, body_text, revision, raw FROM articles WHERE id = ${articleId} FOR UPDATE`;
     if (!article) throw new JudgmentConflict("文章不存在");
+    const shown = asideFromGate({ aside });
     const evidenceHash = cumulativeEvidenceHash({
-      title: article.title, raw: article.raw, bodyText: article.body_text, quotedText: null, xPost: null, aside,
+      title: article.title, raw: article.raw, bodyText: article.body_text, quotedText: null, xPost: null, aside: shown,
     });
     const [latest] = await tx<{ version: number; evidence_hash: string; article_revision: number }[]>`
       SELECT version, evidence_hash, article_revision FROM own_evidence_versions
@@ -549,7 +552,7 @@ export async function recordCollectedEvidence(articleId: string, aside: ContentA
     await tx`INSERT INTO own_evidence_versions
       (article_id, version, article_revision, raw, body_text, quoted_text, x_post, evidence_hash, body_gate)
       VALUES (${articleId}, ${version}, ${article.revision}, ${article.raw === null ? null : tx.json(article.raw as never)},
-        ${article.body_text}, null, null, ${evidenceHash}, ${tx.json({ aside } as never)})`;
+        ${article.body_text}, null, null, ${evidenceHash}, ${tx.json({ aside: shown } as never)})`;
     await tx`UPDATE own_judgments SET stale = true
       WHERE article_id = ${articleId} AND stale = false AND evidence_hash <> ${evidenceHash}`;
     return { version, evidenceHash, articleRevision: Number(article.revision), idempotent: false };
@@ -557,16 +560,27 @@ export async function recordCollectedEvidence(articleId: string, aside: ContentA
 }
 
 /** 评分和抽取只读最新证据。文章列上留下的旧正文不能绕过这次显式撤回。身份键不在这里。 */
+function coveredAside(row: { title: string; raw: unknown; body_text: string | null; quoted_text: string | null; x_post: unknown; evidence_hash: string; body_gate: unknown }) {
+  const parsed = asideFromGate(row.body_gate);
+  const bound = cumulativeEvidenceHash({
+    title: row.title, raw: row.raw, bodyText: row.body_text, quotedText: row.quoted_text, xPost: row.x_post as never, aside: parsed,
+  }) === row.evidence_hash;
+  const empty = { links: [], charts: [] as ContentAside["charts"] };
+  return { aside: bound ? parsed : empty, asideBound: bound || (parsed.links.length === 0 && parsed.charts.length === 0) };
+}
+
 export async function materialForScoring(articleId: string): Promise<{
-  bodyText: string | null; quotedText: string | null; xPost: unknown; evidenceHash: string;
+  bodyText: string | null; quotedText: string | null; xPost: unknown; evidenceHash: string; asideBound: boolean;
   aside: { links: Array<{ label: string; href: string; absoluteUrl: string; byteStart: number; byteEnd: number; linkedPageRead: false }>; charts: Array<{ id: string; role: "chart_axis"; byteStart: number; byteEnd: number; text: string }> };
 } | null> {
   databaseUrl();
-  const [row] = await sql<{ body_text: string | null; quoted_text: string | null; x_post: unknown; evidence_hash: string; body_gate: unknown }[]>`
-    SELECT body_text, quoted_text, x_post, evidence_hash, body_gate FROM own_evidence_versions
-    WHERE article_id = ${articleId} ORDER BY version DESC LIMIT 1`;
+  const [row] = await sql<{ title: string; raw: unknown; body_text: string | null; quoted_text: string | null; x_post: unknown; evidence_hash: string; body_gate: unknown }[]>`
+    SELECT a.title, v.raw, v.body_text, v.quoted_text, v.x_post, v.evidence_hash, v.body_gate
+    FROM own_evidence_versions v JOIN articles a ON a.id = v.article_id
+    WHERE v.article_id = ${articleId} ORDER BY v.version DESC LIMIT 1`;
   if (!row) return null;
-  return { bodyText: row.body_text, quotedText: row.quoted_text, xPost: row.x_post, evidenceHash: row.evidence_hash, aside: asideFromGate(row.body_gate) };
+  const covered = coveredAside(row);
+  return { bodyText: row.body_text, quotedText: row.quoted_text, xPost: row.x_post, evidenceHash: row.evidence_hash, asideBound: covered.asideBound, aside: covered.aside };
 }
 
 export async function listFeatureQueue(): Promise<Array<{ articleId: string; url: string; title: string; version: number; evidenceHash: string; gate: BodyGate }>> {
@@ -842,9 +856,10 @@ export async function listPendingDrafts(): Promise<Array<{
 /** 把一份文件推理记到当前证据上。不写外部回执，不把事实标成已核，不发放许可。 */
 export async function recordFileResult(item: FileResultItem, recordedAt: string, options?: { write?: boolean }): Promise<JudgmentWrite & { fileReceipt: { kind: "file-output"; vendorReceipt: false; outputSha256: string } }> {
   databaseUrl();
-  const [current] = await sql<{ version: number; evidence_hash: string; article_revision: number; body_text: string | null; quoted_text: string | null; body_gate: unknown }[]>`
-    SELECT version, evidence_hash, article_revision, body_text, quoted_text, body_gate FROM own_evidence_versions
-    WHERE article_id = ${item.articleId} ORDER BY version DESC LIMIT 1`;
+  const [current] = await sql<{ title: string; raw: unknown; version: number; evidence_hash: string; article_revision: number; body_text: string | null; quoted_text: string | null; x_post: unknown; body_gate: unknown }[]>`
+    SELECT a.title, v.raw, v.version, v.evidence_hash, v.article_revision, v.body_text, v.quoted_text, v.x_post, v.body_gate
+    FROM own_evidence_versions v JOIN articles a ON a.id = v.article_id
+    WHERE v.article_id = ${item.articleId} ORDER BY v.version DESC LIMIT 1`;
   if (!current) throw new JudgmentConflict("没有持久证据，拒绝判断");
   assertCurrentArticleRevision(await currentArticleRevision(sql, item.articleId), Number(current.article_revision), item.inputRevision);
   if (current.evidence_hash !== item.evidenceHash || Number(current.version) !== item.evidenceVersion) {
@@ -852,7 +867,7 @@ export async function recordFileResult(item: FileResultItem, recordedAt: string,
   }
   const quote = item.output.quoteLocation;
   const inProse = quoteFits(current.body_text, quote.excerpt, quote.start, quote.end) || quoteFits(current.quoted_text, quote.excerpt, quote.start, quote.end);
-  const inAside = asideQuoteFits(asideFromGate(current.body_gate), quote.excerpt, quote.start, quote.end);
+  const inAside = asideQuoteFits(coveredAside(current).aside, quote.excerpt, quote.start, quote.end);
   if (!inProse && !inAside) throw new JudgmentConflict("引文不在当前正文或引用里");
   const derived = !current.body_text ? "missing_body" as const : current.quoted_text ? "complete" as const : "missing_quote" as const;
   const fileResult: FileResultRecord = {
