@@ -1,0 +1,309 @@
+{
+  "generated_at": "2026-11-18T06:46:03.937Z",
+  "database": "own_rss_probe_test",
+  "workerStarted": false,
+  "paidCalls": false,
+  "coverage": "five_public_feeds_not_the_channel_set",
+  "sources_enabled": false,
+  "processing": {
+    "skipped": 2514,
+    "queued": 0
+  },
+  "feeds": [
+    {
+      "source_id": "openai_news",
+      "endpoint": "https://openai.com/news/rss.xml",
+      "enabled": false,
+      "elapsedMs": 146,
+      "httpStatus": 200,
+      "responseUrl": "https://openai.com/news/rss.xml",
+      "contentType": "text/xml; charset=utf-8",
+      "rawSha256": "38b5bc55dfe96bd45d9368a984dece40d8c20bcb63925d49be1e8b0dce910e2d",
+      "byteLength": 855746,
+      "fetchedAt": "2026-11-18T06:45:56.353Z",
+      "items": 1404,
+      "feed_text": 0,
+      "summary_only": 1404,
+      "stored": {
+        "created": 1404,
+        "revised": 0
+      },
+      "replay": {
+        "created": 0,
+        "revised": 0,
+        "idempotent": true
+      },
+      "details": [
+        {
+          "url": "https://openai.com/index/introducing-gpt-6-2-astra-sol",
+          "elapsedMs": 26,
+          "status": 403,
+          "failure": "http_forbidden",
+          "message": "HTTP 403 for detail",
+          "quality": "unverified"
+        },
+        {
+          "url": "https://openai.com/index/strengthening-nato-allied-cyber-defences-ai",
+          "elapsedMs": 28,
+          "status": 403,
+          "failure": "http_forbidden",
+          "message": "HTTP 403 for detail",
+          "quality": "unverified"
+        },
+        {
+          "url": "https://openai.com/index/introducing-chatgpt-for-sales",
+          "elapsedMs": 37,
+          "status": 403,
+          "failure": "http_forbidden",
+          "message": "HTTP 403 for detail",
+          "quality": "unverified"
+        }
+      ],
+      "failure": null,
+      "history": "snapshot_not_complete",
+      "quality": "unverified",
+      "detail_note": "article pages returned HTTP 403; not bypassed. The feed itself is summary text only."
+    },
+    {
+      "source_id": "google_ai_blog",
+      "endpoint": "https://blog.google/innovation-and-ai/technology/ai/rss/",
+      "enabled": false,
+      "elapsedMs": 123,
+      "httpStatus": 200,
+      "responseUrl": "https://blog.google/innovation-and-ai/technology/ai/rss/",
+      "contentType": "application/xml; charset=utf-8",
+      "rawSha256": "20b49867778e29c2d72ad4b12d9cd91b0681a5fb1f456b10cbf8bbbac9016b06",
+      "byteLength": 30678,
+      "fetchedAt": "2026-11-18T06:45:58.553Z",
+      "items": 20,
+      "feed_text": 0,
+      "summary_only": 20,
+      "stored": {
+        "created": 20,
+        "revised": 0
+      },
+      "replay": {
+        "created": 0,
+        "revised": 0,
+        "idempotent": true
+      },
+      "details": [
+        {
+          "url": "https://blog.google/innovation-and-ai/products/gemini-app/tasks-in-gemini-free-new-features/",
+          "elapsedMs": 193,
+          "status": 200,
+          "listing": "summary_only",
+          "excerptLength": 169,
+          "detailBodyLength": 8273,
+          "detailClass": "detail_text_unverified",
+          "quality": "unverified"
+        },
+        {
+          "url": "https://blog.google/products-and-platforms/products/maps/ask-maps-holiday-travel-features-2026/",
+          "elapsedMs": 141,
+          "status": 200,
+          "listing": "summary_only",
+          "excerptLength": 121,
+          "detailBodyLength": 3538,
+          "detailClass": "detail_text_unverified",
+          "quality": "unverified"
+        },
+        {
+          "url": "https://blog.google/products-and-platforms/products/search/gemini-4-hydrogen-search-upgrade/",
+          "elapsedMs": 159,
+          "status": 200,
+          "listing": "summary_only",
+          "excerptLength": 126,
+          "detailBodyLength": 2416,
+          "detailClass": "detail_text_unverified",
+          "quality": "unverified"
+        }
+      ],
+      "failure": null,
+      "history": "snapshot_not_complete",
+      "quality": "unverified"
+    },
+    {
+      "source_id": "huggingface_blog",
+      "endpoint": "https://huggingface.co/blog/feed.xml",
+      "enabled": false,
+      "elapsedMs": 78,
+      "httpStatus": 200,
+      "responseUrl": "https://huggingface.co/blog/feed.xml",
+      "contentType": "application/rss+xml; charset=utf-8",
+      "rawSha256": "1125c0cefe607aefd83166da2829f64a6e3c58890b0c1a88ce3cfcb01270fc54",
+      "byteLength": 268399,
+      "fetchedAt": "2026-11-18T06:45:59.205Z",
+      "items": 908,
+      "feed_text": 0,
+      "summary_only": 908,
+      "stored": {
+        "created": 908,
+        "revised": 0
+      },
+      "replay": {
+        "created": 0,
+        "revised": 0,
+        "idempotent": true
+      },
+      "details": [
+        {
+          "url": "https://huggingface.co/blog/openrouter",
+          "elapsedMs": 129,
+          "status": 200,
+          "listing": "summary_only",
+          "excerptLength": 0,
+          "detailBodyLength": 5613,
+          "detailClass": "detail_text_unverified",
+          "quality": "unverified"
+        },
+        {
+          "url": "https://huggingface.co/blog/nvidia/simready-assets-robot-pick-and-place",
+          "elapsedMs": 108,
+          "status": 200,
+          "listing": "summary_only",
+          "excerptLength": 0,
+          "detailBodyLength": 10909,
+          "detailClass": "detail_text_unverified",
+          "quality": "unverified"
+        },
+        {
+          "url": "https://huggingface.co/blog/allenai/xybench",
+          "elapsedMs": 85,
+          "status": 200,
+          "listing": "summary_only",
+          "excerptLength": 0,
+          "detailBodyLength": 8064,
+          "detailClass": "detail_text_unverified",
+          "quality": "unverified"
+        }
+      ],
+      "failure": null,
+      "history": "snapshot_not_complete",
+      "quality": "unverified"
+    },
+    {
+      "source_id": "claude_platform_release_notes",
+      "endpoint": "https://platform.claude.com/docs/en/release-notes/feed.xml",
+      "enabled": false,
+      "elapsedMs": 195,
+      "httpStatus": 200,
+      "responseUrl": "https://platform.claude.com/docs/en/release-notes/feed.xml",
+      "contentType": "application/rss+xml; charset=utf-8",
+      "rawSha256": "be427015d754a7b74aa1aefe8b25a438f61efeb246ef5cae778941a3c0a3139c",
+      "byteLength": 247175,
+      "fetchedAt": "2026-11-18T06:46:00.791Z",
+      "items": 172,
+      "feed_text": 0,
+      "summary_only": 172,
+      "stored": {
+        "created": 172,
+        "revised": 0
+      },
+      "replay": {
+        "created": 0,
+        "revised": 0,
+        "idempotent": true
+      },
+      "details": [
+        {
+          "url": "https://platform.claude.com/docs/en/release-notes/overview#linked-billing",
+          "elapsedMs": 441,
+          "status": 200,
+          "listing": "summary_only",
+          "excerptLength": 504,
+          "detailBodyLength": 101021,
+          "detailClass": "detail_text_unverified",
+          "quality": "unverified"
+        },
+        {
+          "url": "https://platform.claude.com/docs/en/release-notes/overview#text-watermark-claude-opus-4-6-and-4-5-models",
+          "elapsedMs": 375,
+          "status": 200,
+          "listing": "summary_only",
+          "excerptLength": 368,
+          "detailBodyLength": 101021,
+          "detailClass": "detail_text_unverified",
+          "quality": "unverified"
+        },
+        {
+          "url": "https://platform.claude.com/docs/en/release-notes/overview#self-hosted-managed-agents",
+          "elapsedMs": 420,
+          "status": 200,
+          "listing": "summary_only",
+          "excerptLength": 364,
+          "detailBodyLength": 101021,
+          "detailClass": "detail_text_unverified",
+          "quality": "unverified"
+        }
+      ],
+      "failure": null,
+      "history": "snapshot_not_complete",
+      "quality": "unverified",
+      "detail_note": "three detail GETs are fragments of overview and returned the same 101021-character page, not a separate body per note"
+    },
+    {
+      "source_id": "openai_codex_github_releases",
+      "endpoint": "https://github.com/openai/codex/releases.atom",
+      "enabled": false,
+      "elapsedMs": 47,
+      "httpStatus": 200,
+      "responseUrl": "https://github.com/openai/codex/releases.atom",
+      "contentType": "application/atom+xml; charset=utf-8",
+      "rawSha256": "0bf32bd09684cf055d9b15e038be0072c672ff1df3ee15324d1ec8a8acb3b946",
+      "byteLength": 55093,
+      "fetchedAt": "2026-11-18T06:46:02.468Z",
+      "items": 10,
+      "feed_text": 1,
+      "summary_only": 9,
+      "stored": {
+        "created": 10,
+        "revised": 0
+      },
+      "replay": {
+        "created": 0,
+        "revised": 0,
+        "idempotent": true
+      },
+      "details": [
+        {
+          "url": "https://github.com/openai/codex/releases/tag/rust-v0.171.0-alpha.13",
+          "elapsedMs": 481,
+          "status": 200,
+          "listing": "summary_only",
+          "excerptLength": 0,
+          "detailBodyLength": 217,
+          "detailClass": "detail_short_unverified",
+          "quality": "unverified"
+        },
+        {
+          "url": "https://github.com/openai/codex/releases/tag/rust-v0.170.0-alpha.4.2",
+          "elapsedMs": 473,
+          "status": 200,
+          "listing": "summary_only",
+          "excerptLength": 0,
+          "detailBodyLength": 238,
+          "detailClass": "detail_short_unverified",
+          "quality": "unverified"
+        },
+        {
+          "url": "https://github.com/openai/codex/releases/tag/rust-v0.171.0-alpha.12",
+          "elapsedMs": 440,
+          "status": 200,
+          "listing": "summary_only",
+          "excerptLength": 0,
+          "detailBodyLength": 0,
+          "detailClass": "detail_no_body",
+          "quality": "unverified"
+        }
+      ],
+      "failure": null,
+      "history": "snapshot_not_complete",
+      "quality": "unverified"
+    }
+  ],
+  "first_run_without_listing_identity": {
+    "claude_platform_release_notes": "172 feed entries collapsed to 1 article and 171 revisions because the fragment was not part of the identity",
+    "same_feed_bytes": true
+  }
+}

@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { readFileSync, existsSync } from "node:fs";
 import { test } from "node:test";
 import {
-  accountWindowQuery,
+  keptByParentAuthor,
   readXSearch,
   retainedByReplyFilter,
   type XPageFetcher,
@@ -149,21 +149,26 @@ test("committed counterexample fixture still matches the migration input when it
   assert.deepEqual(ids, fixture.nft_chen.missed_ids);
 });
 
-test("roots, self-threads and non-reply quotes are not removed together", () => {
+test("frozen retweet queries keep self-threads locally and do not send an extra operator", async () => {
   const bare = "from:example_user -filter:replies";
-  const safe = accountWindowQuery("example_user");
+  const frozen = "from:example_user -filter:retweets";
   const root = { author: "example_user", replyToAuthor: null };
   const selfThread = { author: "example_user", replyToAuthor: "example_user" };
   const otherReply = { author: "example_user", replyToAuthor: "someone_else" };
-  const quote = { author: "example_user", replyToAuthor: null };
-  assert.equal(retainedByReplyFilter(bare, root), true);
-  assert.equal(retainedByReplyFilter(bare, quote), true);
+  assert.equal(keptByParentAuthor(root), true);
+  assert.equal(keptByParentAuthor(selfThread), true);
+  assert.equal(keptByParentAuthor(otherReply), false);
   assert.equal(retainedByReplyFilter(bare, selfThread), false);
-  assert.equal(retainedByReplyFilter(bare, otherReply), false);
-  assert.equal(retainedByReplyFilter(safe, root), true);
-  assert.equal(retainedByReplyFilter(safe, quote), true);
-  assert.equal(retainedByReplyFilter(safe, selfThread), true);
-  assert.equal(retainedByReplyFilter(safe, otherReply), false);
-  assert.match(safe, /filter:self_threads/);
-  assert.doesNotMatch(safe, /-filter:quote|-filter:nativeretweets/);
+  assert.equal(retainedByReplyFilter(frozen, selfThread), true);
+  assert.equal(retainedByReplyFilter(frozen, otherReply), false);
+  const self = tweet("70");
+  self.in_reply_to_screen_name = "example_user";
+  const other = tweet("60");
+  other.in_reply_to_screen_name = "someone_else";
+  const seen = scripted({ [`${frozen}|`]: { tweets: [tweet("80"), self, other], nextCursor: null, receiptId: 41 } });
+  const read = await readXSearch(frozen, { lastId: null, backlog: [], subject: "local-parent" }, seen.fetchPage);
+  assert.deepEqual(seen.calls.map((call) => call.query), [frozen]);
+  assert.equal(seen.calls.some((call) => call.query.includes("self_threads")), false);
+  assert.deepEqual(read.tweets.map((t) => t.id_str), ["80", "70"]);
+  assert.equal(read.coverage, "unproven");
 });

@@ -18,15 +18,16 @@
 
 ## 回复过滤
 
-`from:handle -filter:replies` 会丢掉所有回复，包括作者自己的续帖。根帖，以及不是回复的引用，本来就不是回复，不会被这个算子删掉。
+`from:handle -filter:replies` 会丢掉所有回复，包括作者自己的续帖。根帖，以及不是回复的引用，本来就不是回复。
 
-plain 查询改成 `from:handle (-filter:replies OR filter:self_threads)`。分片搜索对分片里的每个账号都带上自己的续帖。别人的回复仍然排除。自定义查询（后面还有别的词）不改写。
+SocialData 公开算子页列出了 `filter:self_threads`（2026-11-18 读取 `docs.socialdata.tools/resources/twitter-search-operators`）。同一页没有给出 `(-filter:replies OR filter:self_threads)` 这个组合。这个组合不发给供应商。配置里的查询原样发送。冻结合同保持 `-filter:retweets`。这类结果里，父作者不是发帖人的回复在本地丢掉；作者回复自己的续帖保留。`-filter:replies` 已经在供应商一侧丢掉的续帖，本地规则补不回来。
+
+已知的 22 个漏帖只能证明那一次拆窗里这 22 个 id 还在。它不证明以后能发现未知漏帖。页数和积压仍有上限，覆盖只有 `unproven` 或 `budget_limited`。
 
 ## 挂点
 
 - `readXSearch` 的第三个参数可以换成假的翻页函数，测试不访问网络。
-- `accountWindowQuery` 和 `retainedByReplyFilter` 是查询和保留规则。
-- `fetchXSearch` 对 plain 的 `-filter:replies` 查询改用 `accountWindowQuery`。
-- `collectXShard` 把分片里的每个 handle 都交给 `shardQuery` 的 self-thread 列表。
+- `keptByParentAuthor` 只看已经返回的帖子。
+- `fetchXSearch` 和 `collectXShard` 发送配置里的查询，不追加 `filter:self_threads`。
 
 没有绝对抓全保证。没有新增真实 HTTP，也没有造 132 个源。

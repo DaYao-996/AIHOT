@@ -251,21 +251,26 @@ export type XCoverage = "unproven" | "budget_limited";
 /** One search page. Tests pass a fake; production uses SocialData. */
 export type XPageFetcher = (query: string, cursor: string | null) => Promise<{ tweets: SdTweet[]; nextCursor: string | null; receiptId: number }>;
 
-/** Plain account search: other people's replies stay out; the author's own thread, root posts and non-reply quotes stay in. */
-export function accountWindowQuery(handle: string): string {
-  return `from:${handle} (-filter:replies OR filter:self_threads)`;
+/**
+ * A post already in hand. A root, or a quote that is not a reply, stays. A reply stays only when its
+ * parent author is the post's author. This does not build a provider query.
+ */
+export function keptByParentAuthor(post: { author: string; replyToAuthor: string | null }): boolean {
+  if (!post.replyToAuthor) return true;
+  return post.replyToAuthor.toLowerCase() === post.author.toLowerCase();
 }
 
 /**
- * Local reading of the operators we send. `-filter:replies` drops every reply, including the author's
- * own thread. Adding `filter:self_threads` keeps that thread. A post that is not a reply (a root, or a
- * quote that is not also a reply) is kept either way.
+ * `-filter:replies` drops every reply, including the author's own thread. The compound
+ * `(-filter:replies OR filter:self_threads)` is not sent: SocialData's public operator list names
+ * `filter:self_threads`, and does not show that grouping. Frozen contracts stay `-filter:retweets`;
+ * other people's replies in those results are dropped locally.
  */
 export function retainedByReplyFilter(query: string, post: { author: string; replyToAuthor: string | null }): boolean {
+  if (/-filter:retweets/i.test(query) && !/-filter:replies/i.test(query)) return keptByParentAuthor(post);
   if (!post.replyToAuthor) return true;
-  const self = post.replyToAuthor.toLowerCase() === post.author.toLowerCase();
-  if (!/-filter:replies/i.test(query)) return true;
-  return self && /filter:self_threads/i.test(query);
+  if (/-filter:replies/i.test(query)) return false;
+  return true;
 }
 
 export interface XFetch extends Omit<XRead, "tweets"> {
@@ -383,7 +388,10 @@ export async function readXSearch(base: string, opts: { lastId: string | null; b
   if (budgetLimited && stopReason !== "page_budget") stopReason = "backlog_budget";
 
   const seen = new Set<string>();
-  const tweets = all.filter((t) => !t.retweeted_status && !seen.has(t.id_str) && !!seen.add(t.id_str));
+  const tweets = all.filter((t) => !t.retweeted_status && !seen.has(t.id_str) && !!seen.add(t.id_str) && retainedByReplyFilter(query, {
+    author: t.user.screen_name,
+    replyToAuthor: t.in_reply_to_screen_name ?? null,
+  }));
   const maxId = tweets.reduce<string | null>((m, t) => (m === null || BigInt(t.id_str) > BigInt(m) ? t.id_str : m), lastId);
   return { tweets, receiptIds: [...receiptIds], lastId: maxId, backlog, pages, truncated, backlogPages, dropped, stopReason, coverage };
 }
@@ -393,10 +401,7 @@ export async function readXSearch(base: string, opts: { lastId: string | null; b
  * its watermark or from an earlier post (`since`).
  */
 export async function fetchXSearch(source: SourceRow, since?: string): Promise<XFetch> {
-  const configured = String(source.config.query ?? "");
-  const plain = xHandle(source.config);
-  // A plain `-filter:replies` query also drops the author's own thread. Roots and non-reply quotes are not replies.
-  const base = plain && SHARDABLE.test(configured) ? accountWindowQuery(plain) : configured;
+  const base = String(source.config.query ?? "");
   if (!base) throw new FetchError("query missing");
   const { tweets, ...read } = await readXSearch(base, {
     lastId: since ?? source.cursor?.lastTweetId ?? null,
@@ -430,10 +435,9 @@ export function selfThreadHandle(s: Pick<SourceRow, "config">): string | null {
   return SHARDABLE.test(String(s.config.query ?? "")) ? xHandle(s.config) : null;
 }
 
-export function shardQuery(handles: string[], selfThreads: string[] = []): string {
-  const posts = `(${handles.map((h) => `from:${h}`).join(" OR ")}) -filter:replies`;
-  const own = handles.filter((h) => selfThreads.includes(h));
-  return own.length ? `(${posts} OR (${own.map((h) => `from:${h}`).join(" OR ")}) filter:self_threads)` : posts;
+export function shardQuery(handles: string[], _selfThreads: string[] = []): string {
+  // The second argument used to append `filter:self_threads`. That grouping is not sent.
+  return `(${handles.map((h) => `from:${h}`).join(" OR ")}) -filter:replies`;
 }
 
 export interface XShard {
@@ -448,10 +452,10 @@ export interface XShard {
  * accounts stay together between runs; a source added or removed shifts only the shards after it.
  */
 export function planXShards(sources: Array<Pick<SourceRow, "id" | "kind" | "config" | "cursor" | "participation_mode">>): XShard[] {
-  const byMode = new Map<string, Array<{ id: string; handle: string; selfThread: boolean }>>();
+  const byMode = new Map<string, Array<{ id: string; handle: string }>>();
   for (const s of sources) {
     const handle = shardHandle(s);
-    if (handle) byMode.set(s.participation_mode, [...(byMode.get(s.participation_mode) ?? []), { id: s.id, handle, selfThread: !!selfThreadHandle(s) }]);
+    if (handle) byMode.set(s.participation_mode, [...(byMode.get(s.participation_mode) ?? []), { id: s.id, handle }]);
   }
   const shards: XShard[] = [];
   for (const [mode, list] of [...byMode].sort(([a], [b]) => a.localeCompare(b))) {
@@ -462,7 +466,7 @@ export function planXShards(sources: Array<Pick<SourceRow, "id" | "kind" | "conf
       current = [];
     };
     for (const s of list) {
-      if (current.length >= SHARD_MAX_ACCOUNTS || shardQuery([...current, s].map((c) => c.handle), [...current, s].map((c) => c.handle)).length > SHARD_QUERY_MAX) close();
+      if (current.length >= SHARD_MAX_ACCOUNTS || shardQuery([...current, s].map((c) => c.handle)).length > SHARD_QUERY_MAX) close();
       current.push(s);
     }
     close();

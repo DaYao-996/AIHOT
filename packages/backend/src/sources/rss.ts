@@ -9,6 +9,7 @@ import { identityKeyFor } from "../content/materials.ts";
 import { sha256, stableJson } from "../lib/ids.ts";
 import { normalizeUrl } from "../lib/url.ts";
 import { isVideoPageUrl } from "../lib/video-url.ts";
+import { HttpStatusError } from "../lib/http-fetch.ts";
 import { FetchError, type Candidate, type SourceRow } from "./types.ts";
 import { readsWhole } from "./uses.ts";
 
@@ -136,10 +137,28 @@ interface RssValidator {
   lastModified: string | null;
 }
 
+export interface RssTrace {
+  httpStatus: number;
+  rawSha256: string;
+  byteLength: number;
+  responseUrl: string;
+  fetchedAt: string;
+  contentType: string | null;
+}
+
 export interface RssRead {
   candidates: Candidate[];
   validator: RssValidator;
   notModified: boolean;
+  trace: RssTrace;
+}
+
+export class FeedHttpError extends HttpStatusError {
+  readonly trace: RssTrace;
+  constructor(trace: RssTrace) {
+    super(trace.httpStatus, `HTTP ${trace.httpStatus}`);
+    this.trace = trace;
+  }
 }
 
 export async function fetchRss(source: SourceRow, opts: { force?: boolean } = {}): Promise<RssRead> {
@@ -152,19 +171,29 @@ export async function fetchRss(source: SourceRow, opts: { force?: boolean } = {}
   const headers: Record<string, string> = { ...plain };
   if (previous?.etag) headers["if-none-match"] = previous.etag;
   if (previous?.lastModified) headers["if-modified-since"] = previous.lastModified;
+  const started = new Date().toISOString();
   let res = await fetchListing(url, { headers, timeoutMs: 25_000 });
   // A redirect may have changed destinations, whose ETag namespace is unrelated to the old one.
   if (res.status === 304 && previous && res.url !== previous.responseUrl) {
     res = await fetchListing(url, { headers: plain, timeoutMs: 25_000 });
   }
+  const trace: RssTrace = {
+    httpStatus: res.status,
+    rawSha256: sha256(res.body),
+    byteLength: res.body.length,
+    responseUrl: res.url,
+    fetchedAt: started,
+    contentType: res.headers.get("content-type"),
+  };
   const validator: RssValidator = {
     configHash, responseUrl: res.url,
     etag: res.headers.get("etag") ?? (res.status === 304 ? previous?.etag ?? null : null),
     lastModified: res.headers.get("last-modified") ?? (res.status === 304 ? previous?.lastModified ?? null : null),
   };
   if (res.status === 304 && previous && (previous.etag || previous.lastModified) && res.url === previous.responseUrl) {
-    return { candidates: [], validator, notModified: true };
+    return { candidates: [], validator, notModified: true, trace };
   }
+  if (res.status !== 200) throw new FeedHttpError(trace);
   requireOk(res);
   let doc: Record<string, any>;
   try {
@@ -214,7 +243,7 @@ export async function fetchRss(source: SourceRow, opts: { force?: boolean } = {}
         raw: { guid: guid || null },
       });
     }
-    return { candidates: out, validator, notModified: false };
+    return { candidates: out, validator, notModified: false, trace };
   }
 
   const feed = doc.feed;
@@ -247,7 +276,7 @@ export async function fetchRss(source: SourceRow, opts: { force?: boolean } = {}
         raw: { id: text(e.id) || null },
       });
     }
-    return { candidates: out, validator, notModified: false };
+    return { candidates: out, validator, notModified: false, trace };
   }
   throw new FetchError("not an RSS/Atom document");
 }

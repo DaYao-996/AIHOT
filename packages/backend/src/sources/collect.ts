@@ -479,7 +479,7 @@ export async function collectXShard(key: string, sourceIds: string[]): Promise<{
     // readXSearch keeps one copy per query and gives up stretches left over for days.
     const backlog: XBacklog[] = members.flatMap((m) => (Array.isArray(m.cursor?.xBacklog) ? m.cursor.xBacklog as XBacklog[] : []));
     const handles = members.map((m) => shardHandle(m)!);
-    const read = await readXSearch(shardQuery(handles, handles), { lastId: String(since), backlog, subject: `x-shard:${key}` });
+    const read = await readXSearch(shardQuery(handles), { lastId: String(since), backlog, subject: `x-shard:${key}` });
     const detail = { shard: key, accounts: members.length, pages: read.pages, truncated: read.truncated, backlog: read.backlog.length, backlogPages: read.backlogPages, dropped: read.dropped, stopReason: read.stopReason, coverage: read.coverage };
     const counts = new Map<string, { found: number; created: number; newest: string }>();
     for (const m of members) {
