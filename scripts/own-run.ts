@@ -4,7 +4,7 @@
 import { execFileSync } from "node:child_process";
 import { createHash, randomUUID } from "node:crypto";
 import { createServer } from "node:http";
-import { appendFileSync, existsSync, mkdirSync, readFileSync, unlinkSync, writeFileSync } from "node:fs";
+import { appendFileSync, chmodSync, existsSync, mkdirSync, readFileSync, unlinkSync, writeFileSync } from "node:fs";
 import { dirname, isAbsolute, join, resolve } from "node:path";
 import postgres from "postgres";
 import { config } from "@aihot/backend/config";
@@ -51,41 +51,60 @@ if (step === "file") {
     process.exit(1);
   }
   console.log(JSON.stringify({
-    step: "file", runnable: true, writesJudgments: false, modelCalls: 0,
+    step: "file", modeCheckOnly: true, importCompleted: false, writesJudgments: false, modelCalls: 0,
     modelConfigured: modelConfigurationGap() === null,
-    note: "文件判断模式可以运行，不需要模型配置。真正写入判断的是 --step once。",
+    note: "这只是模式检查，没有写入文件判断。实际导入是 --step file-import。整段回放是 --step once。",
   }));
   process.exit(0);
+}
+if (step === "file-import") {
+  await runFileImport();
+  process.exit(process.exitCode ?? 0);
 }
 if (step === "schedule") {
   const dir = scheduleDir();
   mkdirSync(dir, { recursive: true });
-  const installed = join(dir, "installed.json");
-  if (existsSync(installed)) {
-    console.error("调度工件已经在。退出码不是定时器在跑。");
+  const installedPath = join(dir, "installed.json");
+  if (existsSync(installedPath)) {
+    console.error("调度工件已经在。没有调用 launchctl，定时器也没有在跑。");
     process.exit(1);
   }
+  const root = process.cwd();
+  const onceCommand = "node scripts/own-run.ts --step once --config docs/own-pipeline/product/config.example.json --out-dir var/once-out --schedule-dir var/schedule";
+  const trigger = join(dir, "run-once.sh");
+  const plistPath = join(dir, "own-pipeline-once.plist");
+  writeFileSync(trigger, onceTriggerScript(dir, root));
+  chmodSync(trigger, 0o755);
+  writeFileSync(plistPath, launchdPlist({ root, trigger: resolve(trigger), stdout: resolve(join(dir, "once.stdout.log")), stderr: resolve(join(dir, "once.stderr.log")) }));
   const record = {
-    timerRunning: false, workerStarted: false, publish: false, collect: false, kind: "test-isolation",
-    installedAt: new Date().toISOString(),
-    onceCommand: "node scripts/own-run.ts --step once --config docs/own-pipeline/product/config.example.json --out-dir var/once-out --schedule-dir var/schedule",
+    kind: "launchd-oneshot", timerRunning: false, loadedIntoLaunchd: false, launchctlInvoked: false,
+    workerStarted: false, publish: false, collect: false,
+    installedAt: new Date().toISOString(), plist: plistPath, trigger, onceCommand,
+    note: "plist 可供 Mac 验收时装载。这个沙盒不调用 launchctl，也不改用户的 Mac。触发脚本只跑一次 --step once。",
   };
-  writeFileSync(installed, JSON.stringify(record, null, 2) + "\n");
-  console.log(JSON.stringify({ step: "schedule", installed: true, timerRunning: false, artifact: installed }));
+  writeFileSync(installedPath, JSON.stringify(record, null, 2) + "\n");
+  console.log(JSON.stringify({ step: "schedule", installed: true, timerRunning: false, loadedIntoLaunchd: false, plist: plistPath, trigger }));
   process.exit(0);
 }
 if (step === "stop") {
   const dir = scheduleDir();
-  const installed = join(dir, "installed.json");
-  if (!existsSync(installed)) {
-    console.error("没有调度工件可卸。退出码 1，不用 0 表示定时器已经停过。");
-    process.exit(1);
-  }
-  const record = JSON.parse(readFileSync(installed, "utf8")) as Record<string, unknown>;
-  unlinkSync(installed);
+  const installedPath = join(dir, "installed.json");
+  const uninstalledPath = join(dir, "uninstalled.json");
   mkdirSync(dir, { recursive: true });
-  writeFileSync(join(dir, "uninstalled.json"), JSON.stringify({ ...record, timerRunning: false, uninstalledAt: new Date().toISOString() }, null, 2) + "\n");
-  console.log(JSON.stringify({ step: "stop", removed: true, timerRunning: false, artifact: join(dir, "uninstalled.json") }));
+  if (!existsSync(installedPath)) {
+    console.log(JSON.stringify({
+      step: "stop", removed: false, alreadyUninstalled: existsSync(uninstalledPath), timerRunning: false, loadedIntoLaunchd: false,
+      note: existsSync(uninstalledPath) ? "已经卸过。再次执行不报错，也没有定时器在跑。" : "没有安装过。没有定时器在跑。",
+    }));
+    process.exit(0);
+  }
+  const record = JSON.parse(readFileSync(installedPath, "utf8")) as Record<string, unknown>;
+  for (const name of ["installed.json", "own-pipeline-once.plist", "run-once.sh"]) {
+    const path = join(dir, name);
+    if (existsSync(path)) unlinkSync(path);
+  }
+  writeFileSync(uninstalledPath, JSON.stringify({ ...record, timerRunning: false, loadedIntoLaunchd: false, uninstalledAt: new Date().toISOString() }, null, 2) + "\n");
+  console.log(JSON.stringify({ step: "stop", removed: true, alreadyUninstalled: false, timerRunning: false, loadedIntoLaunchd: false, artifact: uninstalledPath }));
   process.exit(0);
 }
 if (step === "once") {
@@ -112,7 +131,7 @@ if (step === "accept") {
   process.exit(process.exitCode ?? 0);
 }
 if (step !== "gap") {
-  console.error("需要 --step accept、once、bind-proof、file、gap、model、schedule 或 stop");
+  console.error("需要 --step accept、once、bind-proof、file、file-import、gap、model、schedule 或 stop");
   process.exit(1);
 }
 const sealPath = flag("--seal");
@@ -367,6 +386,120 @@ async function proveRefusalIsOneRow() {
   return { hits, rows: rows.length, phase: rows[0]!.phase, bytes: rows[0]!.n };
 }
 
+function xmlEscape(value: string): string {
+  return value.replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;");
+}
+
+function launchdPlist(paths: { root: string; trigger: string; stdout: string; stderr: string }): string {
+  return `<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>local.own-pipeline.once.test</string>
+  <key>ProgramArguments</key>
+  <array>
+    <string>/bin/sh</string>
+    <string>${xmlEscape(paths.trigger)}</string>
+  </array>
+  <key>WorkingDirectory</key>
+  <string>${xmlEscape(paths.root)}</string>
+  <key>RunAtLoad</key>
+  <false/>
+  <key>KeepAlive</key>
+  <false/>
+  <key>StandardOutPath</key>
+  <string>${xmlEscape(paths.stdout)}</string>
+  <key>StandardErrorPath</key>
+  <string>${xmlEscape(paths.stderr)}</string>
+  <key>EnvironmentVariables</key>
+  <dict>
+    <key>COLLECT_ENABLED</key>
+    <string>false</string>
+    <key>MODEL_CALLS_ENABLED</key>
+    <string>false</string>
+  </dict>
+</dict>
+</plist>
+`;
+}
+
+function onceTriggerScript(dir: string, root: string): string {
+  const quote = (value: string) => `'${value.replaceAll("'", "'\\''")}'`;
+  return `#!/bin/sh
+# One local replay. A second start while this run holds the lock exits 75. After success, later starts exit 0 and do not collect again.
+set -eu
+cd ${quote(root)}
+lock=${quote(resolve(dir, "once.lock"))}
+log=${quote(resolve(dir, "once.log"))}
+complete=${quote(resolve(dir, "once-complete"))}
+if ! mkdir "$lock" 2>/dev/null; then
+  echo "已有一次任务在跑" >> "$log"
+  exit 75
+fi
+cleanup() { rmdir "$lock" 2>/dev/null || true; }
+trap cleanup EXIT
+if [ -f "$complete" ]; then
+  echo "这一次已经跑完，不再进入" >> "$log"
+  exit 0
+fi
+set +e
+node scripts/own-run.ts --step once --config docs/own-pipeline/product/config.example.json --out-dir var/once-out --schedule-dir ${quote(dir)}
+status=$?
+set -e
+if [ "$status" -eq 0 ]; then
+  date -u +%Y-%m-%dT%H:%M:%SZ > "$complete"
+fi
+echo "exit $status" >> "$log"
+exit "$status"
+`;
+}
+
+async function runFileImport() {
+  const configPath = flag("--config");
+  const outDir = flag("--out-dir") || "var/file-import";
+  if (!configPath || isAbsolute(configPath) || isAbsolute(outDir) || outDir.split(/[\\/]/).includes("..")) {
+    console.error("文件导入需要相对路径的 --config。--step file 只检查模式，不写判断。");
+    process.exit(1);
+  }
+  assertThrowawayDatabase(process.env.DATABASE_URL ?? "");
+  assertFileJudgmentPath();
+  const cfg = JSON.parse(readFileSync(configPath, "utf8")) as {
+    fileChain: { rulesetVersion: string; fullPrompt: string; fullSelection: string; fullDraft: string };
+  };
+  const pending = await sql<{ id: string; publication_time: string | null }[]>`
+    SELECT a.id, a.publication_time FROM articles a
+    WHERE a.body_text IS NOT NULL AND length(a.body_text) >= 140
+      AND NOT EXISTS (
+        SELECT 1 FROM own_judgments j
+        WHERE j.article_id = a.id AND j.stale = false AND j.prompt_version = ${cfg.fileChain.fullPrompt}
+      )`;
+  mkdirSync(outDir, { recursive: true });
+  if (pending.length === 0) {
+    const [any] = await sql<{ n: number }[]>`SELECT count(*)::int AS n FROM articles WHERE body_text IS NOT NULL AND length(body_text) > 0`;
+    const wrote = 0;
+    writeFileSync(join(outDir, "FILE_IMPORT.json"), JSON.stringify({ wrote, alreadyPresent: any?.n ?? 0, modeCheckOnly: false }, null, 2) + "\n");
+    if (!any?.n) {
+      console.error("没有可导入的正文。--step file 只检查模式，不写判断。");
+      process.exit(1);
+    }
+    console.log(JSON.stringify({ step: "file-import", wrote, alreadyPresent: any.n, note: "当前正文已有文件判断，这次没有新写。" }));
+    await closeDb();
+    return;
+  }
+  const wrote: string[] = [];
+  for (const row of pending) {
+    const time = /^\d{4}-\d{2}-\d{2}/.test(row.publication_time ?? "") ? row.publication_time! : "无发布元数据";
+    const full = await chainOn(row.id, cfg.fileChain, { semantic: cfg.fileChain.fullPrompt, selection: cfg.fileChain.fullSelection, draft: cfg.fileChain.fullDraft }, {
+      time, rationale: "这是已保存正文的文件导入。旧样本，不是新消息。", draft: "待审。正文写有：「{excerpt}」。不是新消息，未核，未许可。",
+    }, "2026-11-18T15:40:00.000Z");
+    wrote.push(full.semanticId);
+  }
+  writeFileSync(join(outDir, "FILE_IMPORT.json"), JSON.stringify({ wrote: wrote.length, ids: wrote, modeCheckOnly: false }, null, 2) + "\n");
+  console.log(JSON.stringify({ step: "file-import", wrote: wrote.length, modeCheckOnly: false }));
+  await closeDb();
+}
+
 async function runBindProof() {
   const outDir = flag("--out-dir") || "var/bind-out";
   if (isAbsolute(outDir) || outDir.split(/[\\/]/).includes("..")) {
@@ -544,8 +677,21 @@ async function runAccept() {
     const pending = await listPendingDrafts();
     writeFileSync(join(outDir, "pending.json"), JSON.stringify(pending, null, 2));
     const restored = restoreCheck(outDir, "own_accept_restore_test");
+    const attemptIds = chain.map((item) => item.attemptId);
+    const rawRows = await sql<{ attempt_id: string; n: number }[]>`
+      SELECT attempt_id, octet_length(response)::int AS n FROM own_detail_responses WHERE attempt_id IN ${sql(attemptIds)}`;
+    const stages = {
+      rawSaved: rawRows.length === chain.length && rawRows.every((row) => row.n > 0),
+      scoringInput: chain.every((item) => item.scoringBytes > 0),
+      fileJudgments: chain.every((item) => Boolean(item.full.semanticId && item.full.selectionId && item.full.draftId)),
+      pendingExport: pending.length >= cfg.items.length && existsSync(join(outDir, "pending.json")),
+      backupRestored: restored.articles >= cfg.items.length,
+    };
+    if (!stages.rawSaved || !stages.scoringInput || !stages.fileJudgments || !stages.pendingExport || !stages.backupRestored) {
+      throw new Error(`回放链条不完整 ${JSON.stringify(stages)}`);
+    }
     const report = {
-      contractPassed: false, workerStarted: false, modelCalls: 0, publish: false,
+      contractPassed: false, workerStarted: false, modelCalls: 0, publish: false, stages,
       xNotRun: cfg.xNotRun, articles: flat.length,
       missingDate: flat.filter((item) => item.dated !== true).length,
       pendingBody: flat.filter((item) => item.bodyStatus === "pending").length,

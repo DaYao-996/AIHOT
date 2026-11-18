@@ -2,7 +2,7 @@
 
 版本前提写在 VERSION。配置示例是 config.example.json，里面没有数据库口令。样本是 samples/ 里的三份已保存原页和 PRIOR17.json，路径相对这个目录，不使用 ../ 跳回别的工作目录。回放只听 127.0.0.1 的临时端口。
 
-标准依赖是 Node.js 24.22.1 或更新、npm、本机 PostgreSQL，以及 psql、pg_dump、pg_restore、sha256sum。第一次安装需要能访问 npm 以执行 `npm ci`。包内有 package-lock.json、scripts/own-run.ts、三份原页和 PRIOR17.json。不需要旁边的另一个仓库。
+标准依赖锁定为 Node.js 24.22.x（已核对 24.22.2）、npm 11（已核对 11.19.1）、PostgreSQL 16 客户端（已核对 16.15），以及 pg_dump、pg_restore、sha256sum。第一次安装需要能访问 npm 以执行 `npm ci`。DATABASE_URL 必须自带用户和口令，角色要能创建名字以 `_test` 或 `_ci` 结尾的库。安装不会改用本机超级用户，也不接受空口令。包内有 package-lock.json、scripts/own-run.ts、三份原页和 PRIOR17.json。不需要旁边的另一个仓库。
 
 在解压后的源码根目录执行，不要用 `../` 跳出这个目录：
 
@@ -11,15 +11,15 @@ export DATABASE_URL=postgres://用户:口令@127.0.0.1:5432/名字_test
 sh scripts/own-install.sh
 node scripts/own-run.ts --step schedule --schedule-dir var/schedule
 node scripts/own-run.ts --step file
-node scripts/own-run.ts --step model
-node scripts/own-run.ts --step once --config docs/own-pipeline/product/config.example.json --out-dir var/once-out --schedule-dir var/schedule
-node scripts/own-run.ts --step bind-proof --out-dir var/bind-out
+node scripts/own-run.ts --step file-import --config docs/own-pipeline/product/config.example.json --out-dir var/file-import
+sh var/schedule/run-once.sh
+node scripts/own-run.ts --step stop --schedule-dir var/schedule
 node scripts/own-run.ts --step stop --schedule-dir var/schedule
 ```
 
-`--step schedule` 退出码 0 只表示写下了 var/schedule/installed.json。timerRunning 是 false。没有 cron，没有 worker，没有正在跑的定时器。`--step once` 才执行这一次本机回放，从采集到待审导出和备份恢复。`--step stop` 删掉 installed.json，并写下 uninstalled.json。没有工件时 stop 退出码是 1，不用 0 表示已经停过。
+`--step schedule` 写下 launchd plist 和 `run-once.sh`。`loadedIntoLaunchd` 与 `timerRunning` 都是 false：沙盒不调用 launchctl，也不改用户的 Mac。`sh var/schedule/run-once.sh` 才执行同一次 `--step once`。正在跑时再进入，退出码 75。跑完后再进入，退出码 0，并且不再采集。`--step stop` 卸掉 plist 和触发脚本。再执行一次仍然退出码 0。
 
-`--step file` 退出码 0 表示文件判断模式可以运行，它不需要模型配置，也不在这一步写入判断。`--step model` 在模型未配置时退出码 1，说明缺少的变量，不发请求，不写回执。这是两种结果。
+`--step once` 串起保存原页、评分输入、文件判断、待审导出和备份恢复。`--step file` 只做模式检查，`importCompleted` 是 false，不写判断。`--step file-import` 才写文件判断；没有正文时退出码 1。`--step model` 在模型未配置时退出码 1，不发请求，不写回执。
 
 `--step bind-proof` 用同一地址的两个已完成请求并发绑定，并让第三次在提交前失败。详情行用 `attempt_id` 指向自己的请求。失败的那次不留下修订号和详情行。这不请求官网。
 
