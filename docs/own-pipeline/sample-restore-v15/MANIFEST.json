@@ -1,0 +1,37 @@
+{
+  "sample": "fifteen-public-details",
+  "urls": [
+    "https://openai.com/index/introducing-gpt-6-2-astra-sol",
+    "https://openai.com/index/strengthening-nato-allied-cyber-defences-ai",
+    "https://openai.com/index/introducing-chatgpt-for-sales",
+    "https://blog.google/innovation-and-ai/products/gemini-app/tasks-in-gemini-free-new-features/",
+    "https://blog.google/products-and-platforms/products/maps/ask-maps-holiday-travel-features-2026/",
+    "https://blog.google/products-and-platforms/products/search/gemini-4-hydrogen-search-upgrade/",
+    "https://huggingface.co/blog/openrouter",
+    "https://huggingface.co/blog/nvidia/simready-assets-robot-pick-and-place",
+    "https://huggingface.co/blog/allenai/xybench",
+    "https://platform.claude.com/docs/en/release-notes/overview#linked-billing",
+    "https://platform.claude.com/docs/en/release-notes/overview#text-watermark-claude-opus-4-6-and-4-5-models",
+    "https://platform.claude.com/docs/en/release-notes/overview#self-hosted-managed-agents",
+    "https://github.com/openai/codex/releases/tag/rust-v0.171.0-alpha.13",
+    "https://github.com/openai/codex/releases/tag/rust-v0.170.0-alpha.4.2",
+    "https://github.com/openai/codex/releases/tag/rust-v0.171.0-alpha.12"
+  ],
+  "counts": {
+    "articles": 15,
+    "revisions": 47,
+    "evidence": 218,
+    "judgments": 11,
+    "byteFiles": 14
+  },
+  "supplementBytesStoredSeparately": [
+    "f22c5fd0e4e714d5cd32417b4a90f5ce8c9f0b4ed0a60b24c8c8753fcc655570"
+  ],
+  "notRecovered": [
+    "no pg-boss queue",
+    "no receipts, analyses, publications, or deliveries",
+    "no credentials or notify targets",
+    "pages that were not fetched are not in bytes/",
+    "a later semantic re-extraction is not included until a new pack is exported"
+  ]
+}

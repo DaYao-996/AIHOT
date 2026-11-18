@@ -72,6 +72,11 @@ async function main() {
         ${sql.json(row.reasons as never)}, ${row.recorded_at as string}, ${row.created_at as string}, ${row.stale as boolean},
         ${row.comparison ? sql.json(row.comparison as never) : null}, ${row.model_receipt_id as number | null})`;
   }
+  const expected = (readJson("judgments.json") as { origin?: string; stale?: boolean }[]).reduce((acc, row) => {
+    if (row.origin === "file" && row.stale) acc.stale += 1;
+    else if (row.origin === "file") acc.live += 1;
+    return acc;
+  }, { live: 0, stale: 0 });
   const check = await sql<{ articles: number; evidence: number; live_file: number; stale_file: number; publications: number; bad_files: number }[]>`
     WITH sample AS (SELECT id FROM articles WHERE url IN ${sql(manifest.urls)})
     SELECT (SELECT count(*)::int FROM sample) AS articles,
@@ -87,7 +92,7 @@ async function main() {
     '56aaaa234b339551a95ba231083ead7b029c0179d470bb8608b213d91449a843')`;
   const jobs = await sql<{ n: number | null }[]>`SELECT to_regclass('public.pgboss.job') IS NOT NULL AS n`.catch(() => [{ n: null }]);
   console.log(JSON.stringify({
-    ok: check[0]!.articles === 15 && check[0]!.live_file === 7 && check[0]!.stale_file === 2 && check[0]!.publications === 0 && check[0]!.bad_files === 0 && hashes.length === 4,
+    ok: check[0]!.articles === manifest.counts.articles && check[0]!.evidence === manifest.counts.evidence && check[0]!.live_file === expected.live && check[0]!.stale_file === expected.stale && check[0]!.publications === 0 && check[0]!.bad_files === 0,
     ...check[0],
     boundHashesFound: hashes.length,
     queueTable: jobs[0]?.n ?? null,
