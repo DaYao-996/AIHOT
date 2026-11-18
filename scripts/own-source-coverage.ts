@@ -14,7 +14,6 @@ import { UnavailablePageError } from "@aihot/backend/lib/page-content";
 import { assertThrowawayDatabase } from "../site/own-pipeline.ts";
 
 const PRIOR = new Set(["openai_news", "google_ai_blog", "huggingface_blog", "claude_platform_release_notes", "openai_codex_github_releases"]);
-const ATOM_UPDATED = new Set(["claude_code_releases", "openai_codex_github_releases", "antigravity_cli_github_releases", "apple_newsroom_cn", "apple_newsroom_us_rss"]);
 const outFlag = process.argv.indexOf("--out");
 const OUT = outFlag >= 0 ? process.argv[outFlag + 1]! : "docs/own-pipeline/SOURCE_COVERAGE_GAP_v1.json";
 const onlyFlag = process.argv.indexOf("--only");
@@ -22,7 +21,7 @@ const only = onlyFlag >= 0 ? new Set(process.argv[onlyFlag + 1]!.split(",")) : n
 
 function mappedConfig(id: string, kind: string, endpoint: string): { kind: "rss" | "web_list" | "json_list"; config: Record<string, unknown> } | null {
   if (id === "antigravity_changelog") return { kind: "web_list", config: { url: endpoint, parseMode: "antigravity_changelog", publishedAtUtcOffset: "+00:00" } };
-  if (kind === "rss") return { kind: "rss", config: { feedUrl: endpoint, ...(ATOM_UPDATED.has(id) ? { atomUpdatedIsPublication: true } : {}) } };
+  if (kind === "rss") return { kind: "rss", config: { feedUrl: endpoint } };
   if (kind === "markdown-changelog") return { kind: "web_list", config: { url: endpoint, parseMode: "markdown_changelog" } };
   if (id === "hf_models_trending") return { kind: "json_list", config: { url: endpoint, titlePaths: ["id"], urlTemplate: "https://huggingface.co/{id}", publishedAtPath: "createdAt", summaryPaths: ["pipeline_tag"] } };
   if (id === "hf_daily_papers") return { kind: "json_list", config: { url: endpoint, titlePaths: ["title"], urlTemplate: "https://huggingface.co/papers/{paper.id}", publishedAtPath: "publishedAt", summaryPaths: ["paper.summary"] } };

@@ -123,6 +123,8 @@ export interface GuardedResponse {
   /** The body is the first maxBytes of a longer response (only with `truncate`). */
   truncated: boolean;
   text(): string;
+  /** Listing reads set this to the number of HTTP attempts, including one transient retry. */
+  requests?: number;
 }
 
 /** A response other than 200, with its status. */

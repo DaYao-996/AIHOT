@@ -72,7 +72,7 @@ function absolute(href: string | undefined, base: string): string | null {
   }
 }
 
-async function fetchListingText(source: SourceRow): Promise<{ text: string; viaJina: boolean; base: string }> {
+async function fetchListingText(source: SourceRow): Promise<{ text: string; viaJina: boolean; base: string; body: Buffer | null; requests: number }> {
   const url = String(source.config.url ?? "");
   if (!url) throw new FetchError("url missing");
   if (url.startsWith(JINA_PREFIX)) {
@@ -81,12 +81,12 @@ async function fetchListingText(source: SourceRow): Promise<{ text: string; viaJ
     // still gets its dates and titles from the markup); otherwise Jina's Markdown.
     const format = source.config.parseMode === "html" ? "html" : undefined;
     const page = await jinaRead(target, { purpose: "source_listing", subject: `source:${source.id}`, cacheToleranceSeconds: source.config.cacheToleranceSeconds, format, perRead: true });
-    return { text: page.markdown, viaJina: true, base: source.config.baseUrl ?? target };
+    return { text: page.markdown, viaJina: true, base: source.config.baseUrl ?? target, body: Buffer.from(page.markdown), requests: 1 };
   }
   const res = requireOk(await fetchListing(url, { headers: { accept: "text/html,application/xhtml+xml,application/json;q=0.9,*/*;q=0.8", ...languageHeaders(source.config.acceptLanguage) }, timeoutMs: 25_000 }));
   const text = res.text();
   contentDocument(text);
-  return { text, viaJina: false, base: source.config.baseUrl ?? res.url };
+  return { text, viaJina: false, base: source.config.baseUrl ?? res.url, body: res.body, requests: res.requests ?? 1 };
 }
 
 /** A listing title that is no headline: a label that swallowed its summary, or a call to action. */
@@ -395,8 +395,9 @@ async function fromMimoHome(html: string, base: string, source: SourceRow): Prom
   throw new FetchError("mimo_home: no Blog list in the homepage's chunks");
 }
 
-export async function fetchWebList(source: SourceRow): Promise<Candidate[]> {
-  const { text, viaJina, base } = await fetchListingText(source);
+export async function fetchWebList(source: SourceRow, retained?: { body: Buffer | null; requests: number }): Promise<Candidate[]> {
+  const { text, viaJina, base, body, requests } = await fetchListingText(source);
+  if (retained) { retained.body = body; retained.requests = requests; }
   const mode = source.config.adapter === "mimo_home" ? "mimo_home" : source.config.parseMode ?? (viaJina ? "markdown" : "html");
   let out: Candidate[];
   if (mode === "mimo_home") out = await fromMimoHome(text, base, source);

@@ -31,7 +31,7 @@ export async function fetchListing(input: string, opts: GuardedFetchOptions = {}
     try {
       // Listing addresses come from the source configuration, so a listed private feed host may serve them.
       const res = await guardedFetch(input, { ...opts, privateFeedHost: true, timeoutMs: Math.max(1, deadline - Date.now()) });
-      if (!canRetry() || !transientResponse(input, res)) return res;
+      if (!canRetry() || !transientResponse(input, res)) return Object.assign(res, { requests: attempt + 1 });
     } catch (error) {
       if (!canRetry() || !transientTransport(error)) throw error;
     }

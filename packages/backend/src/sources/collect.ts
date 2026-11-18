@@ -5,7 +5,7 @@ import { fillScheduledPublications, FUTURE_TOLERANCE_MS, identityKeyFor, materia
 import { PresentationMismatch } from "../content/presentation.ts";
 import { HttpStatusError } from "../lib/http-fetch.ts";
 import { identityKeyForUrl } from "../lib/url.ts";
-import { sha256 } from "../lib/ids.ts";
+import { sha256, stableJson } from "../lib/ids.ts";
 import { enqueue, QUEUES, shutdownSignal } from "../jobs/queue.ts";
 import { runOwner } from "../jobs/runs.ts";
 import { queueProcessing } from "../jobs/content.ts";
@@ -300,10 +300,23 @@ async function store(sourceId: string, kind: string, candidates: CollectionCandi
  * one interval later. A failure counts toward "failing" (5 in a row) and waits longer after each one,
  * up to six hours; a full budget is not the source's failure: it waits 15 minutes and counts nothing.
  */
-async function recordFetch(db: Db, sourceId: string, runId: number, run: { found: number; created: number; detail: object | null } & ({ cursor: Record<string, unknown> } | { error: string; budget: boolean })): Promise<void> {
+function listingReceipt(requests: number, httpStatus: number, rawSha256: string | null, byteLength: number, responseUrl: string, candidates: Candidate[]) {
+  return {
+    requests, httpStatus, rawSha256, byteLength, responseUrl,
+    parsedSha256: sha256(stableJson(candidates.map((item) => ({
+      url: item.url, title: item.title, publicationTime: item.publicationTime ?? null,
+      timeSource: item.raw && typeof item.raw === "object" ? (item.raw as { timeSource?: string }).timeSource ?? null : null,
+      bodyStatus: item.bodyStatus ?? null, bodySha256: sha256(item.bodyText ?? ""),
+    })))),
+  };
+}
+
+async function recordFetch(db: Db, sourceId: string, runId: number, run: { found: number; created: number; detail: object | null; response?: Buffer | null } & ({ cursor: Record<string, unknown> } | { error: string; budget: boolean })): Promise<void> {
   const detail = run.detail ? db.json(run.detail as never) : null;
+  const response = run.response ?? null;
   if ("cursor" in run) {
     const changed = await db`UPDATE fetch_runs SET status = 'ok', finished_at = now(), found_count = ${run.found}, new_count = ${run.created},
+      response = ${response},
       detail = nullif(coalesce(detail,'{}'::jsonb) || coalesce(${detail}::jsonb,'{}'::jsonb),'{}'::jsonb) WHERE id = ${runId} AND status = 'running'`;
     if (!changed.count) return;
     await db`
@@ -349,6 +362,7 @@ export async function collectSource(sourceId: string, opts: { force?: boolean; x
     let paidReceiptIds: number[] = [];
     let nextCursor: Record<string, unknown> = { ...(source.cursor ?? {}) };
     let detail: Record<string, unknown> | null = null;
+    let responseBody: Buffer | null = null;
     const d = source.config.detail;
     const rules = detailRulesOf(source);
     if (source.kind === "rss") {
@@ -356,14 +370,21 @@ export async function collectSource(sourceId: string, opts: { force?: boolean; x
       const expiredDates = Object.values(source.cursor?.detailDatedOut ?? {}).some(read => !currentDateRead(read as DatedOut[string]));
       const rss = await fetchRss(source, { force: opts.force || expiredDates || !!rules && source.cursor?.detailRules !== rules });
       candidates = rss.candidates;
+      responseBody = rss.body;
+      detail = { ...(detail ?? {}), response: listingReceipt(rss.trace.requests, rss.trace.httpStatus, rss.trace.rawSha256, rss.trace.byteLength, rss.trace.responseUrl, candidates) };
       // The first import keeps only part of the listing: the next run reads all of it once before
       // accepting 304s, for the recent entries the import left out. Persist validators only after store succeeds.
       if (!firstImport) nextCursor.rss = rss.validator;
       else delete nextCursor.rss;
-      if (rss.notModified) detail = { notModified: true, httpStatus: 304 };
+      if (rss.notModified) detail = { ...detail, notModified: true, httpStatus: 304 };
     }
-    else if (source.kind === "web_list") candidates = await fetchWebList(source);
-    else if (source.kind === "json_list") candidates = await fetchJsonList(source);
+    else if (source.kind === "web_list" || source.kind === "json_list") {
+      const retained = { body: null as Buffer | null, requests: 1 };
+      candidates = source.kind === "web_list" ? await fetchWebList(source, retained) : await fetchJsonList(source, retained);
+      responseBody = retained.body;
+      const rawSha256 = retained.body ? sha256(retained.body) : null;
+      detail = { ...(detail ?? {}), response: listingReceipt(retained.requests, 200, rawSha256, retained.body?.length ?? 0, String(source.config.url ?? ""), candidates) };
+    }
     else {
       const x = await fetchXSearch(source, opts.xSince);
       candidates = x.candidates;
@@ -420,7 +441,7 @@ export async function collectSource(sourceId: string, opts: { force?: boolean; x
     if (firstImport) nextCursor.initializedAt = new Date().toISOString();
     nextCursor.lastOkAt = new Date().toISOString();
     await sql.begin(async (tx) => {
-      await recordFetch(tx, sourceId, run!.id, { found, created, detail, cursor: nextCursor });
+      await recordFetch(tx, sourceId, run!.id, { found, created, detail, cursor: nextCursor, response: responseBody });
       for (const receiptId of paidReceiptIds) await completeReceipt(tx, receiptId);
     });
     return { sourceId, status: "ok", found, created, revised };

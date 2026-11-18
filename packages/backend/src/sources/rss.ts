@@ -144,6 +144,7 @@ export interface RssTrace {
   responseUrl: string;
   fetchedAt: string;
   contentType: string | null;
+  requests: number;
 }
 
 export interface RssRead {
@@ -151,6 +152,8 @@ export interface RssRead {
   validator: RssValidator;
   notModified: boolean;
   trace: RssTrace;
+  /** Null on 304. The bytes the hash was computed from. */
+  body: Buffer | null;
 }
 
 export class FeedHttpError extends HttpStatusError {
@@ -184,6 +187,7 @@ export async function fetchRss(source: SourceRow, opts: { force?: boolean } = {}
     responseUrl: res.url,
     fetchedAt: started,
     contentType: res.headers.get("content-type"),
+    requests: res.requests ?? 1,
   };
   const validator: RssValidator = {
     configHash, responseUrl: res.url,
@@ -191,7 +195,7 @@ export async function fetchRss(source: SourceRow, opts: { force?: boolean } = {}
     lastModified: res.headers.get("last-modified") ?? (res.status === 304 ? previous?.lastModified ?? null : null),
   };
   if (res.status === 304 && previous && (previous.etag || previous.lastModified) && res.url === previous.responseUrl) {
-    return { candidates: [], validator, notModified: true, trace };
+    return { candidates: [], validator, notModified: true, trace, body: null };
   }
   if (res.status !== 200) throw new FeedHttpError(trace);
   requireOk(res);
@@ -219,6 +223,9 @@ export async function fetchRss(source: SourceRow, opts: { force?: boolean } = {}
       const link = page || mediaFile || guid;
       const title = collapseWhitespace(stripTags(text(it.title)));
       if (!link || !title) continue;
+      const statedText = (text(it.pubDate) || text(it["dc:date"]) || text(it.published)).replace(/星期[一二三四五六日天]/, "");
+      const stated = readPublicationDate(statedText, source.config.publishedAtUtcOffset);
+      const timeSource = text(it.pubDate) ? "rss:pubDate" : text(it["dc:date"]) ? "rss:dc:date" : text(it.published) ? "rss:published" : "unknown";
       const contentEncoded = text(it["content:encoded"]);
       const description = text(it.description);
       const video = isVideoPageUrl(link);
@@ -235,15 +242,15 @@ export async function fetchRss(source: SourceRow, opts: { force?: boolean } = {}
         ...(mediaFile ? { identityKey: identityKeyFor({ sourceId: source.id, url: guid, title, via: "fetch" }) } : {}),
         title,
         author: text(it["dc:creator"]) || text(it.author) || null,
-        ...readPublicationDate((text(it.pubDate) || text(it["dc:date"]) || text(it.published)).replace(/星期[一二三四五六日天]/, ""), source.config.publishedAtUtcOffset),
+        ...stated,
         ...feedText(bodyHtml, description ? stripTags(description) : null, source, !mediaFile && !video),
         ...(videoExcerpt ? { excerpt: videoExcerpt } : {}),
         media: media.slice(0, 6),
         categories: arr(it.category).map((c) => text(c)).filter(Boolean),
-        raw: { guid: guid || null },
+        raw: { guid: guid || null, timeSource, updated: null, publicationPrecision: stated.publishedAt ? (stated.publicationTime && stated.publicationTime.length === 10 ? "date_only" : "datetime") : "unknown" },
       });
     }
-    return { candidates: out, validator, notModified: false, trace };
+    return { candidates: out, validator, notModified: false, trace, body: res.body };
   }
 
   const feed = doc.feed;
@@ -262,22 +269,27 @@ export async function fetchRss(source: SourceRow, opts: { force?: boolean } = {}
       const plainBody = atomPlainText(body);
       const bodyHtmlRaw = plainBody === null ? text(body) : escapeXml(plainBody);
       const bodyHtml = bodyHtmlRaw ? sanitizeBody(bodyHtmlRaw, entryUrl) : null;
+      const publishedDate = readPublicationDate(text(e.published), source.config.publishedAtUtcOffset);
       out.push({
         url: entryUrl,
         title,
         author: text(arr(e.author)[0]?.name) || null,
-        // updated is a revision when published is also present. A feed that only states updated
-        // can opt in; the stated timestamp is used, never the clock at read time.
-        ...readPublicationDate(text(e.published) || (source.config.atomUpdatedIsPublication === true ? text(e.updated) : ""), source.config.publishedAtUtcOffset),
+        // updated is not a publication time. It stays on the entry as the feed's own field.
+        ...publishedDate,
         sourceUpdatedAt: parseDate(text(e.updated)),
         ...feedText(bodyHtml, summary, source, !video, plainBody),
         ...(videoExcerpt ? { excerpt: videoExcerpt } : {}),
         media: bodyHtml ? imagesFrom(bodyHtml, entryUrl) : [],
         categories: arr(e.category).map((c: any) => c?.["@term"] ?? text(c)).filter(Boolean),
-        raw: { id: text(e.id) || null },
+        raw: {
+          id: text(e.id) || null,
+          timeSource: text(e.published) ? "atom:published" : text(e.updated) ? "atom:updated" : "unknown",
+          updated: text(e.updated) || null,
+          publicationPrecision: !publishedDate.publishedAt ? "unknown" : publishedDate.publicationTime && publishedDate.publicationTime.length === 10 ? "date_only" : "datetime",
+        },
       });
     }
-    return { candidates: out, validator, notModified: false, trace };
+    return { candidates: out, validator, notModified: false, trace, body: res.body };
   }
   throw new FetchError("not an RSS/Atom document");
 }

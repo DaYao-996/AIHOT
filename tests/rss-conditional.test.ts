@@ -18,6 +18,11 @@ const server = http.createServer((req, res) => {
   const path = req.url ?? '/';
   requests.push({ path, etag: req.headers['if-none-match'], modified: req.headers['if-modified-since'] });
   if (path === '/redirect') { res.writeHead(302, { location: redirectNew ? '/new.xml' : '/old.xml' }); res.end(); return; }
+  if (path === '/atom-updated.xml') {
+    res.writeHead(200, { 'content-type': 'application/atom+xml' });
+    res.end(`<feed xmlns="http://www.w3.org/2005/Atom"><id>urn:test</id><title>Feed</title><updated>2026-10-01T00:00:00Z</updated><entry><id>urn:only-updated-${T}</id><title>Only updated</title><updated>2026-11-02T03:04:05Z</updated><link href="https://example.org/only-updated-${T}"/></entry></feed>`);
+    return;
+  }
   const etag = path === '/modified.xml' ? undefined : path === '/feed.xml' ? `"v${version}"` : '"shared"';
   if ((etag && req.headers['if-none-match'] === etag) || (!etag && req.headers['if-modified-since'] === modified)) {
     res.writeHead(304, { ...(etag ? { etag } : {}), 'last-modified': modified }); res.end(); return;
@@ -83,4 +88,37 @@ test('Last-Modified works without ETag and changing redirect targets cannot acce
   assert.equal((await collectSource(redirect)).created, 1, 'new destination is fetched without old destination validators');
   assert.equal(requests.at(-1)!.path, '/new.xml');
   assert.equal(requests.at(-1)!.etag, undefined);
+});
+
+test('a collected listing keeps its response bytes bound to the parsed output', async () => {
+  const id = `rss-bytes-${T}`;
+  const before = requests.length;
+  await source(id, '/bytes.xml');
+  assert.equal((await collectSource(id)).created, 1);
+  assert.equal(requests.length - before, 1);
+  const [run] = await sql<{ sha: string; n: number; raw_sha: string; requests: number; parsed: string }[]>`
+    SELECT encode(sha256(response), 'hex') AS sha, octet_length(response)::int AS n,
+      detail->'response'->>'rawSha256' AS raw_sha, (detail->'response'->>'requests')::int AS requests,
+      detail->'response'->>'parsedSha256' AS parsed
+    FROM fetch_runs WHERE source_id = ${id} ORDER BY id DESC LIMIT 1`;
+  assert.equal(run!.sha, run!.raw_sha);
+  assert.equal(run!.requests, 1);
+  assert.ok(run!.parsed);
+  assert.ok(run!.n > 0);
+});
+
+test('Atom updated is stored as the feed field and not as the publication time', async () => {
+  const id = `atom-updated-${T}`;
+  const before = requests.length;
+  await source(id, '/atom-updated.xml');
+  assert.equal((await collectSource(id)).created, 1);
+  assert.equal(requests.length - before, 1);
+  const [row] = await sql<{ published_at: Date | null; publication_time: string | null; source_updated_at: Date | null; raw: { timeSource: string; updated: string; publicationPrecision: string } }[]>`
+    SELECT published_at, publication_time, source_updated_at, raw FROM articles WHERE source_id = ${id}`;
+  assert.equal(row!.published_at, null);
+  assert.equal(row!.publication_time, null);
+  assert.equal(row!.source_updated_at?.toISOString(), '2026-11-02T03:04:05.000Z');
+  assert.equal(row!.raw.timeSource, 'atom:updated');
+  assert.equal(row!.raw.updated, '2026-11-02T03:04:05Z');
+  assert.equal(row!.raw.publicationPrecision, 'unknown');
 });

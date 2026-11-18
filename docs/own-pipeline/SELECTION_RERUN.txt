@@ -22,6 +22,10 @@ Expected after those commands: 9 current file judgments, 3 stale, 9 pending sele
 The second file import and the second selection import are idempotent.
 COLLECT_ENABLED and MODEL_CALLS_ENABLED stay false. No worker.
 
+Atom updated is stored on the entry and is not the publication time.
+A collect run stores the listing bytes on fetch_runs.response and the parsed binding in detail.response.
+The 2026-11-18T08:15 coverage freeze has neither, so it is not blind-test material.
+
 Conflict, evidence move, and unchanged semantic fileResult are the test
 "a selection file keeps its rationale, stays pending, and does not rewrite the semantic result"
 in tests/own-pipeline.test.ts. That test calls recordSelectionDecision and recordFileResult.

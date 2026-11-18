@@ -79,15 +79,13 @@ test("Atom update time never substitutes for missing or malformed publication ti
   assert.equal(unknown!.publishedAt, null);
   assert.equal(invalid!.publishedAt, null);
   assert.equal(published!.publishedAt?.toISOString(), "2020-02-15T00:00:00.000Z");
+  assert.equal((unknown!.raw as { timeSource: string; publicationPrecision: string; updated: string }).timeSource, "atom:updated");
+  assert.equal((unknown!.raw as { publicationPrecision: string }).publicationPrecision, "unknown");
+  assert.equal((unknown!.raw as { updated: string }).updated, "2026-10-01T00:00:00Z");
+  assert.equal((published!.raw as { timeSource: string; publicationPrecision: string }).timeSource, "atom:published");
+  assert.equal((published!.raw as { publicationPrecision: string }).publicationPrecision, "datetime");
+  assert.equal((invalid!.raw as { timeSource: string; publicationPrecision: string }).publicationPrecision, "unknown");
   for (const item of [unknown, published, invalid]) {
     assert.equal(item!.sourceUpdatedAt?.toISOString(), "2026-10-01T00:00:00.000Z");
   }
-});
-
-test("a feed that only states Atom updated can use that timestamp, not the read clock", async () => {
-  const items = (await fetchRss({ config: { feedUrl: root + "/dates", atomUpdatedIsPublication: true }, participation_mode: "editorial" } as never)).candidates;
-  assert.equal(items[0]!.publishedAt?.toISOString(), "2026-10-01T00:00:00.000Z");
-  assert.equal(items[0]!.publicationTime, "2026-10-01T00:00:00.000Z");
-  assert.equal(items[1]!.publishedAt?.toISOString(), "2020-02-15T00:00:00.000Z");
-  assert.equal(items[2]!.publishedAt, null);
 });

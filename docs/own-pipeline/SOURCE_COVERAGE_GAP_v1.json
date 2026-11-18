@@ -228,8 +228,11 @@
         "title": "v2.1.327",
         "bodyStatus": "ok",
         "bodyLength": 22155,
-        "publicationTime": "2026-11-17T23:17:45.000Z",
-        "revision": 1
+        "publicationTime": null,
+        "revision": 1,
+        "withdrawnPublicationTime": "2026-11-17T23:17:45.000Z",
+        "timeSource": "atom:updated",
+        "publicationPrecision": "unknown"
       },
       "history": "one_response_not_full_history",
       "basis": "一次列表响应里的计数。入库的是一条小样本，不是整段历史。"
@@ -266,8 +269,11 @@
         "title": "0.170.0",
         "bodyStatus": "ok",
         "bodyLength": 4809,
-        "publicationTime": "2026-11-18T03:45:39.000Z",
-        "revision": 1
+        "publicationTime": null,
+        "revision": 1,
+        "withdrawnPublicationTime": "2026-11-18T03:45:39.000Z",
+        "timeSource": "atom:updated",
+        "publicationPrecision": "unknown"
       },
       "history": "one_response_not_full_history",
       "basis": "一次列表响应里的计数。入库的是一条小样本，不是整段历史。"
@@ -342,8 +348,11 @@
         "title": "1.5.11",
         "bodyStatus": "ok",
         "bodyLength": 2270,
-        "publicationTime": "2026-11-18T06:51:46.000Z",
-        "revision": 1
+        "publicationTime": null,
+        "revision": 1,
+        "withdrawnPublicationTime": "2026-11-18T06:51:46.000Z",
+        "timeSource": "atom:updated",
+        "publicationPrecision": "unknown"
       },
       "history": "one_response_not_full_history",
       "basis": "一次列表响应里的计数。入库的是一条小样本，不是整段历史。"
@@ -387,8 +396,11 @@
         "title": "《Baby, this is Keke Palmer》获选 Apple 播客 2026 年度节目",
         "bodyStatus": "pending",
         "bodyLength": 0,
-        "publicationTime": "2026-11-17T11:03:00.547Z",
-        "revision": 1
+        "publicationTime": null,
+        "revision": 1,
+        "withdrawnPublicationTime": "2026-11-17T11:03:00.547Z",
+        "timeSource": "atom:updated",
+        "publicationPrecision": "unknown"
       },
       "history": "one_response_not_full_history",
       "basis": "一次列表响应里的计数。入库的是一条小样本，不是整段历史。"
@@ -432,8 +444,11 @@
         "title": "Formula 1® Las Vegas Grand Prix™ streams live on Apple TV this weekend",
         "bodyStatus": "pending",
         "bodyLength": 0,
-        "publicationTime": "2026-11-17T16:59:36.179Z",
-        "revision": 1
+        "publicationTime": null,
+        "revision": 1,
+        "withdrawnPublicationTime": "2026-11-17T16:59:36.179Z",
+        "timeSource": "atom:updated",
+        "publicationPrecision": "unknown"
       },
       "history": "one_response_not_full_history",
       "basis": "一次列表响应里的计数。入库的是一条小样本，不是整段历史。"
@@ -477,5 +492,18 @@
       "basis": "一次列表响应里的计数。入库的是一条小样本，不是整段历史。"
     }
   ],
-  "antigravityRefetch": "second GET after parser fix; first attempt used markdown_changelog by mistake"
+  "antigravityRefetch": "second GET after parser fix; first attempt used markdown_changelog by mistake",
+  "rawBytesStored": false,
+  "fetchRuns": 0,
+  "evidenceRows": 0,
+  "atomUpdatedIsNotPublication": {
+    "sources": [
+      "claude_code_releases",
+      "openai_codex_github_releases",
+      "antigravity_cli_github_releases",
+      "apple_newsroom_cn",
+      "apple_newsroom_us_rss"
+    ],
+    "note": "This run copied Atom updated into publicationTime. That claim is withdrawn. Those article rows now have no publication time. updated is not published. Raw response bytes were not stored."
+  }
 }

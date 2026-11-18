@@ -138,7 +138,7 @@ function embeddedJson(html: string, source: SourceRow): unknown {
   throw new FetchError(`embedded key ${key} not found`);
 }
 
-export async function fetchJsonList(source: SourceRow): Promise<Candidate[]> {
+export async function fetchJsonList(source: SourceRow, retained?: { body: Buffer | null; requests: number }): Promise<Candidate[]> {
   const c = source.config;
   const url = String(c.url ?? "");
   const headers: Record<string, string> = { accept: "application/json, text/html;q=0.9", ...languageHeaders(c.acceptLanguage), ...(c.headers ?? {}) };
@@ -148,15 +148,19 @@ export async function fetchJsonList(source: SourceRow): Promise<Candidate[]> {
   }
   const embedded = c.mode === "html_json_key" || c.mode === "html_window_var";
   // A page that blocks our addresses can be read through Jina's rendered HTML, which keeps its scripts.
-  const text = embedded && url.startsWith(JINA_PREFIX)
-    ? (await jinaRead(url.slice(JINA_PREFIX.length), { purpose: "source_listing", subject: `source:${source.id}`, format: "html", perRead: true })).markdown
-    : requireOk(await fetchListing(url, {
-      redirectPolicy: "same-origin",
-      method: c.method ?? "GET",
-      headers: c.bodyJson ? { ...headers, "content-type": "application/json" } : headers,
-      body: c.bodyJson ? JSON.stringify(c.bodyJson) : undefined,
-      timeoutMs: 25_000,
-    })).text();
+  const fetched = embedded && url.startsWith(JINA_PREFIX) ? null : await fetchListing(url, {
+    redirectPolicy: "same-origin",
+    method: c.method ?? "GET",
+    headers: c.bodyJson ? { ...headers, "content-type": "application/json" } : headers,
+    body: c.bodyJson ? JSON.stringify(c.bodyJson) : undefined,
+    timeoutMs: 25_000,
+  });
+  const text = fetched ? requireOk(fetched).text()
+    : (await jinaRead(url.slice(JINA_PREFIX.length), { purpose: "source_listing", subject: `source:${source.id}`, format: "html", perRead: true })).markdown;
+  if (retained) {
+    retained.body = fetched ? fetched.body : Buffer.from(text);
+    retained.requests = fetched?.requests ?? 1;
+  }
   let data: unknown;
   if (embedded) data = embeddedJson(text, source);
   else {
@@ -191,7 +195,11 @@ export async function fetchJsonList(source: SourceRow): Promise<Candidate[]> {
       excerpt: summary ? collapseWhitespace(stripTags(summary)).slice(0, 2000) : null,
       bodyText: summaryIsBody ? stripTags(summary!) : null,
       bodyStatus: summaryIsBody ? "ok" : "pending",
-      raw: { externalId: externalId ?? null },
+      raw: {
+        externalId: externalId ?? null,
+        timeSource: date.publishedAt && c.publishedAtPath ? `json:${c.publishedAtPath}` : "unknown",
+        publicationPrecision: !date.publishedAt ? "unknown" : date.publicationTime && date.publicationTime.length === 10 ? "date_only" : "datetime",
+      },
     });
   }
   if (items.length > 0 && out.length === 0 && !c.requireBoolean && !c.minNumeric) throw new FetchError("no items mapped (check title/url paths)");
