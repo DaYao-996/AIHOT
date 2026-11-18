@@ -39,6 +39,7 @@ const pages: Record<string, () => string> = {
   // A list API that gives wall-clock times without a zone, and a page whose metadata does too.
   "/zoneless.json": () => JSON.stringify({ result: [{ id: "a", title: "采购公告", publishDate: "2026-09-30 17:43:58" }, { id: "b", title: "Zoned", publishDate: "2026-09-30T17:43:58Z" }, { id: "c", title: "Abbreviated zone", publishDate: "Wed, 30 Sep 2026 17:43:58 EST" }] }),
   "/one-release.json": () => JSON.stringify({ tag_name: "v1", name: "v1", html_url: "https://example.org/releases/tag/v1", body: "Release v1", published_at: "2026-11-18T05:21:54Z" }),
+  "/short-release": () => `<html><body><header>GitHub chrome</header><div class="markdown-body"><p>Release v1</p></div><footer>${"nav ".repeat(80)}</footer></body></html>`,
   "/zoneless-post": () => `<html><head><meta property="article:published_time" content="2026-09-30 17:43:58"></head><body><p>Post</p></body></html>`,
   // A Next.js page whose embedded posts hold arrays and brackets of their own.
   "/flight": () => `<html><body><script>self.__next_f.push([1,${JSON.stringify(`5:["$","div",null,{"children":[],"posts":${JSON.stringify([
@@ -278,6 +279,13 @@ test("a single release object is one item, and its published_at is the publicati
   assert.equal(item!.publicationTime, "2026-11-18T05:21:54.000Z");
   assert.equal((item!.raw as { timeSource: string }).timeSource, "json:published_at");
   await assert.rejects(fetchJsonList({ id: "test-json", config: { ...config, singleObject: false } } as never), /array/);
+});
+
+test("a short release note element is that note, not a truncated page", async () => {
+  const got = await fetchDetail(`${site}/short-release`, { id: "test-feed", config: { detail: { bodySelector: ".markdown-body" } } } as never, { date: false, title: false, summary: false, body: true });
+  assert.equal(got.body?.text, "Release v1");
+  assert.equal(got.body?.via, "text");
+  assert.ok((got.response?.bytes.length ?? 0) > got.body!.text.length);
 });
 
 test("dates in yyyymmdd and in JSON-LD are read", async () => {

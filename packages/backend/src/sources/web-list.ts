@@ -471,9 +471,16 @@ export async function fetchDetail(url: string, source: SourceRow, need: DetailNe
     summary = collapseWhitespace(el.attr("content") ?? el.text()) || null;
   }
 
-  // The body last, from the same document: Readability changes what it reads.
+  // A named element is that section, including a short release note. It is not the whole page.
   let body: ExtractedBody | null = null;
-  if (need.body && page?.whole && !d.bodyUrlSuffix) {
+  if (need.body && $ && d.bodySelector) {
+    const el = $(d.bodySelector).first();
+    const text = collapseWhitespace(el.text());
+    const html = el.html();
+    if (text && html) body = { html, text, images: [], via: "text", cover: null };
+  }
+  // The body last, from the same document: Readability changes what it reads.
+  if (!body && need.body && page?.whole && !d.bodyUrlSuffix) {
     try { body = readableDocument(page.document, page.url, pageRules(source.config)); }
     catch { /* A failed extraction must not discard the detail metadata. */ }
     // Outside it: a failure of the store while checking the cover fails the read, which is retried.
