@@ -1,0 +1,200 @@
+{
+  "adapter": "public-sample-v4-calibration-to-file-v1",
+  "didNotInventModelReceipt": true,
+  "didNotReuseOldNinePrompt": true,
+  "rulesetUnchanged": "17-选题打分推荐-v2.3#sha256:45c5a6a0105268a6ecf887c8bc7611595e9626fe0a25b7ce76ca48ee64e3e43e",
+  "fileImport": "not_run",
+  "fileRejected": "items[0] 格式无法解析",
+  "requiredFileItemKeys": [
+    "articleId",
+    "evidenceHash",
+    "evidenceVersion",
+    "inputRevision",
+    "rulesetVersion",
+    "promptVersion",
+    "executionSource",
+    "modelKnowledge",
+    "knownModel",
+    "output"
+  ],
+  "requiredOutputKeys": [
+    "narrowClaim",
+    "quoteLocation",
+    "conditions",
+    "time",
+    "audience",
+    "clauses",
+    "valueBasis",
+    "substantiveAddition"
+  ],
+  "mappedFromExisting": {
+    "articleId": "articleId_mapping.articleId",
+    "narrowClaim": "used_claim",
+    "quoteLocation.excerpt": "exact_excerpt",
+    "quoteLocation.start": "exact_excerpt_bound_offset",
+    "quoteLocation.end": "start plus excerpt length",
+    "conditions": "conditions",
+    "time": "published_basis",
+    "audience": "audience",
+    "clauses": "clauses_matched",
+    "rulesetVersion": "item.rulesetVersion",
+    "executionSource": "item.executionSource"
+  },
+  "missing": [
+    {
+      "url": "https://github.com/anthropics/claude-code/releases/tag/v2.1.323",
+      "articleId": "i5d3e8sv1zup81f7dqbryixtj",
+      "absent": [
+        "promptVersion",
+        "output.valueBasis",
+        "output.substantiveAddition"
+      ],
+      "selectionPromptVersionKeptApart": "assistant-selection-decision-public-sample-v2-independent-v1"
+    },
+    {
+      "url": "https://antigravity.google/releases?tab=hub&version=2.33.0",
+      "articleId": "uxdnh10q3y7lvo9xsp4cld41e",
+      "absent": [
+        "promptVersion",
+        "output.valueBasis",
+        "output.substantiveAddition"
+      ],
+      "selectionPromptVersionKeptApart": "assistant-selection-decision-public-sample-v1-independent-v1"
+    }
+  ],
+  "mappedFile": [
+    {
+      "url": "https://github.com/anthropics/claude-code/releases/tag/v2.1.323",
+      "present": {
+        "articleId": "i5d3e8sv1zup81f7dqbryixtj",
+        "evidenceHash": "2819a4844f82b751cc519e958ddf6dfdcb2ea48246cd31f83f33a8eaeec80c0f",
+        "evidenceVersion": 1,
+        "inputRevision": 2,
+        "rulesetVersion": "17-选题打分推荐-v2.3#sha256:45c5a6a0105268a6ecf887c8bc7611595e9626fe0a25b7ce76ca48ee64e3e43e",
+        "executionSource": "assistant-file",
+        "modelKnowledge": "unknown",
+        "knownModel": null,
+        "output": {
+          "narrowClaim": "The official Claude Code v2.1.323 release note adds Code Mode, an experimental opt-in in which Claude writes JavaScript to call its tools, and tells the reader to see https://code.claude.com/docs/en/code-mode to turn it on, or to turn it off for an organization.",
+          "quoteLocation": {
+            "excerpt": "Added Code Mode, an experimental opt-in in which Claude writes JavaScript to call its tools; see",
+            "start": 15,
+            "end": 111
+          },
+          "conditions": [
+            "This is a version release note, not a standalone major product-update announcement.",
+            "Publication time is unknown. List timeSource is atom:updated and is not used as publishedAt. Detail publicationTime is absent.",
+            "Extractor ws slightly off versus 40445; the official changelog body was read.",
+            "Other Claude Code tags in this source’s top 5 remain in the denominator as a release series.",
+            "A short official note (v2.1.322) is short-but-complete, not missing_material.",
+            "Code Mode is experimental opt-in; an organization can turn it off. The enable/disable URL is in the bound body_text (not a dropped href).",
+            "The documentation page at https://code.claude.com/docs/en/code-mode was not opened and is not treated as already read or as a verified runnable walkthrough.",
+            "Being a version changelog is not a step-8 bar against prioritize."
+          ],
+          "time": "unknown; Atom updated not used as published time; detail publicationTime absent",
+          "audience": [
+            "Claude Code users who can move to v2.1.323"
+          ],
+          "clauses": [
+            {
+              "id": "17s158-useful-software-or-hardware-tools",
+              "text": "电子产品、好用的软硬件工具（含跟 AI 无关的，例如 iOS 系统工具）"
+            }
+          ]
+        }
+      },
+      "absent": [
+        "promptVersion",
+        "output.valueBasis",
+        "output.substantiveAddition"
+      ]
+    },
+    {
+      "url": "https://antigravity.google/releases?tab=hub&version=2.33.0",
+      "present": {
+        "articleId": "uxdnh10q3y7lvo9xsp4cld41e",
+        "evidenceHash": "d42be07f129c7e2a47d32e2895e9e052212e8fa1ba99645f862d067f04e12062",
+        "evidenceVersion": 1,
+        "inputRevision": 1,
+        "rulesetVersion": "17-选题打分推荐-v2.3#sha256:45c5a6a0105268a6ecf887c8bc7611595e9626fe0a25b7ce76ca48ee64e3e43e",
+        "executionSource": "assistant-file",
+        "modelKnowledge": "unknown",
+        "knownModel": null,
+        "output": {
+          "narrowClaim": "The Antigravity changelog entry for v2.33.0 (dated November 17, 2026 in the listing) says the release adds SSH host connections for running projects and agents on remote Linux machines, live GitHub pull-request status in the UI, in-page browser find, /swarm and UI plugin panels for business and enterprise accounts, plus 16 improvements and 21 fixes.",
+          "quoteLocation": {
+            "excerpt": "This release adds SSH host connections for running projects and agents on remote Linux machines, along with live GitHub pull request status pills, hover cards, and an Overview Pull Requests section.",
+            "start": 7,
+            "end": 205
+          },
+          "conditions": [
+            "This is a version changelog entry, not a standalone major product-update announcement; it must not be dressed up as a major launch.",
+            "SSH host connection is described for a remote 64-bit Linux machine, over OpenSSH, using ~/.ssh/config; Antigravity installs its remote server automatically.",
+            "/swarm and UI plugin panels are opened to business and enterprise accounts when allowed by organization admin settings.",
+            "The v1 detail fetch returned HTTP 200 but wholePageRejected / sectionLength 0; the bound body is listing_section, evidence version 1 / revision 1.",
+            "List publicationTime is date_only 2026-11-17 with timeSource unknown (changelog heading “November 17, 2026”). Detail publicationTime is unknown and is not filled from the list date.",
+            "Other version rows in this source’s top 5 remain in the denominator as a release series.",
+            "SSH is described for a remote 64-bit Linux machine over OpenSSH using ~/.ssh/config; three in-app entry points are in the bound body.",
+            "/swarm and UI plugin panels are for business and enterprise accounts when allowed by organization admin settings.",
+            "Being a version changelog is not a step-8 bar against prioritize."
+          ],
+          "time": "listing changelog date only (date_only, timeSource unknown); detail publicationTime unknown and not substituted",
+          "audience": [
+            "Antigravity users who can update to v2.33.0, including those with a 64-bit Linux SSH host; business/enterprise users for /swarm subject to admin settings"
+          ],
+          "clauses": [
+            {
+              "id": "17s158-useful-software-or-hardware-tools",
+              "text": "电子产品、好用的软硬件工具（含跟 AI 无关的，例如 iOS 系统工具）"
+            }
+          ]
+        }
+      },
+      "absent": [
+        "promptVersion",
+        "output.valueBasis",
+        "output.substantiveAddition"
+      ]
+    }
+  ],
+  "selectionParses": true,
+  "draftBodies": [
+    {
+      "draftId": "real-draft-v2-claude-code-2.1.323-code-mode",
+      "sourceURL": "https://github.com/anthropics/claude-code/releases/tag/v2.1.323",
+      "title": "Claude Code v2.1.323 增加实验性 Code Mode",
+      "bodySha256": "cb7e5f7bf0da5be11aed4323b6875ed74f023b8e41795a8fda30bcf2ac980a9d",
+      "body": "Claude Code v2.1.323 的[版本说明](https://github.com/anthropics/claude-code/releases/tag/v2.1.323)新增了实验性 Code Mode：由 Claude 编写 JavaScript 调用工具，需要主动开启。说明给出了开启，以及为组织关闭这项功能的[文档入口](https://code.claude.com/docs/en/code-mode)。功能仍是实验性可选项，尚未做实测验证。"
+    },
+    {
+      "draftId": "real-draft-v2-antigravity-2.33.0-ssh",
+      "sourceURL": "https://antigravity.google/releases?tab=hub&version=2.33.0",
+      "title": "Antigravity v2.33.0 增加远程 Linux 的 SSH 主机连接",
+      "bodySha256": "87eec413ddeb316463d37b12c959831ca978820db11671c56e8be8c99897f329",
+      "body": "Antigravity v2.33.0 的[版本说明](https://antigravity.google/releases?tab=hub&version=2.33.0)新增 SSH 主机连接，可把项目和代理放到远程 64 位 Linux 上运行。入口有三个：侧栏、项目菜单的 SSH Host...、命令面板的 Connect to SSH Host...。连接使用 OpenSSH 和 ~/.ssh/config，远程服务器会自动安装。按官方说明，关闭窗口后，项目、Git worktrees、代理和终端仍会留在主机运行；这点尚未做实际连接验证。"
+    }
+  ],
+  "sourceContract": {
+    "dailyX": 132,
+    "roster": 174,
+    "nonX": "47 includes excluded, observe, and manual optional",
+    "eightNewAlreadyIn132": true,
+    "gapsAreMissingProofInTwoLogs": [
+      "hf_models_trending",
+      "hf_daily_papers",
+      "github_trending_daily",
+      "github_trending_weekly",
+      "anthropic_news_page",
+      "meta_research_blog",
+      "nvidia_newsroom_page",
+      "thinking_machines_news",
+      "chatgpt_help_release_notes",
+      "github_fast_rising"
+    ],
+    "notUpstream": "TheRundownAI",
+    "scoreCheckOnly": "ArtificialAnlys",
+    "benchmarkNotInPool": "10-29",
+    "thisRunDidNotFetch": true,
+    "notAssertedNeverRan": true
+  }
+}
