@@ -295,14 +295,21 @@ test("stopping web and api does not disarm worker schedules", () => {
   assert.equal(migrationPlan(source("database/migrations/0172_own_judgments_origin.sql")).kind, "transaction");
   assert.equal(migrationPlan(source("database/migrations/0173_own_judgments_origin_check.sql")).kind, "transaction");
   assert.equal(migrationPlan(source("database/migrations/0174_own_judgments_origin_validate.sql")).kind, "validation");
+  assert.equal(migrationPlan(source("database/migrations/0175_own_evidence_raw_identity.sql")).kind, "transaction");
 });
 
 test("import files reject unknown fields and a mismatched original hash", () => {
   const raw = { text: "原件" };
   const doc = parseImportDocument({ sourceId: "src_1", items: [{ url: "https://example.com/a", title: "标题", raw }] });
-  assert.equal(doc.items[0]!.rawSha256.length, 64);
+  assert.equal(doc.items[0]!.rawCanonicalSha256.length, 64);
+  assert.equal(doc.items[0]!.rawFileSha256, null);
   assert.throws(() => parseImportDocument({ sourceId: "src_1", items: [{ url: "https://example.com/a", title: "标题", raw, score: 80 }] }), ImportRejected);
-  assert.throws(() => parseImportDocument({ sourceId: "src_1", items: [{ url: "https://example.com/a", title: "标题", raw, rawSha256: "ab" }] }), /不一致/);
+  const fileHash = "a".repeat(64);
+  const withFile = parseImportDocument({ sourceId: "src_1", items: [{ url: "https://example.com/a", title: "标题", raw, rawFileSha256: fileHash }] });
+  assert.equal(withFile.items[0]!.rawFileSha256, fileHash);
+  assert.notEqual(withFile.items[0]!.rawCanonicalSha256, fileHash);
+  assert.throws(() => parseImportDocument({ sourceId: "src_1", items: [{ url: "https://example.com/a", title: "标题", raw, rawCanonicalSha256: "ab" }] }), /规范化 JSON/);
+  assert.throws(() => parseImportDocument({ sourceId: "src_1", items: [{ url: "https://example.com/a", title: "标题", raw, rawSha256: fileHash }] }), /未知字段/);
   assert.throws(() => parseImportDocument({ sourceId: "src_1", items: [{ url: "javascript:alert(1)", title: "标题", raw }] }), /http/);
 });
 

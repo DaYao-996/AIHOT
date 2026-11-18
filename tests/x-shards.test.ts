@@ -80,7 +80,7 @@ test("shards keep to the query length and account limits, per participation mode
   assert.deepEqual(shards.flatMap((s) => s.sourceIds).sort(), long.map((s) => s.id).sort(), "a query of its own and a first fetch stay out");
   for (const s of shards) {
     const handles = s.sourceIds.map((id) => /handle_\d+/.exec(long.find((l) => l.id === id)!.config.query)![0]);
-    assert.ok(shardQuery(handles, s.sourceIds.map((id) => selfThreadHandle(long.find((l) => l.id === id)!)).filter((h): h is string => h !== null)).length <= 470, "room is left for the since_id watermark under 512 characters");
+    assert.ok(shardQuery(handles, handles).length <= 470, "room is left for the since_id watermark under 512 characters");
     assert.ok(s.sourceIds.length <= 24);
     assert.ok(s.sourceIds.every((id) => long.find((l) => l.id === id)!.participation_mode === s.mode), "modes are not mixed");
   }
@@ -93,7 +93,7 @@ test("one search reads a shard; each account gets its own posts, run and waterma
   assert.equal(res.status, "ok");
   const asked = queries.slice(before);
   assert.equal(asked.length, 2, "one search for three accounts (two pages of posts)");
-  for (const q of asked) assert.match(q, new RegExp(`^\\(from:${HANDLES[0]} OR from:${HANDLES[1]} OR from:${HANDLES[2]}\\) -filter:replies since_id:${WATERMARK}$`));
+  for (const q of asked) assert.match(q, new RegExp(`^\\(\\(from:${HANDLES[0]} OR from:${HANDLES[1]} OR from:${HANDLES[2]}\\) -filter:replies OR \\(from:${HANDLES[0]} OR from:${HANDLES[1]} OR from:${HANDLES[2]}\\) filter:self_threads\\) since_id:${WATERMARK}$`));
   const stored = await sql<{ source_id: string; n: number }[]>`SELECT source_id, count(*)::int AS n FROM articles WHERE source_id IN ${sql(IDS)} GROUP BY 1`;
   assert.deepEqual(Object.fromEntries(stored.map((r) => [r.source_id, r.n])), { [IDS[0]!]: 3, [IDS[1]!]: 1 });
   assert.deepEqual(await Promise.all(IDS.map(async (id) => (await cursorOf(id)).lastTweetId)), [String(BASE + 104n), String(BASE + 103n), String(WATERMARK)],
@@ -204,7 +204,7 @@ test("verified publishers include self-thread announcements in both single and s
   const before = queries.length;
   await collectXShard(`editorial:self-threads-${T}`, IDS);
   const q = queries[before]!;
-  assert.ok(q.includes(`OR (from:${HANDLES[0]}) filter:self_threads)`), "only the verified publisher gets thread continuations");
+  assert.ok(q.includes(`(from:${HANDLES[0]} OR from:${HANDLES[1]} OR from:${HANDLES[2]}) filter:self_threads`), "a plain -filter:replies shard keeps each author's own thread");
   assert.ok(q.includes(`(from:${HANDLES[0]} OR from:${HANDLES[1]} OR from:${HANDLES[2]}) -filter:replies`));
   const [source] = await sql`SELECT * FROM sources WHERE id = ${IDS[0]!}`;
   const singleBefore = queries.length;

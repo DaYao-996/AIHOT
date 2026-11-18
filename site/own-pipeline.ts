@@ -246,6 +246,10 @@ export interface ControlledImportItem {
   publishedAt?: string | null;
   /** 原件原样保存。其中的正文、引用不会被读出来。 */
   raw: unknown;
+  /** 原始文件字节的 SHA256。不能由解析后的 JSON 重算，也不能覆盖审阅包里的声明。 */
+  rawFileSha256?: string | null;
+  /** 规范化 JSON 的 SHA256。和文件字节哈希分开记。 */
+  rawCanonicalSha256?: string | null;
   bodyText?: string | null;
   quotedText?: string | null;
   xPost?: XPostData | null;
@@ -275,7 +279,7 @@ export class ImportRejected extends Error {
 }
 
 const FILE_KEYS = new Set(["sourceId", "items"]);
-const ITEM_KEYS = new Set(["url", "title", "author", "publishedAt", "raw", "rawSha256", "bodyText", "quotedText", "xPost"]);
+const ITEM_KEYS = new Set(["url", "title", "author", "publishedAt", "raw", "rawFileSha256", "rawCanonicalSha256", "bodyText", "quotedText", "xPost"]);
 const XPOST_KEYS = new Set(["tweetId", "authorName", "handle", "text", "quoted", "media", "lang", "replyTo", "avatarUrl"]);
 
 function rejectUnknown(obj: Record<string, unknown>, allowed: Set<string>, label: string): void {
@@ -303,7 +307,8 @@ function parseXPost(value: unknown): XPostData | null | undefined {
 }
 
 export interface ParsedImportItem extends ControlledImportItem {
-  rawSha256: string;
+  rawCanonicalSha256: string;
+  rawFileSha256: string | null;
 }
 
 /** 校验导入文件。未知字段和畸形身份在这里拒绝，不写库。 */
@@ -327,8 +332,13 @@ export function parseImportDocument(value: unknown): { sourceId: string; items: 
     if (url.protocol !== "http:" && url.protocol !== "https:") throw new ImportRejected(`items[${index}].url 必须是 http 或 https`);
     if (typeof row.title !== "string" || !row.title.trim()) throw new ImportRejected(`items[${index}].title 无效`);
     if (row.raw === null || typeof row.raw !== "object") throw new ImportRejected(`items[${index}].raw 必须是对象或数组`);
-    const digest = sha256(stableJson(row.raw));
-    if (row.rawSha256 !== undefined && row.rawSha256 !== digest) throw new ImportRejected(`items[${index}].rawSha256 与原件不一致`);
+    const canonicalSha256 = sha256(stableJson(row.raw));
+    if (row.rawCanonicalSha256 !== undefined && row.rawCanonicalSha256 !== canonicalSha256) {
+      throw new ImportRejected(`items[${index}].rawCanonicalSha256 与规范化 JSON 不一致`);
+    }
+    if (row.rawFileSha256 !== undefined && (typeof row.rawFileSha256 !== "string" || !/^[0-9a-f]{64}$/.test(row.rawFileSha256))) {
+      throw new ImportRejected(`items[${index}].rawFileSha256 必须是原始文件字节的 64 位十六进制 SHA256`);
+    }
     const author = optionalText(row.author, `items[${index}].author`);
     const bodyText = optionalText(row.bodyText, `items[${index}].bodyText`);
     const quotedText = optionalText(row.quotedText, `items[${index}].quotedText`);
@@ -340,7 +350,8 @@ export function parseImportDocument(value: unknown): { sourceId: string; items: 
       url: row.url,
       title: row.title.trim(),
       raw: row.raw,
-      rawSha256: digest,
+      rawCanonicalSha256: canonicalSha256,
+      rawFileSha256: typeof row.rawFileSha256 === "string" ? row.rawFileSha256 : null,
       ...(author !== undefined ? { author } : {}),
       ...(row.publishedAt !== undefined ? { publishedAt: row.publishedAt as string | null } : {}),
       ...(bodyText !== undefined ? { bodyText } : {}),

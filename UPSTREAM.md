@@ -27,6 +27,10 @@
 - `database/migrations/0172_own_judgments_origin.sql`
 - `database/migrations/0173_own_judgments_origin_check.sql`
 - `database/migrations/0174_own_judgments_origin_validate.sql`
+- `database/migrations/0175_own_evidence_raw_identity.sql`
+- `scripts/own-unblinded-drill.ts`
+- `docs/own-pipeline/X_WINDOW_CONTRACT_v1.md`
+- `tests/x-window.standalone.test.ts`
 - `site/own-pipeline.ts`
 - `packages/backend/src/own-pipeline-store.ts`
 - `tests/own-pipeline.standalone.test.ts`

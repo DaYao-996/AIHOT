@@ -3,6 +3,7 @@ import { upsertMaterial, type XPostData } from "./content/materials.ts";
 import { sql, type Db } from "./db.ts";
 import { sha256, stableJson } from "./lib/ids.ts";
 import {
+  ImportRejected,
   assertThrowawayDatabase,
   canonicalIdentity,
   cumulativeEvidenceHash,
@@ -21,6 +22,11 @@ export class JudgmentConflict extends Error {
   }
 }
 
+interface RawIdentity {
+  fileSha256: string | null;
+  canonicalSha256: string;
+}
+
 interface EvidenceVersionRow {
   version: number;
   raw: unknown;
@@ -28,6 +34,7 @@ interface EvidenceVersionRow {
   quoted_text: string | null;
   x_post: XPost | null;
   evidence_hash: string;
+  raw_identity: RawIdentity | null;
 }
 
 export interface EvidenceWrite {
@@ -106,8 +113,13 @@ export async function writeEvidence(tx: Db, item: ControlledImportItem): Promise
   }, tx);
   await tx`SELECT pg_advisory_xact_lock(${advisoryKey(`judgment\0${saved.articleId}`)}::bigint)`;
   const versions = await tx<EvidenceVersionRow[]>`
-    SELECT version, raw, body_text, quoted_text, x_post, evidence_hash
+    SELECT version, raw, body_text, quoted_text, x_post, evidence_hash, raw_identity
     FROM own_evidence_versions WHERE article_id = ${saved.articleId} ORDER BY version FOR UPDATE`;
+  const canonicalSha256 = sha256(stableJson(item.raw));
+  const fileSha256 = item.rawFileSha256 ?? null;
+  const priorFile = versions.map((row) => row.raw_identity?.fileSha256).find((value) => value);
+  if (fileSha256 && priorFile && priorFile !== fileSha256) throw new ImportRejected("原件文件哈希与已保存的审阅声明不一致");
+  const rawIdentity = { fileSha256, canonicalSha256 };
   const [article] = await tx<{ revision: number }[]>`SELECT revision FROM articles WHERE id = ${saved.articleId}`;
   const keptRaws = versions.filter((row) => row.raw !== null).map((row) => row.raw);
   const rawIsNew = !keptRaws.some((raw) => sameRaw(raw, item.raw));
@@ -118,6 +130,10 @@ export async function writeEvidence(tx: Db, item: ControlledImportItem): Promise
   const evidenceHash = cumulativeEvidenceHash({ rawVersions, bodyText, quotedText, xPost });
   const latest = versions.at(-1);
   if (latest && latest.evidence_hash === evidenceHash) {
+    if (fileSha256 && !latest.raw_identity?.fileSha256) {
+      await tx`UPDATE own_evidence_versions SET raw_identity = ${tx.json({ ...(latest.raw_identity ?? { canonicalSha256 }), fileSha256 } as never)}
+        WHERE article_id = ${saved.articleId} AND version = ${latest.version} AND (raw_identity IS NULL OR raw_identity->>'fileSha256' IS NULL)`;
+    }
     return {
       articleId: saved.articleId, articleRevision: article!.revision, evidenceVersion: latest.version, evidenceHash,
       idempotent: true, createdArticle: saved.created, revisedArticle: saved.revised, gaps: mapped.gaps,
@@ -125,9 +141,9 @@ export async function writeEvidence(tx: Db, item: ControlledImportItem): Promise
   }
   const version = (latest?.version ?? 0) + 1;
   await tx`
-    INSERT INTO own_evidence_versions (article_id, version, article_revision, raw, body_text, quoted_text, x_post, evidence_hash)
+    INSERT INTO own_evidence_versions (article_id, version, article_revision, raw, body_text, quoted_text, x_post, evidence_hash, raw_identity)
     VALUES (${saved.articleId}, ${version}, ${article!.revision}, ${rawIsNew ? tx.json(item.raw as never) : null},
-            ${bodyText}, ${quotedText}, ${xPost ? tx.json(xPost as never) : null}, ${evidenceHash})`;
+            ${bodyText}, ${quotedText}, ${xPost ? tx.json(xPost as never) : null}, ${evidenceHash}, ${tx.json(rawIdentity as never)})`;
   await tx`UPDATE own_judgments SET stale = true
     WHERE article_id = ${saved.articleId} AND stale = false AND evidence_hash <> ${evidenceHash}`;
   return {

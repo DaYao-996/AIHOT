@@ -4,13 +4,13 @@ import { tag } from "./setup.ts";
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
-import { existsSync, mkdtempSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { after, before, test } from "node:test";
 import { closeDb, sql } from "@aihot/backend/db";
 import { stableJson } from "@aihot/backend/lib/ids";
-import { HISTORICAL_RULESET, unblindedStructureGaps, type JudgmentBody } from "../site/own-pipeline.ts";
+import { HISTORICAL_RULESET, type JudgmentBody } from "../site/own-pipeline.ts";
 import { JudgmentConflict, appendControlledEvidence, commitControlledLoop, recordJudgment } from "../packages/backend/src/own-pipeline-store.ts";
 
 const SOURCE = `own-pipeline-${tag()}`;
@@ -217,7 +217,7 @@ test("the import command is the supported entry and does not score incomplete ma
   const file = path.join(dir, "items.json");
   writeFileSync(file, JSON.stringify({
     sourceId: SOURCE,
-    items: [{ url: `https://example.com/cli-${tag()}`, title: "命令导入", raw, rawSha256: createHash("sha256").update(stableJson(raw)).digest("hex") }],
+    items: [{ url: `https://example.com/cli-${tag()}`, title: "命令导入", raw, rawCanonicalSha256: createHash("sha256").update(stableJson(raw)).digest("hex"), rawFileSha256: "b".repeat(64) }],
   }));
   const quiet: NodeJS.ProcessEnv = {
     ...process.env, DATABASE_URL: process.env.DATABASE_URL, COLLECT_ENABLED: "false", MODEL_CALLS_ENABLED: "false",
@@ -265,40 +265,20 @@ test("the import command is the supported entry and does not score incomplete ma
   assert.equal(importer.includes("DELETE FROM own_evidence"), false);
 });
 
-test("three unblinded public samples only record body, quote and raw gaps", { skip: existsSync(SAMPLES) ? false : "public samples are not in this checkout" }, async () => {
-  const ids = readdirSync(SAMPLES).filter((name) => existsSync(`${SAMPLES}/${name}/record.json`)).sort();
-  assert.equal(ids.length, 3);
-  for (const id of ids) {
-    const rawBytes = readFileSync(`${SAMPLES}/${id}/raw.json`);
-    const record = JSON.parse(readFileSync(`${SAMPLES}/${id}/record.json`, "utf8")) as {
-      handle: string; post_id: string; root_text: string; quote?: { status?: string; text?: string };
-    };
-    const raw = JSON.parse(rawBytes.toString("utf8")) as unknown;
-    const gaps = unblindedStructureGaps(record, raw);
-    assert.equal(gaps.scored, false);
-    assert.equal(createHash("sha256").update(rawBytes).digest("hex").length, 64);
-    const url = `https://x.com/${record.handle}/status/${record.post_id}`;
-    const first = await commitControlledLoop(
-      { sourceId: SOURCE, url, title: record.root_text.slice(0, 40), raw },
-      gapBody([`${id} 只记缺口，未评分`]), "2026-11-18T03:00:00.000Z", binding,
-    );
-    const quote = record.quote?.status === "present" ? record.quote.text : undefined;
-    const second = await commitControlledLoop(
-      { sourceId: SOURCE, url, title: record.root_text.slice(0, 40), raw, bodyText: record.root_text, quotedText: quote },
-      supplementedBody([`${id} 显式补入正文，未评分`]), "2026-11-18T03:01:00.000Z", binding,
-    );
-    const versions = await sql<{ version: number; raw: unknown; body_text: string | null; quoted_text: string | null }[]>`
-      SELECT version, raw, body_text, quoted_text FROM own_evidence_versions WHERE article_id = ${first.evidence.articleId} ORDER BY version`;
-    assert.equal(stableJson(versions[0]!.raw), stableJson(raw));
-    assert.equal(versions[0]!.body_text, null);
-    assert.equal(versions[1]!.version, 2);
-    assert.equal(versions[1]!.body_text, record.root_text);
-    assert.equal(versions[1]!.quoted_text, quote ?? null);
-    const [article] = await sql<{ raw: unknown }[]>`SELECT raw FROM articles WHERE id = ${first.evidence.articleId}`;
-    assert.equal(stableJson(article!.raw), stableJson(raw));
-    assert.equal(second.judgment.body.informationTypeId, null);
-    assert.equal(second.judgment.body.releaseStatus, "not_licensed");
-    const [scored] = await sql<{ n: number }[]>`SELECT count(*)::int AS n FROM analyses WHERE article_id = ${first.evidence.articleId}`;
-    assert.equal(scored!.n, 0);
-  }
+test("three unblinded public samples go through the import command", { skip: existsSync(SAMPLES) ? false : "public samples are not in this checkout" }, () => {
+  const result = spawnSync(process.execPath, [path.join(process.cwd(), "scripts/own-unblinded-drill.ts"), SAMPLES], {
+    cwd: process.cwd(), encoding: "utf8", env: {
+      ...process.env, DATABASE_URL: process.env.DATABASE_URL, COLLECT_ENABLED: "false", MODEL_CALLS_ENABLED: "false",
+      FEISHU_CONTENT_PUSH_ENABLED: "false", DINGTALK_CONTENT_PUSH_ENABLED: "false", FEISHU_INTERNAL_ENABLED: "false",
+      INDEXNOW_SUBMIT_ENABLED: "false", BAIDU_PUSH_ENABLED: "false",
+    },
+  });
+  assert.equal(result.status, 0, result.stderr);
+  const report = JSON.parse(result.stdout) as { scored: boolean; holdout: boolean; phases: { rawOnly: { judgmentRecorded: number }; repeated: { idempotent: number } }; samples: Array<{ fileSha256: string; canonicalSha256: string }> };
+  assert.equal(report.scored, false);
+  assert.equal(report.holdout, false);
+  assert.equal(report.phases.rawOnly.judgmentRecorded, 0);
+  assert.equal(report.phases.repeated.idempotent, 3);
+  assert.equal(report.samples.length, 3);
+  for (const sample of report.samples) assert.notEqual(sample.fileSha256, sample.canonicalSha256);
 });

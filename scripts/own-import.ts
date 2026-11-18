@@ -1,15 +1,13 @@
 // One-shot import. No worker, no model, no scoring, no queueProcessing.
 import { readFileSync } from "node:fs";
 import { closeDb, sql } from "@aihot/backend/db";
-import { appendControlledEvidence, recordJudgment } from "@aihot/backend/own-pipeline-store";
+import { appendControlledEvidence } from "@aihot/backend/own-pipeline-store";
 import {
-  HISTORICAL_RULESET,
   ImportRejected,
   assertThrowawayDatabase,
   cliEntryAllowed,
   mapControlledImport,
   parseImportDocument,
-  type JudgmentBody,
 } from "../site/own-pipeline.ts";
 
 const dryRun = process.argv.includes("--dry-run");
@@ -31,7 +29,7 @@ async function main() {
     const complete = mapped.bodyText !== null;
     if (dryRun) {
       items.push({
-        url: item.url, identityKey: mapped.identityKey, rawSha256: item.rawSha256, gaps: mapped.gaps,
+        url: item.url, identityKey: mapped.identityKey, rawFileSha256: item.rawFileSha256, rawCanonicalSha256: item.rawCanonicalSha256, gaps: mapped.gaps,
         completeness: complete ? "body_present" : "missing_body", judgment: "dry_run", scored: false, valueJudgment: false,
       });
       continue;
@@ -40,25 +38,13 @@ async function main() {
       const evidence = await appendControlledEvidence(item);
       if (evidence.idempotent) counts.idempotent += 1;
       else counts.evidenceAppended += 1;
-      let judgment: "not_written_incomplete" | "recorded_deterministic" | "idempotent" = "not_written_incomplete";
       if (!complete) counts.judgmentSkippedIncomplete += 1;
-      else {
-        const body: JudgmentBody = {
-          informationTypeId: null, contentLine: null, materialStatus: "complete", factStatus: "unchecked",
-          valueStatus: "reference_only", releaseStatus: "not_licensed", origin: "deterministic", reasons: ["未评分"],
-        };
-        const recorded = await recordJudgment({
-          articleId: evidence.articleId, inputRevision: evidence.articleRevision, evidenceHash: evidence.evidenceHash,
-          rulesetVersion: HISTORICAL_RULESET, promptVersion: null, modelVersion: null,
-        }, body, new Date().toISOString());
-        judgment = recorded.idempotent ? "idempotent" : "recorded_deterministic";
-        if (!recorded.idempotent) counts.judgmentRecorded += 1;
-      }
+      const judgment = "not_written";
       const [projection] = await sql<{ publications: number; deliveries: number }[]>`
         SELECT (SELECT count(*)::int FROM publications WHERE article_id = ${evidence.articleId}) AS publications,
                (SELECT count(*)::int FROM deliveries WHERE subject_id = ${evidence.articleId}) AS deliveries`;
       items.push({
-        url: item.url, identityKey: mapped.identityKey, rawSha256: item.rawSha256,
+        url: item.url, identityKey: mapped.identityKey, rawFileSha256: item.rawFileSha256, rawCanonicalSha256: item.rawCanonicalSha256,
         articleId: evidence.articleId, articleRevision: evidence.articleRevision,
         evidenceVersion: evidence.evidenceVersion, evidenceHash: evidence.evidenceHash, gaps: evidence.gaps,
         completeness: complete ? "body_present" : "missing_body", judgment, scored: false, valueJudgment: false,
@@ -66,7 +52,7 @@ async function main() {
       });
     } catch (error) {
       counts.rejected += 1;
-      items.push({ url: item.url, rawSha256: item.rawSha256, error: error instanceof Error ? error.message : String(error), scored: false, valueJudgment: false });
+      items.push({ url: item.url, rawFileSha256: item.rawFileSha256, rawCanonicalSha256: item.rawCanonicalSha256, error: error instanceof Error ? error.message : String(error), scored: false, valueJudgment: false });
     }
   }
   console.log(JSON.stringify({
