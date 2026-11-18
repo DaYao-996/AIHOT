@@ -1,0 +1,2 @@
+node scripts/own-replay-listing.ts docs/own-pipeline/contract-run-v15/inputs/listings 8765
+NODE_TEST_CONTEXT=1 COLLECT_ENABLED=false MODEL_CALLS_ENABLED=false DATABASE_URL=postgres://own_test:own_test@127.0.0.1:5432/own_contract_entry_v15_test node scripts/own-main-chain.ts
