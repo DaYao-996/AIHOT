@@ -12,7 +12,8 @@ import { closeDb, sql } from "@aihot/backend/db";
 import { stableJson } from "@aihot/backend/lib/ids";
 import { HISTORICAL_RULESET, type JudgmentBody } from "../site/own-pipeline.ts";
 import { sweepUnprocessed } from "../packages/backend/src/jobs/content.ts";
-import { activeJudgment, JudgmentConflict, appendControlledEvidence, commitControlledLoop, materialForScoring, recordJudgment } from "../packages/backend/src/own-pipeline-store.ts";
+import { contentHash } from "@aihot/backend/content/materials";
+import { activeJudgment, JudgmentConflict, appendControlledEvidence, appendLocatedSupplement, commitControlledLoop, materialForScoring, recordJudgment } from "../packages/backend/src/own-pipeline-store.ts";
 
 const SOURCE = `own-pipeline-${tag()}`;
 const SAMPLES = process.env.OWN_PUBLIC_SAMPLES
@@ -646,6 +647,73 @@ test("the file command stores a result, repeats, rejects a changed output, and s
   assert.equal(humanRow!.fact_status, "unchecked");
   assert.equal(humanRow!.model_version, "file:human-file");
   assert.equal(humanRow!.model_receipt_id, null);
+});
+
+test("a body that returns to an older text keeps one mirror, and a footnote does not move the article revision", async () => {
+  const raw = { n: 1 };
+  const url = `https://example.com/mirror-${tag()}`;
+  const otherUrl = `https://example.com/mirror-other-${tag()}`;
+  const first = await appendControlledEvidence({ sourceId: SOURCE, url, title: "往返", raw, bodyText: "正文甲" });
+  const judgment = await recordJudgment({
+    articleId: first.articleId, inputRevision: first.articleRevision, evidenceHash: first.evidenceHash,
+    rulesetVersion: HISTORICAL_RULESET, promptVersion: null, modelVersion: null,
+  }, bodyOnly(["甲"]), "2026-11-18T06:00:00.000Z");
+  const other = await appendControlledEvidence({ sourceId: SOURCE, url: otherUrl, title: "旁观", raw, bodyText: "另一篇" });
+  const otherJudgment = await recordJudgment({
+    articleId: other.articleId, inputRevision: other.articleRevision, evidenceHash: other.evidenceHash,
+    rulesetVersion: HISTORICAL_RULESET, promptVersion: null, modelVersion: null,
+  }, bodyOnly(["旁观"]), "2026-11-18T06:00:01.000Z");
+  const changed = await appendControlledEvidence({ sourceId: SOURCE, url, title: "往返", raw, bodyText: "正文乙" });
+  assert.equal(changed.articleRevision, 2);
+  assert.notEqual(changed.evidenceHash, first.evidenceHash);
+  const back = await appendControlledEvidence({ sourceId: SOURCE, url, title: "往返", raw, bodyText: "正文甲" });
+  assert.equal(back.idempotent, false);
+  assert.equal(back.articleRevision, 3);
+  const again = await appendControlledEvidence({ sourceId: SOURCE, url, title: "往返", raw, bodyText: "正文甲" });
+  assert.equal(again.idempotent, true);
+  assert.equal(again.articleRevision, 3);
+  assert.equal(again.evidenceVersion, back.evidenceVersion);
+  const [article] = await sql<{ revision: number; body_text: string; content_hash: string }[]>`
+    SELECT revision, body_text, content_hash FROM articles WHERE id = ${first.articleId}`;
+  const revisions = await sql<{ revision: number; body_text: string; content_hash: string }[]>`
+    SELECT revision, body_text, content_hash FROM article_revisions WHERE article_id = ${first.articleId} ORDER BY revision`;
+  const [evidence] = await sql<{ version: number; article_revision: number; body_text: string; evidence_hash: string }[]>`
+    SELECT version, article_revision, body_text, evidence_hash FROM own_evidence_versions
+    WHERE article_id = ${first.articleId} ORDER BY version DESC LIMIT 1`;
+  const hash = contentHash({ title: "往返", bodyText: "正文甲", excerpt: null });
+  assert.deepEqual(revisions.map((row) => row.body_text), ["正文甲", "正文乙", "正文甲"]);
+  assert.equal(article!.revision, 3);
+  assert.equal(article!.body_text, "正文甲");
+  assert.equal(article!.content_hash, hash);
+  assert.equal(revisions[2]!.content_hash, hash);
+  assert.equal(evidence!.body_text, "正文甲");
+  assert.equal(Number(evidence!.article_revision), 3);
+  assert.equal(evidence!.evidence_hash, back.evidenceHash);
+  const [stale] = await sql<{ stale: boolean; input_revision: number; evidence_hash: string }[]>`
+    SELECT stale, input_revision, evidence_hash FROM own_judgments WHERE id = ${judgment.id}`;
+  assert.equal(stale!.stale, true);
+  assert.equal(Number(stale!.input_revision), 1);
+  assert.equal(stale!.evidence_hash, first.evidenceHash);
+  const [kept] = await sql<{ stale: boolean }[]>`SELECT stale FROM own_judgments WHERE id = ${otherJudgment.id}`;
+  assert.equal(kept!.stale, false);
+  const [beforeSupplement] = await sql<{ revision: number }[]>`SELECT revision FROM articles WHERE id = ${other.articleId}`;
+  const supplement = await appendLocatedSupplement(other.articleId, {
+    kind: "same-page-footnotes", sourceUrl: otherUrl, httpStatus: 200, responseSha256: "ab".repeat(32),
+    parts: [{ id: "n1", role: "footnote", byteStart: 0, byteEnd: 4, text: "脚注" }],
+  });
+  const [afterSupplement] = await sql<{ revision: number; body_text: string }[]>`
+    SELECT revision, body_text FROM articles WHERE id = ${other.articleId}`;
+  assert.equal(afterSupplement!.revision, beforeSupplement!.revision);
+  assert.equal(afterSupplement!.body_text, "另一篇");
+  assert.equal(supplement.version, other.evidenceVersion + 1);
+  assert.notEqual(supplement.evidenceHash, other.evidenceHash);
+  const [footnoteStale] = await sql<{ stale: boolean; input_revision: number }[]>`
+    SELECT stale, input_revision FROM own_judgments WHERE id = ${otherJudgment.id}`;
+  assert.equal(footnoteStale!.stale, true);
+  assert.equal(Number(footnoteStale!.input_revision), other.articleRevision);
+  const [untouched] = await sql<{ n: number }[]>`
+    SELECT count(*)::int AS n FROM own_judgments WHERE article_id = ${first.articleId}`;
+  assert.equal(untouched!.n, 1);
 });
 
 test("three unblinded public samples go through the import command", { skip: existsSync(SAMPLES) ? false : "public samples are not in this checkout" }, () => {

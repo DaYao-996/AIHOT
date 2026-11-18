@@ -410,7 +410,7 @@ export function classifyFetched(input: {
     const dropped = cut.subheadings.filter((heading) => !cut.text.includes(heading));
     if (dropped.length > 0) {
       return {
-        ...base, fetch: "feed_stored", body: "ambiguous", completeness: "partial", queue: "held", start: cut.start, end: cut.end,
+        ...base, fetch: "feed_stored", body: "ambiguous", completeness: "partial", queue: "held",
         reason: `subheading dropped before the next update: ${dropped.join(" | ")}`, sectionText: cut.text, sectionSha256: sha256(cut.text),
         ...byteSpan(input.html, cut.start, cut.end),
       };
@@ -418,7 +418,7 @@ export function classifyFetched(input: {
     const thin = TRUNCATION.test(cut.text);
     return {
       ...base, fetch: "feed_stored", body: "attributed", completeness: thin ? "partial" : "complete",
-      queue: thin ? "held" : "ready_for_features", start: cut.start, end: cut.end,
+      queue: thin ? "held" : "ready_for_features",
       reason: cut.subheadings.length
         ? "fragment runs to the next same-level update and keeps the subheadings inside that span"
         : "fragment runs to the next same-level update; the span has no later subheading",

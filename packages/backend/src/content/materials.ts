@@ -354,20 +354,12 @@ async function upsertIn(db: Db, m: MaterialInput): Promise<MaterialResult> {
              VALUES (${existing!.id}, ${existing!.revision}, ${next}, ${title}, ${bodyText}) ON CONFLICT DO NOTHING`;
     return unchanged;
   }
-  // A version this article already had is no new material (listings that alternate between two
-  // renderings, pages that rotate promotions): the current revision was analysed and published once
-  // already. Any earlier version counts, however long ago: a rotation with many variants would
-  // otherwise start over, and a real edit reverted later is rare and loses nothing.
-  const [seen] = await db`SELECT 1 FROM article_revisions WHERE article_id = ${existing!.id} AND content_hash = ${next} LIMIT 1`;
-  if (!time && seen) {
-    if (editorialPolicy().reviewAnalysis && (m.bodyHtml !== undefined || m.media !== undefined || m.xPost !== undefined)) {
-      const updated = await updatePresentation(db, existing!.id, { html: m.bodyHtml, media: m.media, xPost: m.xPost ?? undefined });
-      if (updated === "revised") return { articleId: existing!.id, created: false, revised: true, backfill: existing!.backfill };
-    }
-    return unchanged;
-  }
+  // A hash stored on an older revision is still a new revision when it is not the current one.
+  // Skipping it kept the later revision number and content hash while the body moved back, so the
+  // row no longer named one text. The same current hash already returned above.
   // Nor is the stored version with other characters lost in transit, or with them restored, or with other trailing counts.
-  if (!time && sameBarringLoss(existing!.title, title) && sameBarringLoss(existing!.body_text, bodyText)
+  const storedNamesBody = existing!.content_hash === contentHash({ title: existing!.title, bodyText: existing!.body_text, excerpt: existing!.excerpt });
+  if (!time && storedNamesBody && sameBarringLoss(existing!.title, title) && sameBarringLoss(existing!.body_text, bodyText)
       && (sameBarringLoss(existing!.excerpt, excerpt) || sameBarringLoss(maskTrailingCounts(existing!.excerpt), maskTrailingCounts(excerpt)))) {
     if (editorialPolicy().reviewAnalysis && (m.bodyHtml !== undefined || m.media !== undefined || m.xPost !== undefined)) {
       const updated = await updatePresentation(db, existing!.id, { html: m.bodyHtml, media: m.media, xPost: m.xPost ?? undefined });

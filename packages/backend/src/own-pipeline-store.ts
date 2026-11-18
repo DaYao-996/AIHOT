@@ -1,7 +1,7 @@
 // 受控导入、证据版本和自有判断的数据库写入。不排队、不调用模型、不建源。
 // 采集和模型开关只约束 CLI。这里不读那些开关，调用方要自己守住入口。
 // 导入把 processing_state 收成 skipped，content.sweep 只捡 new，所以之后即使 worker 起来也不会把这些行入队。
-import { identityKeyFor, upsertMaterial, type XPostData } from "./content/materials.ts";
+import { contentHash, identityKeyFor, reviseMaterial, upsertMaterial, type XPostData } from "./content/materials.ts";
 import { sql, type Db } from "./db.ts";
 import { sha256, stableJson } from "./lib/ids.ts";
 import { type BodyGate, type ModelFileItem } from "./body-gate.ts";
@@ -158,7 +158,6 @@ export async function writeEvidence(tx: Db, item: ControlledImportItem): Promise
   const priorFile = versions.map((row) => row.raw_identity?.fileSha256).find((value) => value);
   if (fileSha256 && priorFile && priorFile !== fileSha256) throw new ImportRejected("原件文件哈希与已保存的审阅声明不一致");
   const rawIdentity = { fileSha256, canonicalSha256, bytesVerified: !!fileSha256 };
-  const [article] = await tx<{ revision: number }[]>`SELECT revision FROM articles WHERE id = ${saved.articleId}`;
   const latest = versions.at(-1);
   // 缺省字段沿用当前一版（patch）。显式 null 清空。与当前快照不同才另记一版；完全相同则幂等。回到较早的另一份原件会另记一版，旧版仍留着。
   const bodyText = item.bodyText === undefined ? (latest?.body_text ?? null) : explicitText(item.bodyText);
@@ -167,12 +166,24 @@ export async function writeEvidence(tx: Db, item: ControlledImportItem): Promise
   const evidenceHash = cumulativeEvidenceHash({ title: item.title, raw: item.raw, bodyText, quotedText, xPost });
   await tx`UPDATE articles SET raw = ${tx.json(item.raw as never)}
     WHERE id = ${saved.articleId} AND raw IS DISTINCT FROM ${tx.json(item.raw as never)}::jsonb`;
+  // 正文只经 upsertMaterial / reviseMaterial 写入。直接改 body_text 会让修订号和 content_hash 停在旧文本上。
+  let revisedArticle = saved.revised;
   if (item.bodyText !== undefined) {
-    await tx`UPDATE articles SET body_text = ${bodyText}, body_status = ${bodyText ? "ok" : "pending"} WHERE id = ${saved.articleId}`;
+    const [mirror] = await tx<{ title: string; body_text: string | null; excerpt: string | null; content_hash: string | null }[]>`
+      SELECT title, body_text, excerpt, content_hash FROM articles WHERE id = ${saved.articleId} FOR UPDATE`;
+    const hash = contentHash({ title: mirror!.title, bodyText, excerpt: mirror!.excerpt });
+    if (mirror!.body_text !== bodyText || mirror!.content_hash !== hash) {
+      await reviseMaterial(tx, saved.articleId, {
+        set: sql`body_text = ${bodyText}, body_status = ${bodyText ? "ok" : "pending"}`,
+        hash, title: mirror!.title, bodyText,
+      });
+      revisedArticle = true;
+    }
   }
   if (item.xPost !== undefined) {
     await tx`UPDATE articles SET x_post = ${xPost ? tx.json(xPost as never) : null} WHERE id = ${saved.articleId}`;
   }
+  const [article] = await tx<{ revision: number }[]>`SELECT revision FROM articles WHERE id = ${saved.articleId}`;
   const park = async () => {
     await tx`UPDATE articles SET processing_state = 'skipped', processing_queued_at = NULL
       WHERE id = ${saved.articleId} AND processing_state = 'new'`;
@@ -189,7 +200,7 @@ export async function writeEvidence(tx: Db, item: ControlledImportItem): Promise
     await park();
     return {
       articleId: saved.articleId, articleRevision: article!.revision, evidenceVersion: latest.version, evidenceHash,
-      idempotent: true, createdArticle: saved.created, revisedArticle: saved.revised, gaps: mapped.gaps,
+      idempotent: true, createdArticle: saved.created, revisedArticle, gaps: mapped.gaps,
     };
   }
   const version = (latest?.version ?? 0) + 1;
@@ -203,7 +214,7 @@ export async function writeEvidence(tx: Db, item: ControlledImportItem): Promise
   await park();
   return {
     articleId: saved.articleId, articleRevision: article!.revision, evidenceVersion: version, evidenceHash,
-    idempotent: false, createdArticle: saved.created, revisedArticle: saved.revised, gaps: mapped.gaps,
+    idempotent: false, createdArticle: saved.created, revisedArticle, gaps: mapped.gaps,
   };
 }
 
