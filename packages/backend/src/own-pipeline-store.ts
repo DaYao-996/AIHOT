@@ -14,6 +14,7 @@ import {
   fileOutputCanonical,
   fileOutputSha256,
   mapControlledImport,
+  selectionOutputSha256,
   ownModelOutput,
   parseOwnModelOutput,
   type FileResultItem,
@@ -93,7 +94,20 @@ function canonicalBody(body: JudgmentBody): JudgmentBody {
     modelReceiptId: body.modelReceiptId ?? null,
     factCheck: body.factCheck ?? null,
     fileResult: body.fileResult ?? null,
+    selectionDecision: body.selectionDecision ?? null,
   };
+}
+
+function judgmentComparison(body: JudgmentBody): Record<string, unknown> | null {
+  const stored: Record<string, unknown> = {};
+  if (body.fileResult) stored.fileResult = body.fileResult;
+  if (body.comparison) {
+    stored.algorithm = body.comparison.algorithm;
+    stored.inputHash = body.comparison.inputHash;
+  }
+  if (body.factCheck) stored.factCheck = body.factCheck;
+  if (body.selectionDecision) stored.selectionDecision = body.selectionDecision;
+  return Object.keys(stored).length ? stored : null;
 }
 
 function explicitText(value: string | null): string | null {
@@ -243,6 +257,7 @@ function bodyFromRow(row: {
     modelReceiptId: row.model_receipt_id,
     factCheck: (row.comparison as { factCheck?: JudgmentBody["factCheck"] } | null)?.factCheck ?? null,
     fileResult: (row.comparison as { fileResult?: FileResultRecord } | null)?.fileResult ?? null,
+    selectionDecision: (row.comparison as { selectionDecision?: JudgmentBody["selectionDecision"] } | null)?.selectionDecision ?? null,
   };
 }
 
@@ -269,6 +284,18 @@ function assertBody(body: JudgmentBody, identity: JudgmentIdentity): void {
     }
   }
   if (body.origin !== "model" && body.origin !== "deterministic" && body.origin !== "file") throw new JudgmentConflict("判断来源无法识别");
+  if (body.selectionDecision) {
+    if (body.selectionDecision.status !== "pending_review") throw new JudgmentConflict("选择决定只能待审");
+    if (body.factStatus !== "unchecked" || body.releaseStatus !== "not_licensed" || body.valueStatus !== "incomplete_material") {
+      throw new JudgmentConflict("选择决定不能升级事实、价值或许可");
+    }
+    if (body.selectionDecision.outputSha256 !== selectionOutputSha256(body.selectionDecision.item)) {
+      throw new JudgmentConflict("选择决定输出哈希无法重算");
+    }
+    if (typeof body.selectionDecision.item.decision_rationale !== "string" || !body.selectionDecision.item.decision_rationale.trim()) {
+      throw new JudgmentConflict("选择决定缺少理由");
+    }
+  }
 }
 
 async function writeJudgment(tx: Db, identity: JudgmentIdentity, body: JudgmentBody, recordedAt: string): Promise<JudgmentWrite> {
@@ -348,11 +375,7 @@ async function writeJudgment(tx: Db, identity: JudgmentIdentity, body: JudgmentB
     VALUES (${id}, ${canonical.articleId}, ${canonical.inputRevision}, ${canonical.evidenceHash}, ${canonical.rulesetVersion},
       ${canonical.promptVersion}, ${canonical.modelVersion}, ${body.informationTypeId}, ${body.contentLine},
       ${body.materialStatus}, ${body.factStatus}, ${body.valueStatus}, ${body.releaseStatus}, ${body.origin}, ${tx.json(body.reasons as never)}, ${recordedAt},
-      ${body.fileResult
-        ? tx.json({ fileResult: body.fileResult } as never)
-        : body.comparison
-          ? tx.json({ ...body.comparison, ...(body.factCheck ? { factCheck: body.factCheck } : {}) } as never)
-          : body.factCheck ? tx.json({ factCheck: body.factCheck } as never) : null}, ${body.modelReceiptId ?? null})`;
+      ${judgmentComparison(body) ? tx.json(judgmentComparison(body) as never) : null}, ${body.modelReceiptId ?? null})`;
   return { id, identity: canonical, body, stale: false, idempotent: false };
 }
 
@@ -539,6 +562,67 @@ function quoteFits(text: string | null, excerpt: string, start: number | null, e
   if (!text || !text.includes(excerpt)) return false;
   if (start === null || end === null) return true;
   return text.slice(start, end) === excerpt;
+}
+
+/** 待审选择决定。原条目整份保存。不改同一篇文章上的语义 fileResult，也不升级事实或许可。 */
+export async function recordSelectionDecision(item: Record<string, unknown> & {
+  articleId: string; evidenceHash: string; evidenceVersion: number; inputRevision: number;
+  rulesetVersion: string; promptVersion: string;
+}, recordedAt: string): Promise<JudgmentWrite> {
+  databaseUrl();
+  const [semantic] = await sql<{ id: string; n: number }[]>`
+    SELECT id, count(*) OVER ()::int AS n FROM own_judgments
+    WHERE article_id = ${item.articleId} AND stale = false AND origin = 'file'
+      AND evidence_hash = ${item.evidenceHash} AND input_revision = ${item.inputRevision}
+      AND comparison ? 'fileResult'`;
+  if (!semantic || semantic.n !== 1) throw new JudgmentConflict("选择决定必须绑到唯一的当前语义判断");
+  const [evidence] = await sql<{ body_text: string | null; quoted_text: string | null }[]>`
+    SELECT body_text, quoted_text FROM own_evidence_versions
+    WHERE article_id = ${item.articleId} ORDER BY version DESC LIMIT 1`;
+  const materialStatus = !evidence?.body_text ? "missing_body" as const : evidence.quoted_text ? "complete" as const : "missing_quote" as const;
+  const record = {
+    status: "pending_review" as const,
+    outputSha256: selectionOutputSha256(item),
+    item,
+    boundSemanticJudgmentId: semantic.id,
+  };
+  return recordJudgment({
+    articleId: item.articleId,
+    inputRevision: item.inputRevision,
+    evidenceHash: item.evidenceHash,
+    rulesetVersion: item.rulesetVersion,
+    promptVersion: item.promptVersion,
+    modelVersion: "",
+  }, {
+    informationTypeId: null,
+    contentLine: null,
+    materialStatus,
+    factStatus: "unchecked",
+    valueStatus: "incomplete_material",
+    releaseStatus: "not_licensed",
+    origin: "deterministic",
+    reasons: ["选择决定待审，事实未核，未许可"],
+    modelReceiptId: null,
+    selectionDecision: record,
+  }, recordedAt);
+}
+
+export async function listPendingSelections(): Promise<Array<{
+  id: string; articleId: string; evidenceHash: string; inputRevision: number; promptVersion: string;
+  status: "pending_review"; outputSha256: string; boundSemanticJudgmentId: string; item: Record<string, unknown>;
+}>> {
+  databaseUrl();
+  const rows = await sql<{
+    id: string; article_id: string; evidence_hash: string; input_revision: number; prompt_version: string;
+    decision: JudgmentBody["selectionDecision"];
+  }[]>`SELECT id, article_id, evidence_hash, input_revision, prompt_version, comparison->'selectionDecision' AS decision
+    FROM own_judgments WHERE stale = false AND comparison->'selectionDecision'->>'status' = 'pending_review'
+    ORDER BY article_id, created_at`;
+  return rows.flatMap((row) => row.decision ? [{
+    id: row.id, articleId: row.article_id, evidenceHash: row.evidence_hash, inputRevision: Number(row.input_revision),
+    promptVersion: row.prompt_version, status: "pending_review" as const, outputSha256: row.decision.outputSha256,
+    boundSemanticJudgmentId: row.decision.boundSemanticJudgmentId, item: row.decision.item,
+  }] : []);
 }
 
 /** 把一份文件推理记到当前证据上。不写外部回执，不把事实标成已核，不发放许可。 */

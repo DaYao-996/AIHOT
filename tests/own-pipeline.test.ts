@@ -13,7 +13,7 @@ import { stableJson } from "@aihot/backend/lib/ids";
 import { HISTORICAL_RULESET, type JudgmentBody } from "../site/own-pipeline.ts";
 import { sweepUnprocessed } from "../packages/backend/src/jobs/content.ts";
 import { contentHash } from "@aihot/backend/content/materials";
-import { activeJudgment, JudgmentConflict, appendControlledEvidence, appendLocatedSupplement, commitControlledLoop, materialForScoring, recordJudgment } from "../packages/backend/src/own-pipeline-store.ts";
+import { activeJudgment, JudgmentConflict, appendControlledEvidence, appendLocatedSupplement, commitControlledLoop, listPendingSelections, materialForScoring, recordFileResult, recordJudgment, recordSelectionDecision } from "../packages/backend/src/own-pipeline-store.ts";
 
 const SOURCE = `own-pipeline-${tag()}`;
 const SAMPLES = process.env.OWN_PUBLIC_SAMPLES
@@ -714,6 +714,73 @@ test("a body that returns to an older text keeps one mirror, and a footnote does
   const [untouched] = await sql<{ n: number }[]>`
     SELECT count(*)::int AS n FROM own_judgments WHERE article_id = ${first.articleId}`;
   assert.equal(untouched!.n, 1);
+});
+
+test("a selection file keeps its rationale, stays pending, and does not rewrite the semantic result", async () => {
+  const url = `https://example.com/selection-${tag()}`;
+  const body = "教程步骤写在正文里。产品更新是另一句。";
+  const saved = await appendControlledEvidence({ sourceId: SOURCE, url, title: "选择夹具", raw: { n: 1 }, bodyText: body });
+  const excerpt = "教程步骤写在正文里";
+  const semantic = await recordFileResult({
+    articleId: saved.articleId, evidenceHash: saved.evidenceHash, evidenceVersion: saved.evidenceVersion,
+    inputRevision: saved.articleRevision, rulesetVersion: "rules@select", promptVersion: "prompt@semantic",
+    executionSource: "assistant-file", modelKnowledge: "unknown", knownModel: null,
+    output: {
+      narrowClaim: "正文分开写了教程和产品", quoteLocation: { excerpt, start: body.indexOf(excerpt), end: body.indexOf(excerpt) + excerpt.length },
+      conditions: ["只在这段正文里"], time: "2026-11-18", valueBasis: "正文写了两句", audience: ["读这一段的人"],
+      substantiveAddition: "比标题多了两句", clauses: [{ id: "scope", text: "只覆盖这两句" }],
+    },
+  }, "2026-11-18T07:00:00.000Z");
+  const item = {
+    articleId: saved.articleId, evidenceHash: saved.evidenceHash, evidenceVersion: saved.evidenceVersion,
+    inputRevision: saved.articleRevision, rulesetVersion: "rules@select",
+    promptVersion: "assistant-selection-decision-draft-v2-nine-convenience-v1",
+    used_claim: "正文分开写了教程和产品", excerpt, excerpt_source: "current_body",
+    decision: "candidate", decision_rationale: "教程不自动高于产品更新，这条理由留在原件里，不升成通过。",
+    audience_benefit: "读者能区分教程和产品更新", fact_checked: false,
+  };
+  const first = await recordSelectionDecision(item, "2026-11-18T07:00:01.000Z");
+  assert.equal(first.idempotent, false);
+  assert.equal(first.body.factStatus, "unchecked");
+  assert.equal(first.body.releaseStatus, "not_licensed");
+  assert.equal(first.body.valueStatus, "incomplete_material");
+  assert.equal(first.body.selectionDecision?.status, "pending_review");
+  assert.equal(first.body.selectionDecision?.boundSemanticJudgmentId, semantic.id);
+  assert.equal(first.body.selectionDecision?.item.decision_rationale, item.decision_rationale);
+  const again = await recordSelectionDecision(item, "2026-11-18T07:00:02.000Z");
+  assert.equal(again.idempotent, true);
+  assert.equal(again.id, first.id);
+  await assert.rejects(() => recordSelectionDecision({ ...item, decision_rationale: "另一条理由" }, "2026-11-18T07:00:03.000Z"), JudgmentConflict);
+  const [semanticRow] = await sql<{ output_sha: string; fact_status: string; release_status: string }[]>`
+    SELECT comparison->'fileResult'->>'outputSha256' AS output_sha, fact_status, release_status
+    FROM own_judgments WHERE id = ${semantic.id}`;
+  assert.equal(semanticRow!.output_sha, semantic.fileReceipt.outputSha256);
+  assert.equal(semanticRow!.fact_status, "unchecked");
+  assert.equal(semanticRow!.release_status, "not_licensed");
+  const queue = await listPendingSelections();
+  assert.equal(queue.find((row) => row.id === first.id)?.item.audience_benefit, item.audience_benefit);
+  const moved = await appendControlledEvidence({ sourceId: SOURCE, url, title: "选择夹具", raw: { n: 1 }, bodyText: `${body}补充。` });
+  assert.notEqual(moved.evidenceHash, saved.evidenceHash);
+  const [selectionStale] = await sql<{ stale: boolean }[]>`SELECT stale FROM own_judgments WHERE id = ${first.id}`;
+  assert.equal(selectionStale!.stale, true);
+  const [semanticStill] = await sql<{ output_sha: string }[]>`
+    SELECT comparison->'fileResult'->>'outputSha256' AS output_sha FROM own_judgments WHERE id = ${semantic.id}`;
+  assert.equal(semanticStill!.output_sha, semantic.fileReceipt.outputSha256);
+  const other = await appendControlledEvidence({ sourceId: SOURCE, url: `https://example.com/selection-other-${tag()}`, title: "旁观", raw: { n: 2 }, bodyText: body });
+  const otherSemantic = await recordFileResult({
+    articleId: other.articleId, evidenceHash: other.evidenceHash, evidenceVersion: other.evidenceVersion,
+    inputRevision: other.articleRevision, rulesetVersion: "rules@select", promptVersion: "prompt@semantic",
+    executionSource: "assistant-file", modelKnowledge: "unknown", knownModel: null,
+    output: {
+      narrowClaim: "旁观正文", quoteLocation: { excerpt, start: body.indexOf(excerpt), end: body.indexOf(excerpt) + excerpt.length },
+      conditions: ["旁观"], time: "2026-11-18", valueBasis: "旁观", audience: ["旁观"], substantiveAddition: "旁观",
+      clauses: [{ id: "scope", text: "旁观" }],
+    },
+  }, "2026-11-18T07:00:04.000Z");
+  const otherDecision = await recordSelectionDecision({ ...item, articleId: other.articleId, evidenceHash: other.evidenceHash, evidenceVersion: other.evidenceVersion, inputRevision: other.articleRevision }, "2026-11-18T07:00:05.000Z");
+  assert.equal(otherDecision.body.selectionDecision?.boundSemanticJudgmentId, otherSemantic.id);
+  const [untouched] = await sql<{ stale: boolean }[]>`SELECT stale FROM own_judgments WHERE id = ${otherDecision.id}`;
+  assert.equal(untouched!.stale, false);
 });
 
 test("three unblinded public samples go through the import command", { skip: existsSync(SAMPLES) ? false : "public samples are not in this checkout" }, () => {

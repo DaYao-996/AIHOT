@@ -272,6 +272,40 @@ function stringList(value: unknown, label: string): string[] {
 }
 
 /** 解析文件结果。未知结构拒绝。不读取调用者声称的输出哈希。 */
+/** 选择决定文件。保留条目的全部字段，输出哈希由稳定 JSON 重算。 */
+export function selectionOutputSha256(item: Record<string, unknown>): string {
+  return sha256(stableJson(item));
+}
+
+export function parseSelectionDecisionDocument(value: unknown): Array<Record<string, unknown> & {
+  articleId: string; evidenceHash: string; evidenceVersion: number; inputRevision: number;
+  rulesetVersion: string; promptVersion: string;
+}> {
+  if (!value || typeof value !== "object" || Array.isArray(value)) throw new Error("选择决定格式无法解析");
+  const doc = value as Record<string, unknown>;
+  if (typeof doc.schema !== "string" || !doc.schema.startsWith("selection-decision-from-fields-") || !Array.isArray(doc.items) || doc.items.length === 0) {
+    throw new Error("选择决定格式无法解析");
+  }
+  if (doc.factStatus !== undefined && doc.factStatus !== "unchecked") throw new Error("选择决定不能把事实标成已核");
+  if (doc.releaseStatus !== undefined && doc.releaseStatus !== "not_licensed") throw new Error("选择决定不能发放发布许可");
+  return doc.items.map((row, index) => {
+    if (!row || typeof row !== "object" || Array.isArray(row)) throw new Error(`items[${index}] 格式无法解析`);
+    const item = row as Record<string, unknown>;
+    if (typeof item.articleId !== "string" || !item.articleId.trim()) throw new Error(`items[${index}].articleId 无效`);
+    if (typeof item.evidenceHash !== "string" || !/^[0-9a-f]{64}$/.test(item.evidenceHash)) throw new Error(`items[${index}].evidenceHash 无效`);
+    if (!Number.isInteger(item.evidenceVersion) || (item.evidenceVersion as number) < 1) throw new Error(`items[${index}].evidenceVersion 无效`);
+    if (!Number.isInteger(item.inputRevision) || (item.inputRevision as number) < 1) throw new Error(`items[${index}].inputRevision 无效`);
+    if (typeof item.rulesetVersion !== "string" || !item.rulesetVersion.trim()) throw new Error(`items[${index}].rulesetVersion 无效`);
+    if (typeof item.promptVersion !== "string" || !item.promptVersion.trim()) throw new Error(`items[${index}].promptVersion 无效`);
+    if (typeof item.decision_rationale !== "string" || !item.decision_rationale.trim()) throw new Error(`items[${index}] 缺少决定理由`);
+    if (item.fact_checked === true) throw new Error(`items[${index}] 不能把事实标成已核`);
+    return item as Record<string, unknown> & {
+      articleId: string; evidenceHash: string; evidenceVersion: number; inputRevision: number;
+      rulesetVersion: string; promptVersion: string;
+    };
+  });
+}
+
 export function parseFileResultDocument(value: unknown): FileResultItem[] {
   if (!value || typeof value !== "object" || Array.isArray(value)) throw new Error("文件结果格式无法解析");
   const doc = value as Record<string, unknown>;
@@ -361,6 +395,18 @@ export interface JudgmentBody {
    * 事实保持 unchecked，许可保持 not_licensed。
    */
   fileResult?: FileResultRecord | null;
+  /**
+   * 选择决定的原件。待审，不升级事实或许可，也不替换语义 fileResult。
+   * 正式批次未到之前，这只是文件入口，不是质量通过。
+   */
+  selectionDecision?: SelectionDecisionRecord | null;
+}
+
+export interface SelectionDecisionRecord {
+  status: "pending_review";
+  outputSha256: string;
+  item: Record<string, unknown>;
+  boundSemanticJudgmentId: string;
 }
 
 export interface JudgmentRow {
