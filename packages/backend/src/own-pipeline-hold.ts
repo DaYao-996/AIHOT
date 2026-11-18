@@ -3,13 +3,13 @@ import { sql, type Db } from "./db.ts";
 
 const RELEASE_JOBS = ["content.analyze", "content.extract-body", "events.group", "notify.selected"];
 
-/** 当前修订上还有未失效、未许可的自有判断。没有这类行的普通文章不受影响。 */
+/**
+ * 这篇文章进过自有判断。许可列只能是 not_licensed，失效或修订前进都不会变成批准。
+ * 普通文章没有这类行，仍走原来的分析。判断历史留着，不在这里删。
+ */
 export async function unlicensedReleaseHold(db: Db, articleId: string): Promise<boolean> {
   const [row] = await db<{ n: number }[]>`
-    SELECT count(*)::int AS n FROM own_judgments j
-    JOIN articles a ON a.id = j.article_id
-    WHERE j.article_id = ${articleId} AND j.stale = false AND j.release_status = 'not_licensed'
-      AND j.input_revision = a.revision`;
+    SELECT count(*)::int AS n FROM own_judgments WHERE article_id = ${articleId}`;
   return (row?.n ?? 0) > 0;
 }
 

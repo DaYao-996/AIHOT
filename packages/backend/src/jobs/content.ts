@@ -13,7 +13,7 @@ import { publishArticle } from "../publication/publish.ts";
 import { BudgetExceededError, failedReceiptId, failureKind } from "../providers/receipts.ts";
 import { editorialPolicy } from "../modules.ts";
 import { readsWhole } from "../sources/uses.ts";
-import { unlicensedReleaseHold } from "../own-pipeline-hold.ts";
+import { holdBackAutomaticRelease, unlicensedReleaseHold } from "../own-pipeline-hold.ts";
 import { enqueue, QUEUES, shutdownSignal, work } from "./queue.ts";
 
 /** Minutes to wait after the n-th failed attempt; one more failure after the last ends in "failed". */
@@ -76,6 +76,10 @@ export function groupingPriority(a: { signal: boolean; historical: boolean }): n
  */
 export async function queueProcessing(articleId: string, opts: { step?: Step; attemptTag?: string; db?: Db } = {}): Promise<string | null> {
   const db = opts.db ?? sql;
+  if (await unlicensedReleaseHold(db, articleId)) {
+    await holdBackAutomaticRelease(db, articleId);
+    return null;
+  }
   const r = await route(articleId, db);
   if (!r) return null;
   const step = opts.step ?? r.step;
@@ -132,7 +136,7 @@ export async function processArticle(articleId: string, opts: { attemptTag?: str
   const row = await processingInput(articleId);
   if (!row) return { state: "missing" };
   if (await unlicensedReleaseHold(sql, articleId)) {
-    await sql`UPDATE articles SET processing_state = 'skipped', processing_queued_at = NULL WHERE id = ${articleId} AND processing_state = 'new'`;
+    await holdBackAutomaticRelease(sql, articleId);
     return { state: "held" };
   }
   try {
