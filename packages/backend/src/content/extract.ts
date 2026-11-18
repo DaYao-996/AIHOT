@@ -932,8 +932,8 @@ export async function reviseBodyFromStoredDetail(articleId: string): Promise<{
     SELECT a.id, a.url, a.source_id, a.title, a.excerpt, a.body_text, a.revision, s.config
     FROM articles a JOIN sources s ON s.id = a.source_id WHERE a.id = ${articleId}`;
   if (!a) throw new Error("文章不存在");
-  const [stored] = await sql<{ http_status: number | null; response: Buffer; truncated: boolean; fetched_at: Date }[]>`
-    SELECT http_status, response, truncated, fetched_at FROM own_detail_responses
+  const [stored] = await sql<{ http_status: number | null; response: Buffer; truncated: boolean }[]>`
+    SELECT http_status, response, truncated FROM own_detail_responses
     WHERE source_id = ${a.source_id} AND url = ${a.url} AND http_status = 200 AND truncated = false
     ORDER BY fetched_at DESC LIMIT 1`;
   const empty = { revision: Number(a.revision), bodyBytes: Buffer.byteLength(a.body_text ?? ""), extractedBytes: 0, staled: 0, evidenceHash: null as string | null };
@@ -959,7 +959,9 @@ export async function reviseBodyFromStoredDetail(articleId: string): Promise<{
   const evidence = await recordCurrentBodyEvidence(articleId, got.aside);
   // extracted_bytes stays the extract recorded with that response. bound_revision says which article revision this raw produced.
   await sql`UPDATE own_detail_responses SET bound_revision = ${evidence.articleRevision}
-    WHERE source_id = ${a.source_id} AND url = ${a.url} AND fetched_at = ${stored.fetched_at}`;
+    WHERE source_id = ${a.source_id} AND url = ${a.url} AND http_status = 200 AND truncated = false
+      AND fetched_at = (SELECT max(fetched_at) FROM own_detail_responses
+        WHERE source_id = ${a.source_id} AND url = ${a.url} AND http_status = 200 AND truncated = false)`;
   return {
     status: "revised", revision: evidence.articleRevision, bodyBytes: extractedBytes, extractedBytes,
     staled: evidence.staled, evidenceHash: evidence.evidenceHash,
