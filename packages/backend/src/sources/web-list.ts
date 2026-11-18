@@ -1,9 +1,10 @@
 // Web list pages: HTML with selectors, Markdown through Jina Reader, and dated changelog sections.
 import * as cheerio from "cheerio";
 import { marked } from "marked";
-import { guardedFetch, languageHeaders, requireOk } from "../lib/http-fetch.ts";
+import { guardedFetch, HttpStatusError, languageHeaders, requireOk } from "../lib/http-fetch.ts";
 import { contentDocument, UnavailablePageError } from "../lib/page-content.ts";
 import { fetchListing } from "./listing-fetch.ts";
+import { finishRequest, openRequest } from "./request-ledger.ts";
 import { identityKeyForUrl, normalizeUrl } from "../lib/url.ts";
 import { collapseWhitespace, stripTags } from "../lib/text.ts";
 import { isSignInRedirect, isSignInUrl, pagePublicationDate, pageRules, readableDocument, type ExtractedBody } from "../content/extract.ts";
@@ -84,7 +85,7 @@ async function fetchListingText(source: SourceRow): Promise<{ text: string; viaJ
     const page = await jinaRead(target, { purpose: "source_listing", subject: `source:${source.id}`, cacheToleranceSeconds: source.config.cacheToleranceSeconds, format, perRead: true });
     return { text: page.markdown, viaJina: true, base: source.config.baseUrl ?? target, body: Buffer.from(page.markdown), requests: 1 };
   }
-  const res = requireOk(await fetchListing(url, { headers: { accept: "text/html,application/xhtml+xml,application/json;q=0.9,*/*;q=0.8", ...languageHeaders(source.config.acceptLanguage) }, timeoutMs: 25_000 }));
+  const res = requireOk(await fetchListing(url, { sourceId: source.id, headers: { accept: "text/html,application/xhtml+xml,application/json;q=0.9,*/*;q=0.8", ...languageHeaders(source.config.acceptLanguage) }, timeoutMs: 25_000 }));
   const text = res.text();
   contentDocument(text);
   return { text, viaJina: false, base: source.config.baseUrl ?? res.url, body: res.body, requests: res.requests ?? 1 };
@@ -469,9 +470,17 @@ export async function fetchDetail(url: string, source: SourceRow, need: DetailNe
     // figures) is read up to it rather than failing on every run; a body cut there is not kept.
     // A body read that fails must not throw away a date or title already taken from the paid renderer.
     let res;
+    const requestId = await openRequest(source.id, url);
     try {
-      res = requireOk(await guardedFetch(url, { headers: languageHeaders(source.config.acceptLanguage), timeoutMs: 20_000, truncate: true }), "detail");
+      const got = await guardedFetch(url, { headers: languageHeaders(source.config.acceptLanguage), timeoutMs: 20_000, truncate: true });
+      await finishRequest(requestId, {
+        status: got.status, bytes: got.body, truncated: got.truncated,
+        error: got.status >= 400 ? `HTTP ${got.status}` : undefined,
+      });
+      res = requireOk(got, "detail");
     } catch (error) {
+      const status = error instanceof HttpStatusError ? error.status : null;
+      await finishRequest(requestId, { status, error: error instanceof Error ? error.message : String(error) });
       if (needsHtml || !(dateInJina || titleInJina)) throw error;
       res = null;
     }

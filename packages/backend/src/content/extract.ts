@@ -932,8 +932,8 @@ export async function reviseBodyFromStoredDetail(articleId: string): Promise<{
     SELECT a.id, a.url, a.source_id, a.title, a.excerpt, a.body_text, a.revision, s.config
     FROM articles a JOIN sources s ON s.id = a.source_id WHERE a.id = ${articleId}`;
   if (!a) throw new Error("文章不存在");
-  const [stored] = await sql<{ http_status: number | null; response: Buffer; truncated: boolean }[]>`
-    SELECT http_status, response, truncated FROM own_detail_responses
+  const [stored] = await sql<{ http_status: number | null; response: Buffer; truncated: boolean; fetched_at: Date }[]>`
+    SELECT http_status, response, truncated, fetched_at FROM own_detail_responses
     WHERE source_id = ${a.source_id} AND url = ${a.url} AND http_status = 200 AND truncated = false
     ORDER BY fetched_at DESC LIMIT 1`;
   const empty = { revision: Number(a.revision), bodyBytes: Buffer.byteLength(a.body_text ?? ""), extractedBytes: 0, staled: 0, evidenceHash: null as string | null };
@@ -943,7 +943,12 @@ export async function reviseBodyFromStoredDetail(articleId: string): Promise<{
   const old = a.body_text ?? "";
   const extractedBytes = Buffer.byteLength(got.text);
   if (got.text === old) return { status: "unchanged", ...empty, extractedBytes };
-  if (!old || !got.text.startsWith(old)) return { status: "not_an_extension", ...empty, extractedBytes };
+  const opening = old.trim().slice(0, 80);
+  // A feed stores the opening paragraph. The page is the same article when that opening is still
+  // inside a longer extract. A long stored body is replaced only when the new text begins with it.
+  const feedOpening = old.length > 0 && old.length < 2000 && got.text.length > old.length + 400
+    && opening.length >= 40 && got.text.includes(opening);
+  if (old && !got.text.startsWith(old) && !feedOpening) return { status: "not_an_extension", ...empty, extractedBytes };
   const hash = contentHash({ title: a.title, bodyText: got.text, excerpt: a.excerpt });
   await sql.begin(async (tx) => {
     await reviseMaterial(tx, articleId, {
@@ -952,6 +957,9 @@ export async function reviseBodyFromStoredDetail(articleId: string): Promise<{
     });
   });
   const evidence = await recordCurrentBodyEvidence(articleId, got.aside);
+  // extracted_bytes stays the extract recorded with that response. bound_revision says which article revision this raw produced.
+  await sql`UPDATE own_detail_responses SET bound_revision = ${evidence.articleRevision}
+    WHERE source_id = ${a.source_id} AND url = ${a.url} AND fetched_at = ${stored.fetched_at}`;
   return {
     status: "revised", revision: evidence.articleRevision, bodyBytes: extractedBytes, extractedBytes,
     staled: evidence.staled, evidenceHash: evidence.evidenceHash,

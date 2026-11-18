@@ -175,10 +175,10 @@ export async function fetchRss(source: SourceRow, opts: { force?: boolean } = {}
   if (previous?.etag) headers["if-none-match"] = previous.etag;
   if (previous?.lastModified) headers["if-modified-since"] = previous.lastModified;
   const started = new Date().toISOString();
-  let res = await fetchListing(url, { headers, timeoutMs: 25_000 });
+  let res = await fetchListing(url, { sourceId: source.id, headers, timeoutMs: 25_000 });
   // A redirect may have changed destinations, whose ETag namespace is unrelated to the old one.
   if (res.status === 304 && previous && res.url !== previous.responseUrl) {
-    res = await fetchListing(url, { headers: plain, timeoutMs: 25_000 });
+    res = await fetchListing(url, { sourceId: source.id, headers: plain, timeoutMs: 25_000 });
   }
   const trace: RssTrace = {
     httpStatus: res.status,
