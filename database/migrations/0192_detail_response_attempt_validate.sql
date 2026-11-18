@@ -1,0 +1,1 @@
+ALTER TABLE own_detail_responses VALIDATE CONSTRAINT own_detail_responses_attempt_id_fkey;

@@ -4,7 +4,7 @@
 import { execFileSync } from "node:child_process";
 import { createHash, randomUUID } from "node:crypto";
 import { createServer } from "node:http";
-import { mkdirSync, readFileSync, writeFileSync, appendFileSync } from "node:fs";
+import { appendFileSync, existsSync, mkdirSync, readFileSync, unlinkSync, writeFileSync } from "node:fs";
 import { dirname, isAbsolute, join, resolve } from "node:path";
 import postgres from "postgres";
 import { config } from "@aihot/backend/config";
@@ -17,10 +17,11 @@ import { holdBackAutomaticRelease } from "@aihot/backend/own-pipeline-hold";
 import { listPendingDrafts, materialForScoring, recordCurrentBodyEvidence, recordFileResult, recordReviewDraft, recordSelectionDecision } from "@aihot/backend/own-pipeline-store";
 import { collectSource, loadSource } from "@aihot/backend/sources/collect";
 import { parseHTML } from "linkedom";
-import { noteUnverifiedRequest, openRequest } from "@aihot/backend/sources/request-ledger";
+import { identityKeyForUrl } from "@aihot/backend/lib/url";
+import { finishRequest, noteUnverifiedRequest, openRequest } from "@aihot/backend/sources/request-ledger";
 import { fetchDetail } from "@aihot/backend/sources/web-list";
 import { assertThrowawayDatabase } from "../site/own-pipeline.ts";
-import { assertFileJudgmentPath, modelCall } from "./own-judge-mode.ts";
+import { assertFileJudgmentPath, modelCall, modelConfigurationGap } from "./own-judge-mode.ts";
 
 config.allowPrivateNetworkFetch = true;
 const flag = (name: string) => {
@@ -35,16 +36,83 @@ if (step === "model") {
     process.exit(1);
   }
 }
-if (step === "schedule" || step === "stop") {
-  console.log(JSON.stringify({ step, workerStarted: false, publish: false, collect: false }));
+function scheduleDir(): string {
+  const dir = flag("--schedule-dir") || "var/schedule";
+  if (!dir || isAbsolute(dir) || dir.split(/[\\/]/).includes("..")) {
+    console.error("调度目录必须是当前目录下的相对路径");
+    process.exit(1);
+  }
+  return dir;
+}
+if (step === "file") {
+  try { assertFileJudgmentPath(); }
+  catch (error) {
+    console.error(error instanceof Error ? error.message : error);
+    process.exit(1);
+  }
+  console.log(JSON.stringify({
+    step: "file", runnable: true, writesJudgments: false, modelCalls: 0,
+    modelConfigured: modelConfigurationGap() === null,
+    note: "文件判断模式可以运行，不需要模型配置。真正写入判断的是 --step once。",
+  }));
   process.exit(0);
+}
+if (step === "schedule") {
+  const dir = scheduleDir();
+  mkdirSync(dir, { recursive: true });
+  const installed = join(dir, "installed.json");
+  if (existsSync(installed)) {
+    console.error("调度工件已经在。退出码不是定时器在跑。");
+    process.exit(1);
+  }
+  const record = {
+    timerRunning: false, workerStarted: false, publish: false, collect: false, kind: "test-isolation",
+    installedAt: new Date().toISOString(),
+    onceCommand: "node scripts/own-run.ts --step once --config docs/own-pipeline/product/config.example.json --out-dir var/once-out --schedule-dir var/schedule",
+  };
+  writeFileSync(installed, JSON.stringify(record, null, 2) + "\n");
+  console.log(JSON.stringify({ step: "schedule", installed: true, timerRunning: false, artifact: installed }));
+  process.exit(0);
+}
+if (step === "stop") {
+  const dir = scheduleDir();
+  const installed = join(dir, "installed.json");
+  if (!existsSync(installed)) {
+    console.error("没有调度工件可卸。退出码 1，不用 0 表示定时器已经停过。");
+    process.exit(1);
+  }
+  const record = JSON.parse(readFileSync(installed, "utf8")) as Record<string, unknown>;
+  unlinkSync(installed);
+  mkdirSync(dir, { recursive: true });
+  writeFileSync(join(dir, "uninstalled.json"), JSON.stringify({ ...record, timerRunning: false, uninstalledAt: new Date().toISOString() }, null, 2) + "\n");
+  console.log(JSON.stringify({ step: "stop", removed: true, timerRunning: false, artifact: join(dir, "uninstalled.json") }));
+  process.exit(0);
+}
+if (step === "once") {
+  const installed = join(scheduleDir(), "installed.json");
+  if (!existsSync(installed)) {
+    console.error("没有调度工件。先运行 --step schedule。这一步不会假装定时器已经在跑。");
+    process.exit(1);
+  }
+  const record = JSON.parse(readFileSync(installed, "utf8")) as { timerRunning?: boolean };
+  if (record.timerRunning !== false) {
+    console.error("调度工件声称定时器在跑。测试隔离不允许这样。");
+    process.exit(1);
+  }
+  await runAccept();
+  writeFileSync(join(scheduleDir(), "once-ran.json"), JSON.stringify({ at: new Date().toISOString(), timerRunning: false, outDir: flag("--out-dir") }, null, 2) + "\n");
+  process.exit(process.exitCode ?? 0);
+}
+if (step === "bind-proof") {
+  await runBindProof();
+  process.exit(process.exitCode ?? 0);
 }
 if (step === "accept") {
   await runAccept();
   process.exit(process.exitCode ?? 0);
 }
 if (step !== "gap") {
-  console.error("需要 --step accept、gap、model、schedule 或 stop");
+  console.error("需要 --step accept、once、bind-proof、file、gap、model、schedule 或 stop");
   process.exit(1);
 }
 const sealPath = flag("--seal");
@@ -297,6 +365,80 @@ async function proveRefusalIsOneRow() {
     throw new Error(`403 没有按一次失败落账 ${hits} ${JSON.stringify(rows)}`);
   }
   return { hits, rows: rows.length, phase: rows[0]!.phase, bytes: rows[0]!.n };
+}
+
+async function runBindProof() {
+  const outDir = flag("--out-dir") || "var/bind-out";
+  if (isAbsolute(outDir) || outDir.split(/[\\/]/).includes("..")) {
+    console.error("输出必须是当前目录下的相对路径");
+    process.exit(1);
+  }
+  assertThrowawayDatabase(process.env.DATABASE_URL ?? "");
+  assertFileJudgmentPath();
+  mkdirSync(outDir, { recursive: true });
+  const sourceId = "bind-proof";
+  const url = "http://127.0.0.1/bind-proof/same";
+  const sentence = "The binding proof paragraph records one sentence. ";
+  const html = Buffer.from(`<!DOCTYPE html><html><body><article><p>${sentence.repeat(30)}</p></article></body></html>`);
+  const articleId = randomUUID();
+  await sql`INSERT INTO sources (id, name, kind, config, tier, participation_mode, enabled, next_fetch_at)
+    VALUES (${sourceId}, '绑定证明', 'web_list', ${sql.json({ url })}, 'T1', 'editorial', false, '2100-01-01')`;
+  await sql`INSERT INTO articles (id, source_id, identity_key, url, title, discovered_at, timeline_at, revision, content_hash, body_text, body_status, processing_state)
+    VALUES (${articleId}, ${sourceId}, ${identityKeyForUrl(url)}, ${url}, '绑定证明', now(), now(), 1, NULL, '', 'pending', 'skipped')`;
+  const [before] = await sql<{ revision: number }[]>`SELECT revision FROM articles WHERE id = ${articleId}`;
+  const open = async () => {
+    const id = await openRequest(sourceId, url);
+    await finishRequest(id, { status: 200, bytes: html });
+    return id;
+  };
+  const [leftId, rightId] = await Promise.all([open(), open()]);
+  const applied = await Promise.all([
+    applyStoredAttempt(leftId, articleId),
+    applyStoredAttempt(rightId, articleId),
+  ]);
+  const rows = await sql<{ attempt_id: string; detail_revision: number; attempt_revision: number; article_id: string }[]>`
+    SELECT d.attempt_id, d.bound_revision AS detail_revision, a.bound_revision AS attempt_revision, a.article_id
+    FROM own_detail_responses d JOIN own_request_attempts a ON a.id = d.attempt_id
+    WHERE d.attempt_id IN (${leftId}, ${rightId})`;
+  if (rows.length !== 2 || applied.some((item) => item.status !== "revised" && item.status !== "bound")) {
+    throw new Error(`同地址并发没有各绑到自己的请求 ${JSON.stringify({ applied, rows })}`);
+  }
+  for (const row of rows) {
+    if (row.article_id !== articleId || Number(row.detail_revision) !== Number(row.attempt_revision)) throw new Error("详情没有指向这次请求和同一修订");
+  }
+  const rollId = await open();
+  let rolled = false;
+  try {
+    await applyStoredAttempt(rollId, articleId, { failBeforeCommit: true });
+  } catch (error) {
+    rolled = error instanceof Error && error.message.includes("提交前失败");
+    if (!rolled) throw error;
+  }
+  const [left] = await sql<{ article_id: string | null; bound_revision: number | null; details: number; revision: number }[]>`
+    SELECT t.article_id, t.bound_revision,
+      (SELECT count(*)::int FROM own_detail_responses d WHERE d.attempt_id = t.id) AS details,
+      (SELECT revision FROM articles WHERE id = ${articleId}) AS revision
+    FROM own_request_attempts t WHERE t.id = ${rollId}`;
+  if (!rolled || left?.article_id || left?.bound_revision != null || left?.details !== 0 || Number(left?.revision) !== Number(before!.revision) + applied.filter((item) => item.status === "revised").length) {
+    throw new Error(`失败没有整笔撤销 ${JSON.stringify(left)}`);
+  }
+  let foreignKeyRejected = false;
+  try {
+    await sql`INSERT INTO own_detail_responses (source_id, url, response_sha256, attempt_id)
+      VALUES (${sourceId}, ${url}, 'missing', ${randomUUID()})`;
+  } catch {
+    foreignKeyRejected = true;
+  }
+  if (!foreignKeyRejected) throw new Error("不存在的请求编号被写进了详情");
+  const report = {
+    sameUrl: url, concurrent: rows.map((row) => ({ attemptId: row.attempt_id, revision: Number(row.detail_revision) })),
+    rollback: { attemptId: rollId, bound: false, detailRows: 0, articleRevision: Number(left!.revision) },
+    foreignKeyRejected, officialGets: 0,
+  };
+  writeFileSync(join(outDir, "BIND.json"), JSON.stringify(report, null, 2) + "\n");
+  console.log(JSON.stringify({ ok: true, concurrent: rows.length, rolledBack: true, foreignKeyRejected }));
+  await stopBoss();
+  await closeDb();
 }
 
 async function runAccept() {

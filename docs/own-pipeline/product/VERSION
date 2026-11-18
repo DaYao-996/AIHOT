@@ -1,0 +1,5 @@
+node >= 24.22.1
+postgres local, database name ends with _test or _ci
+lock-sha256 9cfff21323a1ba3e5c42c940ca4aae7218f58ed5f4194a8445bf7f2f50da0618
+listen 127.0.0.1 ephemeral
+publish false

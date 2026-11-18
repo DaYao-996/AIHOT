@@ -928,7 +928,7 @@ export async function extractArticleBody(articleId: string, opts: { paidFallback
  * response returned. The revision and that id are written in this transaction. A started or failed
  * attempt is left as it is, and the page is not fetched again.
  */
-export async function applyStoredAttempt(attemptId: string, articleId: string): Promise<{
+export async function applyStoredAttempt(attemptId: string, articleId: string, options?: { failBeforeCommit?: boolean }): Promise<{
   status: "revised" | "bound" | "interrupted" | "failed" | "already_bound" | "not_an_extension" | "missing";
   revision: number | null;
   attemptId: string;
@@ -981,9 +981,10 @@ export async function applyStoredAttempt(attemptId: string, articleId: string): 
       staled = rows.length;
     }
     await tx`UPDATE own_request_attempts SET article_id = ${articleId}, bound_revision = ${revision} WHERE id = ${attemptId}`;
-    await tx`INSERT INTO own_detail_responses (source_id, url, http_status, response, response_sha256, truncated, extracted_bytes, bound_revision, extraction_note)
-      VALUES (${a.source_id}, ${attempt.url}, 200, ${attempt.response}, ${sha256(Buffer.from(attempt.response))}, false, ${Buffer.byteLength(text)}, ${revision},
-        ${"extract length and bound_revision were written with this article revision"})`;
+    await tx`INSERT INTO own_detail_responses (source_id, url, http_status, response, response_sha256, truncated, extracted_bytes, bound_revision, attempt_id, extraction_note)
+      VALUES (${a.source_id}, ${attempt.url}, 200, ${attempt.response}, ${sha256(Buffer.from(attempt.response))}, false, ${Buffer.byteLength(text)}, ${revision}, ${attemptId},
+        ${"attempt_id、修订号和这次请求在同一事务里写入"})`;
+    if (options?.failBeforeCommit) throw new Error("绑定事务在提交前失败");
     return { status: (same ? "bound" : "revised") as "bound" | "revised", revision, attemptId, staled };
   });
 }
