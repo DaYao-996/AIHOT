@@ -265,6 +265,7 @@ async function writeJudgment(tx: Db, identity: JudgmentIdentity, body: JudgmentB
       && request.evidenceHash === canonical.evidenceHash
       && request.promptVersion === canonical.promptVersion;
     if (!bound) throw new JudgmentConflict("回执没有绑到这篇文章的当前证据");
+    if (!canonical.promptVersion) throw new JudgmentConflict("模型判断必须带可追溯的提示词版本和模型版本");
     let parsed: ReturnType<typeof parseOwnModelOutput>;
     try {
       parsed = parseOwnModelOutput(receipt.response, {
