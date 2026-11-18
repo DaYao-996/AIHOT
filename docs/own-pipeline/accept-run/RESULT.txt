@@ -1,0 +1,9 @@
+从含有 CONFIG.json 的目录运行，配置和输出都是相对路径。`node ../../../scripts/own-run.ts --step schedule` 和 `--step stop` 退出码 0，不启动 worker，不发布。`--step model` 退出码 1，不写回执。`--step accept` 退出码 0。安装依赖用仓库里的 `package-lock.json` 和 `npm ci`。自动发布没有打开。
+
+这次没有请求官网。三篇详情是已保存原页在本机的回放，每个地址的成功请求是一行。403 只有一行 failed。中断的请求停在 started，没有再请求。三篇回放的 `bound_revision` 是 2，和文章修订写在同一次事务里，绑的是这次 attempt id。列表、403 和中断行没有修订号。
+
+两篇 NVIDIA 开发者博客的订阅摘要以单词 Source 结尾。这个词不在 `.entry-content` 里，页面正文也没有 Related posts 或页脚。抽出的正文盖住这个容器的第一句和最后一句：稀疏注意力收到 Guideline 8，Slurm 收到致谢。没有为了凑字节把 Source 或作者控件补进去。
+
+Apple 中国正文不再以 `<article>` 外的“在新窗口中打开”开头，也不再以“新闻文章”这个下载标签结尾。开头是“更新 2026 年 11 月 17 日”，结尾是播客年度节目那句引语。JSON-LD 的 `datePublished` 是 `2026-11-17Z`。`publication_time` 留下原串 `2026-11-17`，只表示日历日。同页的 11:03 和 `dateModified` 没有采用。排序用的瞬间不是页面上的钟点。
+
+41 篇台账的缺日期字段仍是 12，Apple 中国的旧标签仍是 pending_body。按字段刷新，这一篇现在有正文和日历日，派生后的缺日期是 11。没有改台账里的 12。174 条 X 仍是未跑。合同不通过。没有 Mac 部署。

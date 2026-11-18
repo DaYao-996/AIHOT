@@ -462,7 +462,8 @@ export async function fetchDetail(url: string, source: SourceRow, need: DetailNe
   const titleInJina = need.title && jinaListing && !!d.titleRegex;
   const jina = dateInJina || titleInJina ? (await jinaRead(url, { purpose: "source_detail", subject: `source:${source.id}` })).raw : null;
   let html: string | null = null;
-  let response: { bytes: Buffer; status: number; url: string; truncated: boolean; requests: number } | null = null;
+  let requestId: string | null = null;
+  let response: { bytes: Buffer; status: number; url: string; truncated: boolean; requests: number; attemptId: string } | null = null;
   let page: { document: ReturnType<typeof contentDocument>; url: string; whole: boolean } | null = null;
   const needsHtml = (need.date && !dateInJina) || (need.title && !titleInJina) || need.summary;
   if (needsHtml || need.body) {
@@ -470,7 +471,7 @@ export async function fetchDetail(url: string, source: SourceRow, need: DetailNe
     // figures) is read up to it rather than failing on every run; a body cut there is not kept.
     // A body read that fails must not throw away a date or title already taken from the paid renderer.
     let res;
-    const requestId = await openRequest(source.id, url);
+    requestId = await openRequest(source.id, url);
     try {
       const got = await guardedFetch(url, { headers: languageHeaders(source.config.acceptLanguage), timeoutMs: 20_000, truncate: true });
       await finishRequest(requestId, {
@@ -488,7 +489,7 @@ export async function fetchDetail(url: string, source: SourceRow, need: DetailNe
       // A sign-in form is no detail page: its title, date and text are not the post's.
       if (isSignInRedirect(url, res.url)) throw new UnavailablePageError("redirected to a sign-in form");
       html = res.text();
-      response = { bytes: res.body, status: res.status, url: res.url, truncated: res.truncated, requests: res.requests ?? 1 };
+      response = { bytes: res.body, status: res.status, url: res.url, truncated: res.truncated, requests: res.requests ?? 1, attemptId: requestId! };
       page = { document: contentDocument(html), url: res.url, whole: !res.truncated && /html/.test(res.headers.get("content-type") ?? "") };
     }
   }

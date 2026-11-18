@@ -1,0 +1,120 @@
+{
+  "contractPassed": false,
+  "workerStarted": false,
+  "modelCalls": 0,
+  "publish": false,
+  "xNotRun": 174,
+  "articles": 41,
+  "missingDate": 12,
+  "pendingBody": 19,
+  "derived": {
+    "note": "标签仍是当时的互斥类。字段刷新不改那一列，也不改 12 这个历史计数。",
+    "appleLabel": "pending_body",
+    "appleFields": {
+      "body": true,
+      "date": "2026-11-17",
+      "datePrecision": "date",
+      "original": "2026-11-17Z"
+    },
+    "missingDateAfterFieldRefresh": 11
+  },
+  "refusal": {
+    "hits": 1,
+    "rows": 1,
+    "phase": "failed",
+    "bytes": 7
+  },
+  "interrupted": "started",
+  "hits": {
+    "/listing": 1,
+    "/p/0": 1,
+    "/p/1": 2,
+    "/p/2": 1,
+    "/": 1,
+    "/p": 1
+  },
+  "chain": [
+    {
+      "canonical": "https://developer.nvidia.com/blog/co-designing-sparse-attention-for-efficient-long-context-inference/",
+      "local": "http://127.0.0.1:40703/p/0",
+      "attemptId": "6c7fbbdc-51aa-464e-aeb5-7777f1cc1388",
+      "applied": {
+        "status": "revised",
+        "revision": 2,
+        "attemptId": "6c7fbbdc-51aa-464e-aeb5-7777f1cc1388",
+        "staled": 3
+      },
+      "full": {
+        "semanticId": "39dbf3d7faff8259cd40fe11a3cdc2dba357c5b4b93695d1a59f542f63211073",
+        "selectionId": "c93fa3a50d12301c48df078433bc2a3276b4ce1091f5beec7d1ea4566b852043",
+        "draftId": "bca1ab3d7a42583f465b1edb3eb5b774b2d7c5d0fc45c51912fb435621a5aac9"
+      },
+      "scoringBytes": 17289,
+      "boundary": {
+        "container": ".entry-content",
+        "extractHasHead": true,
+        "extractHasTail": true,
+        "opensInNewWindow": false,
+        "downloadLabel": false,
+        "feedSourceWordIsNotThePost": true,
+        "byteLengthIsNotCompleteness": true
+      }
+    },
+    {
+      "canonical": "https://developer.nvidia.com/blog/integrating-qpus-into-supercomputing-centers-using-slurm-hres-plugins/",
+      "local": "http://127.0.0.1:40703/p/1",
+      "attemptId": "a9f553cd-3897-4a07-9775-97f8daddf189",
+      "applied": {
+        "status": "revised",
+        "revision": 2,
+        "attemptId": "a9f553cd-3897-4a07-9775-97f8daddf189",
+        "staled": 3
+      },
+      "full": {
+        "semanticId": "d711bd8a1fc265caae53491ac8bbe3352e07b272b0a84d8f0375e8de6d48592b",
+        "selectionId": "edac574b484c299c37dd5933d3db21405de2134f72b29c7285d6ba616dcfc381",
+        "draftId": "94a658e36e02ba38405248d5d19c9406ea8f2f45616761bdbb2c7a53b647780f"
+      },
+      "scoringBytes": 16811,
+      "boundary": {
+        "container": ".entry-content",
+        "extractHasHead": true,
+        "extractHasTail": true,
+        "opensInNewWindow": false,
+        "downloadLabel": false,
+        "feedSourceWordIsNotThePost": true,
+        "byteLengthIsNotCompleteness": true
+      }
+    },
+    {
+      "canonical": "https://www.apple.com.cn/newsroom/2026/11/apple-podcasts-names-baby-this-is-keke-palmer-the-2026-show-of-the-year/",
+      "local": "http://127.0.0.1:40703/p/2",
+      "attemptId": "2c605471-f210-4859-8842-9f3b481716dc",
+      "applied": {
+        "status": "revised",
+        "revision": 2,
+        "attemptId": "2c605471-f210-4859-8842-9f3b481716dc",
+        "staled": 0
+      },
+      "full": {
+        "semanticId": "d9e10c6e1932a254b398824abce694d9e126b208c4e8bad7606e5953a860ca68",
+        "selectionId": "1b21c41c451330446998bffc34725469802dcf80e3d10aafa07a7a7def2b4ed1",
+        "draftId": "2b0e4edc062cd99e4513a2c673b6730e20d49b2b4fb1305ac18e979dad1ca4e7"
+      },
+      "scoringBytes": 3597,
+      "boundary": {
+        "container": "article",
+        "extractHasHead": false,
+        "extractHasTail": false,
+        "opensInNewWindow": false,
+        "downloadLabel": false,
+        "feedSourceWordIsNotThePost": true,
+        "byteLengthIsNotCompleteness": true
+      }
+    }
+  ],
+  "restored": {
+    "articles": 3,
+    "dump": "ba7d6fa0a391bc2be8803ff49c79d853ecf01e89ca140433b0dc50bca33b56b0"
+  }
+}

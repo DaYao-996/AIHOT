@@ -3,6 +3,7 @@
 import { Readability } from "@mozilla/readability";
 import { parseHTML } from "linkedom";
 import { DEPLOYMENT } from "@aihot/site";
+import { cumulativeEvidenceHash } from "../../../../site/own-pipeline.ts";
 import { sql } from "../db.ts";
 import { guardedFetch, languageHeaders } from "../lib/http-fetch.ts";
 import { assertPageContent, contentDocument, UnavailablePageError } from "../lib/page-content.ts";
@@ -18,6 +19,7 @@ import { sanitizeBody, trimTrailingChrome } from "./sanitize.ts";
 import { contentAside, type ContentAside } from "../sources/saved-supplements.ts";
 import { recordCollectedEvidence, recordCurrentBodyEvidence } from "../own-pipeline-store.ts";
 import { contentHash, fillPublicationTime, reviseMaterial, updatePresentation, type MediaItem } from "./materials.ts";
+import { sha256 } from "../lib/ids.ts";
 import { markdownBody } from "./markdown.ts";
 import { articleCover, declaredCover, hasPicture, type Cover } from "./cover.ts";
 
@@ -750,6 +752,11 @@ const LAYOUT_CLASS = /^(?:[\w-]+:)*(?:tw-)?(?:overflow|overscroll|scroll|snap)-[
  * release's own forward-looking statements). It is not the site footer, and a second copy for another
  * layout is dropped so the close is not stored twice. Nothing is added because a heading says "About".
  */
+/** A control that only says a link opens elsewhere, or a downloads label, is not the article. */
+function dropPageControls(document: Doc) {
+  for (const el of document.querySelectorAll("#opens-in-new-window, [class*='docsanddownloads']")) el.remove();
+}
+
 const ARTICLE_CLOSING = /(?:^|\s)(?:article-bottom|article-footer|article-end)(?:\s|$)/;
 function keepArticleClosing(document: Doc) {
   for (const article of [...document.querySelectorAll("div.article")]) {
@@ -800,6 +807,7 @@ export function readableDocument(document: Doc, url: string, rules: PageRules = 
   keepAsidesAmongParagraphs(document);
   dropAuthorCards(document);
   keepMediaAmongParagraphs(document);
+  dropPageControls(document);
   dropLayoutClasses(document);
   // After the names that only say "media" or set overflow are gone, which would count against a box of figures.
   unwrapFigureBoxes(document);
@@ -916,6 +924,71 @@ export async function extractArticleBody(articleId: string, opts: { paidFallback
 }
 
 /**
+ * Binds one already-finished attempt to one article revision. The attempt id was stored before the
+ * response returned. The revision and that id are written in this transaction. A started or failed
+ * attempt is left as it is, and the page is not fetched again.
+ */
+export async function applyStoredAttempt(attemptId: string, articleId: string): Promise<{
+  status: "revised" | "bound" | "interrupted" | "failed" | "already_bound" | "not_an_extension" | "missing";
+  revision: number | null;
+  attemptId: string;
+  staled: number;
+}> {
+  return sql.begin(async (tx) => {
+    const [attempt] = await tx<{ phase: string; response: Buffer | null; bound_revision: number | null; url: string }[]>`
+      SELECT phase, response, bound_revision, url FROM own_request_attempts WHERE id = ${attemptId} FOR UPDATE`;
+    if (!attempt) return { status: "missing" as const, revision: null, attemptId, staled: 0 };
+    if (attempt.phase === "started") return { status: "interrupted" as const, revision: null, attemptId, staled: 0 };
+    if (attempt.phase !== "succeeded" || !attempt.response) return { status: "failed" as const, revision: null, attemptId, staled: 0 };
+    if (attempt.bound_revision != null) return { status: "already_bound" as const, revision: Number(attempt.bound_revision), attemptId, staled: 0 };
+    const [a] = await tx<{ title: string; excerpt: string | null; body_text: string | null; revision: number; raw: unknown; source_id: string; config: SourceRow["config"] }[]>`
+      SELECT a.title, a.excerpt, a.body_text, a.revision, a.raw, a.source_id, s.config
+      FROM articles a JOIN sources s ON s.id = a.source_id WHERE a.id = ${articleId} FOR UPDATE OF a`;
+    if (!a) return { status: "missing" as const, revision: null, attemptId, staled: 0 };
+    const got = readable(Buffer.from(attempt.response).toString("utf8"), attempt.url, pageRules(a.config));
+    const old = a.body_text ?? "";
+    const text = got?.text ?? "";
+    const opening = old.trim().slice(0, 80);
+    const feedOpening = old.length > 0 && old.length < 2000 && text.length > old.length + 400 && opening.length >= 40 && text.includes(opening);
+    const same = text === old && text.length > 0;
+    const extend = !!got && (same || !old || text.startsWith(old) || feedOpening);
+    if (!extend) return { status: "not_an_extension" as const, revision: Number(a.revision), attemptId, staled: 0 };
+    let revision = Number(a.revision);
+    let bodyText = old;
+    if (!same) {
+      const hash = contentHash({ title: a.title, bodyText: text, excerpt: a.excerpt });
+      await reviseMaterial(tx, articleId, {
+        set: sql`body_html = ${got!.html}, body_text = ${text}, body_status = 'ok'`,
+        hash, title: a.title, bodyText: text,
+      });
+      const [now] = await tx<{ revision: number }[]>`SELECT revision FROM articles WHERE id = ${articleId}`;
+      revision = Number(now!.revision);
+      bodyText = text;
+    }
+    const shown = got?.aside && (got.aside.links.length || got.aside.charts.length) ? got.aside : null;
+    const evidenceHash = cumulativeEvidenceHash({ title: a.title, raw: a.raw, bodyText, quotedText: null, xPost: null, aside: shown });
+    const [latest] = await tx<{ version: number; evidence_hash: string; article_revision: number }[]>`
+      SELECT version, evidence_hash, article_revision FROM own_evidence_versions WHERE article_id = ${articleId} ORDER BY version DESC LIMIT 1`;
+    let staled = 0;
+    if (!latest || latest.evidence_hash !== evidenceHash || Number(latest.article_revision) !== revision) {
+      const version = (latest?.version ?? 0) + 1;
+      await tx`INSERT INTO own_evidence_versions (article_id, version, article_revision, raw, body_text, evidence_hash, body_gate)
+        VALUES (${articleId}, ${version}, ${revision}, ${a.raw === null ? null : tx.json(a.raw as never)}, ${bodyText}, ${evidenceHash},
+          ${shown ? tx.json({ aside: shown } as never) : null})`;
+      const rows = await tx<{ id: string }[]>`UPDATE own_judgments SET stale = true
+        WHERE article_id = ${articleId} AND stale = false AND (evidence_hash <> ${evidenceHash} OR input_revision <> ${revision})
+        RETURNING id`;
+      staled = rows.length;
+    }
+    await tx`UPDATE own_request_attempts SET article_id = ${articleId}, bound_revision = ${revision} WHERE id = ${attemptId}`;
+    await tx`INSERT INTO own_detail_responses (source_id, url, http_status, response, response_sha256, truncated, extracted_bytes, bound_revision, extraction_note)
+      VALUES (${a.source_id}, ${attempt.url}, 200, ${attempt.response}, ${sha256(Buffer.from(attempt.response))}, false, ${Buffer.byteLength(text)}, ${revision},
+        ${"extract length and bound_revision were written with this article revision"})`;
+    return { status: (same ? "bound" : "revised") as "bound" | "revised", revision, attemptId, staled };
+  });
+}
+
+/**
  * Re-reads a detail response this source already stored. No request. A longer extract replaces the
  * body only when it still begins with the stored text, and that revision invalidates judgments of
  * the shorter body. A different article, a shorter slice, or a missing response leaves the row.
@@ -957,11 +1030,6 @@ export async function reviseBodyFromStoredDetail(articleId: string): Promise<{
     });
   });
   const evidence = await recordCurrentBodyEvidence(articleId, got.aside);
-  // extracted_bytes stays the extract recorded with that response. bound_revision says which article revision this raw produced.
-  await sql`UPDATE own_detail_responses SET bound_revision = ${evidence.articleRevision}
-    WHERE source_id = ${a.source_id} AND url = ${a.url} AND http_status = 200 AND truncated = false
-      AND fetched_at = (SELECT max(fetched_at) FROM own_detail_responses
-        WHERE source_id = ${a.source_id} AND url = ${a.url} AND http_status = 200 AND truncated = false)`;
   return {
     status: "revised", revision: evidence.articleRevision, bodyBytes: extractedBytes, extractedBytes,
     staled: evidence.staled, evidenceHash: evidence.evidenceHash,
