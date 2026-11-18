@@ -1,7 +1,7 @@
 // 受控导入、证据版本和自有判断的数据库写入。不排队、不调用模型、不建源。
 // 采集和模型开关只约束 CLI。这里不读那些开关，调用方要自己守住入口。
 // 导入把 processing_state 收成 skipped，content.sweep 只捡 new，所以之后即使 worker 起来也不会把这些行入队。
-import { contentHash, identityKeyFor, reviseMaterial, upsertMaterial, type XPostData } from "./content/materials.ts";
+import { contentHash, fillPublicationTime, identityKeyFor, reviseMaterial, upsertMaterial, type XPostData } from "./content/materials.ts";
 import { sql, type Db } from "./db.ts";
 import { sha256, stableJson } from "./lib/ids.ts";
 import { type BodyGate, type ModelFileItem } from "./body-gate.ts";
@@ -95,6 +95,7 @@ function canonicalBody(body: JudgmentBody): JudgmentBody {
     factCheck: body.factCheck ?? null,
     fileResult: body.fileResult ?? null,
     selectionDecision: body.selectionDecision ?? null,
+    reviewDraft: body.reviewDraft ?? null,
   };
 }
 
@@ -107,6 +108,7 @@ function judgmentComparison(body: JudgmentBody): Record<string, unknown> | null 
   }
   if (body.factCheck) stored.factCheck = body.factCheck;
   if (body.selectionDecision) stored.selectionDecision = body.selectionDecision;
+  if (body.reviewDraft) stored.reviewDraft = body.reviewDraft;
   return Object.keys(stored).length ? stored : null;
 }
 
@@ -258,6 +260,7 @@ function bodyFromRow(row: {
     factCheck: (row.comparison as { factCheck?: JudgmentBody["factCheck"] } | null)?.factCheck ?? null,
     fileResult: (row.comparison as { fileResult?: FileResultRecord } | null)?.fileResult ?? null,
     selectionDecision: (row.comparison as { selectionDecision?: JudgmentBody["selectionDecision"] } | null)?.selectionDecision ?? null,
+    reviewDraft: (row.comparison as { reviewDraft?: JudgmentBody["reviewDraft"] } | null)?.reviewDraft ?? null,
   };
 }
 
@@ -296,6 +299,25 @@ function assertBody(body: JudgmentBody, identity: JudgmentIdentity): void {
       throw new JudgmentConflict("选择决定缺少理由");
     }
   }
+  if (body.reviewDraft) {
+    if (body.reviewDraft.status !== "pending_review") throw new JudgmentConflict("待审稿只能待审");
+    if (body.factStatus !== "unchecked" || body.releaseStatus !== "not_licensed") throw new JudgmentConflict("待审稿不能升级事实或许可");
+    if (body.reviewDraft.technicalFixture !== true) throw new JudgmentConflict("待审稿夹具必须标明不是对外稿件");
+    if (!body.reviewDraft.text.trim() || !body.reviewDraft.sourceNote.trim()) throw new JudgmentConflict("待审稿缺少正文或来源");
+    if (!Array.isArray(body.reviewDraft.conditions)) throw new JudgmentConflict("待审稿缺少条件");
+  }
+}
+
+async function currentArticleRevision(db: Db, articleId: string): Promise<number> {
+  const [row] = await db<{ revision: number }[]>`SELECT revision FROM articles WHERE id = ${articleId}`;
+  if (!row) throw new JudgmentConflict("文章不存在");
+  return Number(row.revision);
+}
+
+/** 文件语义、选择和待审稿都要绑到文章当前修订。证据行上的旧修订不能冒充当前。 */
+function assertCurrentArticleRevision(articleRevision: number, evidenceRevision: number, inputRevision: number): void {
+  if (evidenceRevision !== articleRevision) throw new JudgmentConflict("当前证据没有绑到当前文章修订");
+  if (inputRevision !== articleRevision) throw new JudgmentConflict("判断必须绑定当前文章修订");
 }
 
 async function writeJudgment(tx: Db, identity: JudgmentIdentity, body: JudgmentBody, recordedAt: string): Promise<JudgmentWrite> {
@@ -308,9 +330,8 @@ async function writeJudgment(tx: Db, identity: JudgmentIdentity, body: JudgmentB
     SELECT evidence_hash, article_revision, body_text, quoted_text FROM own_evidence_versions
     WHERE article_id = ${canonical.articleId} ORDER BY version DESC LIMIT 1`;
   if (!current) throw new JudgmentConflict("没有持久证据，拒绝判断");
-  if (current.evidence_hash !== canonical.evidenceHash || current.article_revision !== canonical.inputRevision) {
-    throw new JudgmentConflict("判断必须绑定当前持久证据");
-  }
+  assertCurrentArticleRevision(await currentArticleRevision(tx, canonical.articleId), Number(current.article_revision), canonical.inputRevision);
+  if (current.evidence_hash !== canonical.evidenceHash) throw new JudgmentConflict("判断必须绑定当前持久证据");
   const derived = !current.body_text ? "missing_body" : current.quoted_text ? "complete" : "missing_quote";
   if (body.materialStatus !== derived) throw new JudgmentConflict(`持久证据是${derived}，不能写成${body.materialStatus}`);
   if (body.origin === "model") {
@@ -476,6 +497,7 @@ export async function appendLocatedSupplement(articleId: string, supplement: {
     }[]>`SELECT version, evidence_hash, article_revision, body_text, quoted_text, x_post, raw_file, raw_identity, body_gate
       FROM own_evidence_versions WHERE article_id = ${articleId} ORDER BY version DESC LIMIT 1`;
     if (!latest) throw new Error("没有持久证据，不能补料");
+    if (Number(latest.article_revision) !== await currentArticleRevision(tx, articleId)) throw new JudgmentConflict("当前证据没有绑到当前文章修订");
     const version = latest.version + 1;
     const located = {
       kind: supplement.kind, sourceUrl: supplement.sourceUrl, httpStatus: supplement.httpStatus,
@@ -570,16 +592,21 @@ export async function recordSelectionDecision(item: Record<string, unknown> & {
   rulesetVersion: string; promptVersion: string;
 }, recordedAt: string): Promise<JudgmentWrite> {
   databaseUrl();
+  const [evidence] = await sql<{ version: number; article_revision: number; evidence_hash: string; body_text: string | null; quoted_text: string | null }[]>`
+    SELECT version, article_revision, evidence_hash, body_text, quoted_text FROM own_evidence_versions
+    WHERE article_id = ${item.articleId} ORDER BY version DESC LIMIT 1`;
+  if (!evidence) throw new JudgmentConflict("没有持久证据，拒绝判断");
+  assertCurrentArticleRevision(await currentArticleRevision(sql, item.articleId), Number(evidence.article_revision), item.inputRevision);
+  if (evidence.evidence_hash !== item.evidenceHash || Number(evidence.version) !== item.evidenceVersion) {
+    throw new JudgmentConflict("输入证据不是当前版本");
+  }
   const [semantic] = await sql<{ id: string; n: number }[]>`
     SELECT id, count(*) OVER ()::int AS n FROM own_judgments
     WHERE article_id = ${item.articleId} AND stale = false AND origin = 'file'
       AND evidence_hash = ${item.evidenceHash} AND input_revision = ${item.inputRevision}
       AND comparison ? 'fileResult'`;
   if (!semantic || semantic.n !== 1) throw new JudgmentConflict("选择决定必须绑到唯一的当前语义判断");
-  const [evidence] = await sql<{ body_text: string | null; quoted_text: string | null }[]>`
-    SELECT body_text, quoted_text FROM own_evidence_versions
-    WHERE article_id = ${item.articleId} ORDER BY version DESC LIMIT 1`;
-  const materialStatus = !evidence?.body_text ? "missing_body" as const : evidence.quoted_text ? "complete" as const : "missing_quote" as const;
+  const materialStatus = !evidence.body_text ? "missing_body" as const : evidence.quoted_text ? "complete" as const : "missing_quote" as const;
   const record = {
     status: "pending_review" as const,
     outputSha256: selectionOutputSha256(item),
@@ -614,14 +641,159 @@ export async function listPendingSelections(): Promise<Array<{
   databaseUrl();
   const rows = await sql<{
     id: string; article_id: string; evidence_hash: string; input_revision: number; prompt_version: string;
-    decision: JudgmentBody["selectionDecision"];
-  }[]>`SELECT id, article_id, evidence_hash, input_revision, prompt_version, comparison->'selectionDecision' AS decision
-    FROM own_judgments WHERE stale = false AND comparison->'selectionDecision'->>'status' = 'pending_review'
-    ORDER BY article_id, created_at`;
+    decision: JudgmentBody["selectionDecision"]; article_revision: number; evidence_revision: number; current_hash: string;
+  }[]>`SELECT j.id, j.article_id, j.evidence_hash, j.input_revision, j.prompt_version, j.comparison->'selectionDecision' AS decision,
+      a.revision AS article_revision, v.article_revision AS evidence_revision, v.evidence_hash AS current_hash
+    FROM own_judgments j
+    JOIN articles a ON a.id = j.article_id
+    JOIN LATERAL (
+      SELECT article_revision, evidence_hash FROM own_evidence_versions WHERE article_id = j.article_id ORDER BY version DESC LIMIT 1
+    ) v ON true
+    WHERE j.stale = false AND j.comparison->'selectionDecision'->>'status' = 'pending_review'
+    ORDER BY j.article_id, j.created_at`;
+  for (const row of rows) {
+    if (Number(row.input_revision) !== Number(row.article_revision) || Number(row.evidence_revision) !== Number(row.article_revision) || row.evidence_hash !== row.current_hash) {
+      throw new JudgmentConflict("待审选择没有绑到当前文章修订");
+    }
+  }
   return rows.flatMap((row) => row.decision ? [{
     id: row.id, articleId: row.article_id, evidenceHash: row.evidence_hash, inputRevision: Number(row.input_revision),
     promptVersion: row.prompt_version, status: "pending_review" as const, outputSha256: row.decision.outputSha256,
     boundSemanticJudgmentId: row.decision.boundSemanticJudgmentId, item: row.decision.item,
+  }] : []);
+}
+
+/** 文章修订已经前进、证据还停在旧修订时，补一版当前绑定。正文和原件不改。只让这一篇的旧判断失效。 */
+async function alignEvidenceIn(tx: Db, articleId: string): Promise<{ unchanged: boolean; version: number; evidenceHash: string; articleRevision: number; staled: number }> {
+  const articleRevision = await currentArticleRevision(tx, articleId);
+  const [latest] = await tx<{
+    version: number; article_revision: number; evidence_hash: string; body_text: string | null; quoted_text: string | null;
+    x_post: unknown; raw: unknown; raw_identity: unknown; raw_file: Buffer | null; body_gate: unknown;
+  }[]>`SELECT version, article_revision, evidence_hash, body_text, quoted_text, x_post, raw, raw_identity, raw_file, body_gate
+    FROM own_evidence_versions WHERE article_id = ${articleId} ORDER BY version DESC LIMIT 1 FOR UPDATE`;
+  if (!latest) throw new JudgmentConflict("没有持久证据，拒绝判断");
+  if (Number(latest.article_revision) === articleRevision) {
+    return { unchanged: true, version: Number(latest.version), evidenceHash: latest.evidence_hash, articleRevision, staled: 0 };
+  }
+  const version = Number(latest.version) + 1;
+  await tx`INSERT INTO own_evidence_versions
+    (article_id, version, article_revision, raw, body_text, quoted_text, x_post, evidence_hash, raw_identity, raw_file, body_gate)
+    VALUES (${articleId}, ${version}, ${articleRevision}, ${latest.raw === null ? null : tx.json(latest.raw as never)},
+      ${latest.body_text}, ${latest.quoted_text}, ${latest.x_post ? tx.json(latest.x_post as never) : null}, ${latest.evidence_hash},
+      ${latest.raw_identity ? tx.json(latest.raw_identity as never) : null}, ${latest.raw_file},
+      ${latest.body_gate ? tx.json(latest.body_gate as never) : null})`;
+  const staled = await tx<{ id: string }[]>`UPDATE own_judgments SET stale = true
+    WHERE article_id = ${articleId} AND stale = false AND input_revision <> ${articleRevision}
+    RETURNING id`;
+  await tx`UPDATE articles SET processing_state = 'skipped', processing_queued_at = NULL
+    WHERE id = ${articleId} AND processing_state = 'new'`;
+  return { unchanged: false, version, evidenceHash: latest.evidence_hash, articleRevision, staled: staled.length };
+}
+
+export async function alignEvidenceToArticleRevision(articleId: string): Promise<{ unchanged: boolean; version: number; evidenceHash: string; articleRevision: number; staled: number }> {
+  databaseUrl();
+  return sql.begin((tx) => alignEvidenceIn(tx, articleId));
+}
+
+/** 日期级发表时间。正文不动，证据改绑到新的文章修订，并且不留在发送队列里。 */
+export async function recordDateOnly(articleId: string, publishedAt: Date, publicationTime: string): Promise<{ unchanged: boolean; version: number; evidenceHash: string; articleRevision: number; staled: number }> {
+  databaseUrl();
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(publicationTime)) throw new JudgmentConflict("日期级记录必须是 YYYY-MM-DD");
+  return sql.begin(async (tx) => {
+    await tx`SELECT id FROM articles WHERE id = ${articleId} FOR UPDATE`;
+    const [before] = await tx<{ title: string; body_text: string | null; excerpt: string | null; content_hash: string | null }[]>`
+      SELECT title, body_text, excerpt, content_hash FROM articles WHERE id = ${articleId}`;
+    if (!before) throw new JudgmentConflict("文章不存在");
+    const filled = await fillPublicationTime(tx, articleId, publishedAt, undefined, publicationTime);
+    if (!filled) throw new JudgmentConflict("日期没有写入");
+    await reviseMaterial(tx, articleId, {
+      set: sql`title = title`,
+      hash: before.content_hash ?? contentHash({ title: before.title, bodyText: before.body_text, excerpt: before.excerpt }),
+      title: before.title,
+      bodyText: before.body_text,
+    });
+    const aligned = await alignEvidenceIn(tx, articleId);
+    const [after] = await tx<{ body_text: string | null; publication_time: string | null; processing_state: string }[]>`
+      SELECT body_text, publication_time, processing_state FROM articles WHERE id = ${articleId}`;
+    if (after!.body_text !== before.body_text || after!.publication_time !== publicationTime || after!.processing_state !== "skipped") {
+      throw new JudgmentConflict("日期修订不能改正文，也不能留在发送队列");
+    }
+    return aligned;
+  });
+}
+
+/** 文件交来的待审稿。必须同时绑当前材料、当前语义和当前选择。夹具不能冒充对外稿。 */
+export async function recordReviewDraft(input: {
+  articleId: string; evidenceHash: string; evidenceVersion: number; inputRevision: number;
+  rulesetVersion: string; promptVersion: string; text: string; sourceNote: string; conditions: string[];
+  technicalFixture: true;
+}, recordedAt: string): Promise<JudgmentWrite> {
+  databaseUrl();
+  const [evidence] = await sql<{ version: number; article_revision: number; evidence_hash: string; body_text: string | null; quoted_text: string | null }[]>`
+    SELECT version, article_revision, evidence_hash, body_text, quoted_text FROM own_evidence_versions
+    WHERE article_id = ${input.articleId} ORDER BY version DESC LIMIT 1`;
+  if (!evidence) throw new JudgmentConflict("没有持久证据，拒绝判断");
+  assertCurrentArticleRevision(await currentArticleRevision(sql, input.articleId), Number(evidence.article_revision), input.inputRevision);
+  if (evidence.evidence_hash !== input.evidenceHash || Number(evidence.version) !== input.evidenceVersion) {
+    throw new JudgmentConflict("输入证据不是当前版本");
+  }
+  const [semantic] = await sql<{ id: string; n: number }[]>`
+    SELECT id, count(*) OVER ()::int AS n FROM own_judgments
+    WHERE article_id = ${input.articleId} AND stale = false AND origin = 'file'
+      AND evidence_hash = ${input.evidenceHash} AND input_revision = ${input.inputRevision}
+      AND comparison ? 'fileResult'`;
+  if (!semantic || semantic.n !== 1) throw new JudgmentConflict("待审稿必须绑到唯一的当前语义判断");
+  const [selection] = await sql<{ id: string; n: number }[]>`
+    SELECT id, count(*) OVER ()::int AS n FROM own_judgments
+    WHERE article_id = ${input.articleId} AND stale = false
+      AND evidence_hash = ${input.evidenceHash} AND input_revision = ${input.inputRevision}
+      AND comparison->'selectionDecision'->>'status' = 'pending_review'`;
+  if (!selection || selection.n !== 1) throw new JudgmentConflict("待审稿必须绑到唯一的当前选择");
+  const materialStatus = !evidence.body_text ? "missing_body" as const : evidence.quoted_text ? "complete" as const : "missing_quote" as const;
+  return recordJudgment({
+    articleId: input.articleId, inputRevision: input.inputRevision, evidenceHash: input.evidenceHash,
+    rulesetVersion: input.rulesetVersion, promptVersion: input.promptVersion, modelVersion: "",
+  }, {
+    informationTypeId: null, contentLine: null, materialStatus, factStatus: "unchecked",
+    valueStatus: "incomplete_material", releaseStatus: "not_licensed", origin: "deterministic",
+    reasons: ["待审稿，事实未核，未许可"], modelReceiptId: null,
+    reviewDraft: {
+      status: "pending_review", text: input.text.trim(), sourceNote: input.sourceNote.trim(), conditions: input.conditions,
+      boundSemanticJudgmentId: semantic.id, boundSelectionJudgmentId: selection.id, technicalFixture: true,
+    },
+  }, recordedAt);
+}
+
+export async function listPendingDrafts(): Promise<Array<{
+  id: string; articleId: string; evidenceHash: string; inputRevision: number; promptVersion: string;
+  text: string; sourceNote: string; conditions: string[]; boundSemanticJudgmentId: string; boundSelectionJudgmentId: string;
+  technicalFixture: boolean; factStatus: "unchecked"; releaseStatus: "not_licensed";
+}>> {
+  databaseUrl();
+  const rows = await sql<{
+    id: string; article_id: string; evidence_hash: string; input_revision: number; prompt_version: string;
+    draft: JudgmentBody["reviewDraft"]; fact_status: "unchecked"; release_status: "not_licensed";
+    article_revision: number; evidence_revision: number; current_hash: string;
+  }[]>`SELECT j.id, j.article_id, j.evidence_hash, j.input_revision, j.prompt_version, j.comparison->'reviewDraft' AS draft,
+      j.fact_status, j.release_status, a.revision AS article_revision, v.article_revision AS evidence_revision, v.evidence_hash AS current_hash
+    FROM own_judgments j
+    JOIN articles a ON a.id = j.article_id
+    JOIN LATERAL (
+      SELECT article_revision, evidence_hash FROM own_evidence_versions WHERE article_id = j.article_id ORDER BY version DESC LIMIT 1
+    ) v ON true
+    WHERE j.stale = false AND j.comparison->'reviewDraft'->>'status' = 'pending_review'
+    ORDER BY j.article_id, j.created_at`;
+  for (const row of rows) {
+    if (Number(row.input_revision) !== Number(row.article_revision) || Number(row.evidence_revision) !== Number(row.article_revision) || row.evidence_hash !== row.current_hash) {
+      throw new JudgmentConflict("待审稿没有绑到当前文章修订");
+    }
+    if (row.fact_status !== "unchecked" || row.release_status !== "not_licensed") throw new JudgmentConflict("待审稿不能升级事实或许可");
+  }
+  return rows.flatMap((row) => row.draft ? [{
+    id: row.id, articleId: row.article_id, evidenceHash: row.evidence_hash, inputRevision: Number(row.input_revision),
+    promptVersion: row.prompt_version, text: row.draft.text, sourceNote: row.draft.sourceNote, conditions: row.draft.conditions,
+    boundSemanticJudgmentId: row.draft.boundSemanticJudgmentId, boundSelectionJudgmentId: row.draft.boundSelectionJudgmentId,
+    technicalFixture: row.draft.technicalFixture, factStatus: "unchecked" as const, releaseStatus: "not_licensed" as const,
   }] : []);
 }
 
@@ -632,7 +804,8 @@ export async function recordFileResult(item: FileResultItem, recordedAt: string,
     SELECT version, evidence_hash, article_revision, body_text, quoted_text FROM own_evidence_versions
     WHERE article_id = ${item.articleId} ORDER BY version DESC LIMIT 1`;
   if (!current) throw new JudgmentConflict("没有持久证据，拒绝判断");
-  if (current.evidence_hash !== item.evidenceHash || Number(current.article_revision) !== item.inputRevision || Number(current.version) !== item.evidenceVersion) {
+  assertCurrentArticleRevision(await currentArticleRevision(sql, item.articleId), Number(current.article_revision), item.inputRevision);
+  if (current.evidence_hash !== item.evidenceHash || Number(current.version) !== item.evidenceVersion) {
     throw new JudgmentConflict("输入证据不是当前版本");
   }
   const quote = item.output.quoteLocation;

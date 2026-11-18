@@ -1,0 +1,176 @@
+{
+  "asOf": "2026-11-18T09:33:40.746Z",
+  "basedOn": "public-sample-v4",
+  "frozenV3Unchanged": true,
+  "frozenV4Unchanged": true,
+  "database": "own_public_sample_v5_test",
+  "newRequests": 0,
+  "qualityPass": false,
+  "realManuscripts": 0,
+  "styleScored": false,
+  "workerStarted": false,
+  "modelCalls": 0,
+  "paid": false,
+  "completenessClaimed": false,
+  "beforeMismatch": [
+    {
+      "url": "https://www.apple.com.cn/newsroom/2026/10/apple-intelligence-features-are-coming-to-users-in-china/",
+      "articleRevision": 3,
+      "evidenceRevision": 2,
+      "evidenceVersion": 1
+    },
+    {
+      "url": "https://www.apple.com.cn/newsroom/2026/10/apple-unveils-groundbreaking-macbook-pro-with-proled-xdr-display/",
+      "articleRevision": 3,
+      "evidenceRevision": 2,
+      "evidenceVersion": 1
+    },
+    {
+      "url": "https://www.apple.com.cn/newsroom/2026/11/apple-podcasts-names-baby-this-is-keke-palmer-the-2026-show-of-the-year/",
+      "articleRevision": 3,
+      "evidenceRevision": 2,
+      "evidenceVersion": 1
+    },
+    {
+      "url": "https://www.apple.com.cn/newsroom/2026/11/apple-reports-fourth-quarter-results/",
+      "articleRevision": 3,
+      "evidenceRevision": 2,
+      "evidenceVersion": 1
+    },
+    {
+      "url": "https://www.apple.com.cn/newsroom/2026/11/olivia-dean-is-apple-musics-artist-of-the-year-for-2026/",
+      "articleRevision": 3,
+      "evidenceRevision": 2,
+      "evidenceVersion": 1
+    },
+    {
+      "url": "https://www.apple.com/newsroom/2026/11/apple-homeview-available-today/",
+      "articleRevision": 3,
+      "evidenceRevision": 2,
+      "evidenceVersion": 1
+    },
+    {
+      "url": "https://www.apple.com/newsroom/2026/11/apple-launches-research-study-to-explore-the-use-of-ai-for-health/",
+      "articleRevision": 3,
+      "evidenceRevision": 2,
+      "evidenceVersion": 1
+    },
+    {
+      "url": "https://www.apple.com/newsroom/2026/11/apple-podcasts-names-baby-this-is-keke-palmer-the-2026-show-of-the-year/",
+      "articleRevision": 3,
+      "evidenceRevision": 2,
+      "evidenceVersion": 1
+    },
+    {
+      "url": "https://www.apple.com/newsroom/2026/11/apple-tv-introduces-new-sign-language-interpretation-feature/",
+      "articleRevision": 3,
+      "evidenceRevision": 2,
+      "evidenceVersion": 1
+    },
+    {
+      "url": "https://www.apple.com/newsroom/2026/11/formula-1-las-vegas-grand-prix-streams-live-on-apple-tv-this-weekend/",
+      "articleRevision": 3,
+      "evidenceRevision": 2,
+      "evidenceVersion": 1
+    }
+  ],
+  "rejectedBeforeAlign": {
+    "oldRevision": "当前证据没有绑到当前文章修订",
+    "currentRevisionWhileEvidenceBehind": "当前证据没有绑到当前文章修订"
+  },
+  "aligned": [
+    {
+      "url": "https://www.apple.com.cn/newsroom/2026/10/apple-intelligence-features-are-coming-to-users-in-china/",
+      "articleRevision": 3,
+      "evidenceVersion": 2,
+      "evidenceHash": "469e9e70ce04d3a71b0420ede050c94bd30ff98115a192797af1a4df09e2041c",
+      "staled": 0
+    },
+    {
+      "url": "https://www.apple.com.cn/newsroom/2026/10/apple-unveils-groundbreaking-macbook-pro-with-proled-xdr-display/",
+      "articleRevision": 3,
+      "evidenceVersion": 2,
+      "evidenceHash": "c0a23a20a3c8aea3e98d0cfb9a8b4453cccc4c8686319a349d05e8a19a234faf",
+      "staled": 0
+    },
+    {
+      "url": "https://www.apple.com.cn/newsroom/2026/11/apple-podcasts-names-baby-this-is-keke-palmer-the-2026-show-of-the-year/",
+      "articleRevision": 3,
+      "evidenceVersion": 2,
+      "evidenceHash": "c67c9398ad6760c79f9d08a7f0af9982b781b95c54df6682b6138cfda0eff181",
+      "staled": 0
+    },
+    {
+      "url": "https://www.apple.com.cn/newsroom/2026/11/apple-reports-fourth-quarter-results/",
+      "articleRevision": 3,
+      "evidenceVersion": 2,
+      "evidenceHash": "f05137b74e5f4eb453264e29497a5288cdf13577baf1c39b3858494803041978",
+      "staled": 0
+    },
+    {
+      "url": "https://www.apple.com.cn/newsroom/2026/11/olivia-dean-is-apple-musics-artist-of-the-year-for-2026/",
+      "articleRevision": 3,
+      "evidenceVersion": 2,
+      "evidenceHash": "d9ae1d409cedb868bb40b5ac9005df5a785a6bbe8ba7f447e56435e0545fc769",
+      "staled": 0
+    },
+    {
+      "url": "https://www.apple.com/newsroom/2026/11/apple-homeview-available-today/",
+      "articleRevision": 3,
+      "evidenceVersion": 2,
+      "evidenceHash": "32928d9447d4dbd124475246fab09c8d8faca7582b82541ae01834da7f80477e",
+      "staled": 0
+    },
+    {
+      "url": "https://www.apple.com/newsroom/2026/11/apple-launches-research-study-to-explore-the-use-of-ai-for-health/",
+      "articleRevision": 3,
+      "evidenceVersion": 2,
+      "evidenceHash": "2a7172a0de44256130efe09bffe5947d76d34afc0a2c554823d835db3d77516c",
+      "staled": 0
+    },
+    {
+      "url": "https://www.apple.com/newsroom/2026/11/apple-podcasts-names-baby-this-is-keke-palmer-the-2026-show-of-the-year/",
+      "articleRevision": 3,
+      "evidenceVersion": 2,
+      "evidenceHash": "89af866e8226ca92b4db8a8316105b82792c405a15b7191094679a3279152a84",
+      "staled": 0
+    },
+    {
+      "url": "https://www.apple.com/newsroom/2026/11/apple-tv-introduces-new-sign-language-interpretation-feature/",
+      "articleRevision": 3,
+      "evidenceVersion": 2,
+      "evidenceHash": "5f306f88fe0a146162e197c7fa069d852d89858f5c93dd23003dc5fc24089545",
+      "staled": 0
+    },
+    {
+      "url": "https://www.apple.com/newsroom/2026/11/formula-1-las-vegas-grand-prix-streams-live-on-apple-tv-this-weekend/",
+      "articleRevision": 3,
+      "evidenceVersion": 2,
+      "evidenceHash": "15d0ec8e0a310ee156b42dfe0b21705518691f946c9c5994f08b22f288e2ea05",
+      "staled": 0
+    }
+  ],
+  "rejectedOldRevisionAfterAlign": "判断必须绑定当前文章修订",
+  "target": {
+    "url": "https://www.apple.com.cn/newsroom/2026/10/apple-intelligence-features-are-coming-to-users-in-china/",
+    "semanticId": "78d50e427df8f0b5d5127a67ecc6dfa4ff7f536c7c6648a054ea1bac0aacd280",
+    "selectionId": "ef5c8c0bc61f79704788c0909781e6d690a47d5f730a1727fb31484add53d03d",
+    "draftId": "7fc1d9d35ad1366b75780b2cfeedeb93921c2f748710eb4a495836cdf0b9e8f6",
+    "draftStale": true
+  },
+  "other": {
+    "url": "https://www.apple.com.cn/newsroom/2026/10/apple-unveils-groundbreaking-macbook-pro-with-proled-xdr-display/",
+    "semanticId": "9e452a206e9e985514e9559f4e0f6233bd8aead83bbc035e5a5b8e1f64af7114",
+    "selectionId": "389f0f67031056ee0c6567cc930376cf416c3d1a3dd7cc6a02a81e52496d41da",
+    "draftId": "a6239b98697d37e51323da2df8f6f03ded49daf83955ca44b9510a49c3c083cf",
+    "draftStale": false
+  },
+  "pendingDrafts": 1,
+  "counts": {
+    "articles": 40,
+    "revisions": 85,
+    "evidence": 52,
+    "queued": 0,
+    "publications": 0
+  }
+}

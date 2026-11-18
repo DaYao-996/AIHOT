@@ -400,6 +400,21 @@ export interface JudgmentBody {
    * 正式批次未到之前，这只是文件入口，不是质量通过。
    */
   selectionDecision?: SelectionDecisionRecord | null;
+  /**
+   * 文件交来的待审稿。只绑定当前材料、语义和选择，不评分，也不发放许可。
+   * technicalFixture 为真时正文是夹具，不是对外稿件。
+   */
+  reviewDraft?: ReviewDraftRecord | null;
+}
+
+export interface ReviewDraftRecord {
+  status: "pending_review";
+  text: string;
+  sourceNote: string;
+  conditions: string[];
+  boundSemanticJudgmentId: string;
+  boundSelectionJudgmentId: string;
+  technicalFixture: boolean;
 }
 
 export interface SelectionDecisionRecord {

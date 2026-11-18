@@ -12,8 +12,9 @@ import { closeDb, sql } from "@aihot/backend/db";
 import { stableJson } from "@aihot/backend/lib/ids";
 import { HISTORICAL_RULESET, type JudgmentBody } from "../site/own-pipeline.ts";
 import { sweepUnprocessed } from "../packages/backend/src/jobs/content.ts";
+import { stopBoss } from "../packages/backend/src/jobs/queue.ts";
 import { contentHash } from "@aihot/backend/content/materials";
-import { activeJudgment, JudgmentConflict, appendControlledEvidence, appendLocatedSupplement, commitControlledLoop, listPendingSelections, materialForScoring, recordFileResult, recordJudgment, recordSelectionDecision } from "../packages/backend/src/own-pipeline-store.ts";
+import { activeJudgment, JudgmentConflict, alignEvidenceToArticleRevision, appendControlledEvidence, appendLocatedSupplement, commitControlledLoop, listPendingDrafts, listPendingSelections, materialForScoring, recordDateOnly, recordFileResult, recordJudgment, recordReviewDraft, recordSelectionDecision } from "../packages/backend/src/own-pipeline-store.ts";
 
 const SOURCE = `own-pipeline-${tag()}`;
 const SAMPLES = process.env.OWN_PUBLIC_SAMPLES
@@ -24,7 +25,7 @@ before(async () => {
   await sql`INSERT INTO sources (id, name, kind, participation_mode, next_fetch_at)
     VALUES (${SOURCE}, 'Own pipeline test', 'external', 'isolated', '2100-01-01')`;
 });
-after(() => closeDb());
+after(async () => { await stopBoss(); await closeDb(); });
 
 function gapBody(reasons: string[]): JudgmentBody {
   return {
@@ -629,7 +630,7 @@ test("the file command stores a result, repeats, rejects a changed output, and s
   assert.equal(stale!.stale, true);
   const expired = run(document(saved));
   assert.notEqual(expired.status, 0);
-  assert.match(expired.stdout, /输入证据不是当前版本/);
+  assert.match(expired.stdout, /判断必须绑定当前文章修订/);
   const humanUrl = `https://example.com/file-human-${tag()}`;
   const human = await appendControlledEvidence({
     sourceId: SOURCE, url: humanUrl, title: "人工文件", raw: { n: 2 }, bodyText: body,
@@ -794,6 +795,107 @@ test("a selection file keeps its rationale, stays pending, and does not rewrite 
   const [untouched] = await sql<{ stale: boolean }[]>`SELECT stale FROM own_judgments WHERE id = ${otherDecision.id}`;
   assert.equal(untouched!.stale, false);
   assert.equal((await listPendingSelections()).some((row) => row.id === otherDecision.id), true);
+});
+
+test("a date revision rebinds evidence, and a fixture draft stays pending without publishing", async () => {
+  const url = `https://example.com/date-draft-${tag()}`;
+  const body = "教程步骤写在正文里。产品更新是另一句。";
+  const saved = await appendControlledEvidence({ sourceId: SOURCE, url, title: "日期夹具", raw: { n: 1 }, bodyText: body });
+  const excerpt = "教程步骤写在正文里";
+  const semantic = await recordFileResult({
+    articleId: saved.articleId, evidenceHash: saved.evidenceHash, evidenceVersion: saved.evidenceVersion,
+    inputRevision: saved.articleRevision, rulesetVersion: "rules@date", promptVersion: "prompt@semantic",
+    executionSource: "assistant-file", modelKnowledge: "unknown", knownModel: null,
+    output: {
+      narrowClaim: "正文分开写了教程和产品", quoteLocation: { excerpt, start: body.indexOf(excerpt), end: body.indexOf(excerpt) + excerpt.length },
+      conditions: ["只在这段正文里"], time: "2026-11-17", valueBasis: "正文写了两句", audience: ["读这一段的人"],
+      substantiveAddition: "比标题多了两句", clauses: [{ id: "scope", text: "只覆盖这两句" }],
+    },
+  }, "2026-11-18T08:00:00.000Z");
+  await sql`UPDATE articles SET revision = revision + 1 WHERE id = ${saved.articleId}`;
+  await assert.rejects(() => recordFileResult({
+    articleId: saved.articleId, evidenceHash: saved.evidenceHash, evidenceVersion: saved.evidenceVersion,
+    inputRevision: saved.articleRevision, rulesetVersion: "rules@date", promptVersion: "prompt@semantic",
+    executionSource: "assistant-file", modelKnowledge: "unknown", knownModel: null,
+    output: semantic.body.fileResult!.output,
+  }, "2026-11-18T08:00:01.000Z"), /当前文章修订/);
+  await assert.rejects(() => recordFileResult({
+    articleId: saved.articleId, evidenceHash: saved.evidenceHash, evidenceVersion: saved.evidenceVersion,
+    inputRevision: saved.articleRevision + 1, rulesetVersion: "rules@date", promptVersion: "prompt@semantic",
+    executionSource: "assistant-file", modelKnowledge: "unknown", knownModel: null,
+    output: semantic.body.fileResult!.output,
+  }, "2026-11-18T08:00:02.000Z"), /当前证据没有绑到当前文章修订/);
+  const aligned = await alignEvidenceToArticleRevision(saved.articleId);
+  assert.equal(aligned.unchanged, false);
+  assert.equal(aligned.articleRevision, saved.articleRevision + 1);
+  assert.equal(aligned.evidenceHash, saved.evidenceHash);
+  assert.equal(aligned.staled, 1);
+  const rebound = await recordFileResult({
+    articleId: saved.articleId, evidenceHash: aligned.evidenceHash, evidenceVersion: aligned.version,
+    inputRevision: aligned.articleRevision, rulesetVersion: "rules@date", promptVersion: "prompt@semantic",
+    executionSource: "assistant-file", modelKnowledge: "unknown", knownModel: null,
+    output: semantic.body.fileResult!.output,
+  }, "2026-11-18T08:00:03.000Z");
+  const decision = await recordSelectionDecision({
+    articleId: saved.articleId, evidenceHash: aligned.evidenceHash, evidenceVersion: aligned.version,
+    inputRevision: aligned.articleRevision, rulesetVersion: "rules@date", promptVersion: "prompt@select",
+    used_claim: "正文分开写了教程和产品", decision: "candidate", decision_rationale: "夹具理由留在原件里。",
+    conditions: ["只在这段正文里"],
+  }, "2026-11-18T08:00:04.000Z");
+  const draft = await recordReviewDraft({
+    articleId: saved.articleId, evidenceHash: aligned.evidenceHash, evidenceVersion: aligned.version,
+    inputRevision: aligned.articleRevision, rulesetVersion: "rules@date", promptVersion: "prompt@draft",
+    text: "技术夹具稿，不是对外稿件。", sourceNote: "fixture", conditions: ["只在这段正文里"], technicalFixture: true,
+  }, "2026-11-18T08:00:05.000Z");
+  assert.equal(draft.body.factStatus, "unchecked");
+  assert.equal(draft.body.releaseStatus, "not_licensed");
+  assert.equal(draft.body.reviewDraft?.boundSemanticJudgmentId, rebound.id);
+  assert.equal(draft.body.reviewDraft?.boundSelectionJudgmentId, decision.id);
+  const listed = await listPendingDrafts();
+  assert.equal(listed.find((row) => row.id === draft.id)?.text, "技术夹具稿，不是对外稿件。");
+  const [parked] = await sql<{ processing_state: string }[]>`SELECT processing_state FROM articles WHERE id = ${saved.articleId}`;
+  const [published] = await sql<{ n: number }[]>`SELECT count(*)::int AS n FROM publications WHERE article_id = ${saved.articleId}`;
+  assert.equal(parked!.processing_state, "skipped");
+  assert.equal(published!.n, 0);
+  const other = await appendControlledEvidence({ sourceId: SOURCE, url: `https://example.com/date-other-${tag()}`, title: "旁观", raw: { n: 2 }, bodyText: body });
+  const otherSemantic = await recordFileResult({
+    articleId: other.articleId, evidenceHash: other.evidenceHash, evidenceVersion: other.evidenceVersion,
+    inputRevision: other.articleRevision, rulesetVersion: "rules@date", promptVersion: "prompt@semantic",
+    executionSource: "assistant-file", modelKnowledge: "unknown", knownModel: null,
+    output: {
+      narrowClaim: "旁观正文", quoteLocation: { excerpt, start: body.indexOf(excerpt), end: body.indexOf(excerpt) + excerpt.length },
+      conditions: ["旁观"], time: "2026-11-17", valueBasis: "旁观", audience: ["旁观"], substantiveAddition: "旁观",
+      clauses: [{ id: "scope", text: "旁观" }],
+    },
+  }, "2026-11-18T08:00:06.000Z");
+  const otherDecision = await recordSelectionDecision({
+    articleId: other.articleId, evidenceHash: other.evidenceHash, evidenceVersion: other.evidenceVersion,
+    inputRevision: other.articleRevision, rulesetVersion: "rules@date", promptVersion: "prompt@select",
+    decision_rationale: "旁观理由。", conditions: ["旁观"],
+  }, "2026-11-18T08:00:07.000Z");
+  const otherDraft = await recordReviewDraft({
+    articleId: other.articleId, evidenceHash: other.evidenceHash, evidenceVersion: other.evidenceVersion,
+    inputRevision: other.articleRevision, rulesetVersion: "rules@date", promptVersion: "prompt@draft",
+    text: "旁观夹具稿。", sourceNote: "fixture", conditions: ["旁观"], technicalFixture: true,
+  }, "2026-11-18T08:00:08.000Z");
+  await appendControlledEvidence({ sourceId: SOURCE, url, title: "日期夹具", raw: { n: 1 }, bodyText: `${body}补充。` });
+  const [staleDraft] = await sql<{ stale: boolean }[]>`SELECT stale FROM own_judgments WHERE id = ${draft.id}`;
+  const [keptDraft] = await sql<{ stale: boolean }[]>`SELECT stale FROM own_judgments WHERE id = ${otherDraft.id}`;
+  assert.equal(staleDraft!.stale, true);
+  assert.equal(keptDraft!.stale, false);
+  assert.equal((await listPendingDrafts()).some((row) => row.id === otherDraft.id), true);
+  assert.equal(otherSemantic.id.length > 0 && otherDecision.id.length > 0, true);
+  const dated = await appendControlledEvidence({ sourceId: SOURCE, url: `https://example.com/date-only-${tag()}`, title: "只补日期", raw: { n: 3 }, bodyText: body });
+  const recorded = await recordDateOnly(dated.articleId, new Date("2026-11-17T00:00:00.000Z"), "2026-11-17");
+  const [row] = await sql<{ revision: number; publication_time: string | null; body_text: string; processing_state: string; evidence_revision: number }[]>`
+    SELECT a.revision, a.publication_time, a.body_text, a.processing_state, v.article_revision AS evidence_revision
+    FROM articles a JOIN own_evidence_versions v ON v.article_id = a.id
+    WHERE a.id = ${dated.articleId} ORDER BY v.version DESC LIMIT 1`;
+  assert.equal(row!.publication_time, "2026-11-17");
+  assert.equal(row!.body_text, body);
+  assert.equal(Number(row!.revision), Number(row!.evidence_revision));
+  assert.equal(row!.processing_state, "skipped");
+  assert.equal(recorded.articleRevision, Number(row!.revision));
 });
 
 test("three unblinded public samples go through the import command", { skip: existsSync(SAMPLES) ? false : "public samples are not in this checkout" }, () => {
