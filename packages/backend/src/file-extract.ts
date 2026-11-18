@@ -17,6 +17,10 @@ export interface ClauseDraft {
 export interface ExtractDraft {
   postId: string;
   debugOnly: true;
+  /** Fields copied from a frozen debug file. This is not a model inference. */
+  fieldSource: "fixed_debug_input";
+  /** Root, quote and date read from the stored record, not from the debug field file. */
+  structuralSource: "record_file";
   scored: false;
   humanVerification: "unverified";
   selectedAngle: string | null;
@@ -88,6 +92,8 @@ export function draftFromDebug(input: {
   return {
     postId: input.postId,
     debugOnly: true,
+    fieldSource: "fixed_debug_input",
+    structuralSource: "record_file",
     scored: false,
     humanVerification: "unverified",
     selectedAngle: text(fields.input_completeness?.selected_angle),
@@ -106,4 +112,32 @@ export function draftFromDebug(input: {
 
 export function packageSha256(bytes: Buffer | string): string {
   return sha256(bytes);
+}
+
+/** Structural notes from a fetched section. Not a semantic score and not a debug label file. */
+export function actualSectionRecord(input: { url: string; title: string; completeness: string; sectionText: string; pageSha256: string; sectionSha256: string }): {
+  fieldSource: "actual_extract";
+  structuralSource: "fetched_page";
+  scored: false;
+  url: string;
+  title: string;
+  completeness: string;
+  pageSha256: string;
+  sectionSha256: string;
+  firstSentence: string;
+  lastSentence: string;
+} {
+  const sentences = input.sectionText.split(/(?<=[.!?。])\s+/).filter(Boolean);
+  return {
+    fieldSource: "actual_extract",
+    structuralSource: "fetched_page",
+    scored: false,
+    url: input.url,
+    title: input.title,
+    completeness: input.completeness,
+    pageSha256: input.pageSha256,
+    sectionSha256: input.sectionSha256,
+    firstSentence: sentences[0] ?? "",
+    lastSentence: sentences.at(-1) ?? "",
+  };
 }

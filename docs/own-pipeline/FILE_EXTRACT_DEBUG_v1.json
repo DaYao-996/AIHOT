@@ -15,6 +15,8 @@
     {
       "postId": "2117095432526700766",
       "debugOnly": true,
+      "fieldSource": "fixed_debug_input",
+      "structuralSource": "record_file",
       "scored": false,
       "humanVerification": "unverified",
       "selectedAngle": "引用中对 Ming-3.0-tts-0.5B 的本地语音克隆实测：5 秒样本、RTX 3090、约 3.3 GB 显存、快于实时",
@@ -58,6 +60,8 @@
     {
       "postId": "2118428355058102650",
       "debugOnly": true,
+      "fieldSource": "fixed_debug_input",
+      "structuralSource": "record_file",
       "scored": false,
       "humanVerification": "unverified",
       "selectedAngle": "ChatGPT Images 2.6 已在 HeyGen 上线，用于补充角色的角色表，并改善 HeyGen Video 1 的一致性",
@@ -108,6 +112,8 @@
     {
       "postId": "2120299157411790929",
       "debugOnly": true,
+      "fieldSource": "fixed_debug_input",
+      "structuralSource": "record_file",
       "scored": false,
       "humanVerification": "unverified",
       "selectedAngle": "十一月 Pixel Drop：Pixel 10 上的 Gemini Intelligence、Pixel Tag、自定义组件与 Pixel Watch 训练指导等设备功能",
@@ -151,6 +157,8 @@
     {
       "postId": "2120452474305904776",
       "debugOnly": true,
+      "fieldSource": "fixed_debug_input",
+      "structuralSource": "record_file",
       "scored": false,
       "humanVerification": "unverified",
       "selectedAngle": "作者说明如何用 EnConvo 在 macOS 各应用侧边栏与全局语音中接入已订阅模型，并配置生图/音视频等能力做媒体工作",
@@ -201,6 +209,8 @@
     {
       "postId": "2121277055513862172",
       "debugOnly": true,
+      "fieldSource": "fixed_debug_input",
+      "structuralSource": "record_file",
       "scored": false,
       "humanVerification": "unverified",
       "selectedAngle": "Envato 于 11 月 19 日 8AM EST 起 24 小时免费不限量提供 MiniMax H3（至 11 月 20 日 8AM EST），免费账号同样可用",

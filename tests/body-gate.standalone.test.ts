@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { cutHtmlSection, gateStoredSample, parseModelOutputFile } from "../packages/backend/src/body-gate.ts";
+import { classifyFetched, classifyProse, cutHtmlSection, gateStoredSample, parseModelOutputFile } from "../packages/backend/src/body-gate.ts";
 
 const page = `<article>
 <h2 id="linked-billing">Linked billing</h2>
@@ -43,6 +43,28 @@ test("stored samples do not treat a feed excerpt or a missing page as a body", (
   });
   assert.equal(notStored.body, "not_stored");
   assert.equal(notStored.queue, "held");
+});
+
+test("a forbidden detail stays blocked and a unique fragment can be complete", () => {
+  const blocked = classifyFetched({ title: "Introducing", url: "https://openai.com/index/x", httpStatus: 403, html: null, feedExcerpt: "A short summary." });
+  assert.equal(blocked.completeness, "blocked");
+  assert.equal(blocked.queue, "held");
+  const section = `<h2 id="linked-billing">Linked billing</h2><p>November 17, 2026. Linked billing is in beta for profiles.</p><h2 id="next">Next</h2><p>Other note.</p>`;
+  const cut = classifyFetched({
+    title: "Claude Platform release notes — November 17, 2026",
+    url: "https://platform.claude.com/docs/en/release-notes/overview#linked-billing",
+    httpStatus: 200, html: section,
+  });
+  assert.equal(cut.completeness, "complete");
+  assert.equal((cut.sectionText ?? "").includes("Other note"), false);
+});
+
+test("a newsletter footer is not part of the article", () => {
+  const prose = `${"Nov 17, 2026 | Put Gemini to work and finish your tasks. The list is ready. ".repeat(4)}Get the latest news from Google in your inbox Sign up for our newsletters with product updates.`;
+  const judged = classifyProse("Put Gemini to work for you", prose);
+  assert.equal(judged.completeness, "complete");
+  assert.equal(judged.text.includes("newsletter"), false);
+  assert.match(judged.text, /list is ready\.$/);
 });
 
 test("a model file is accepted only without route labels", () => {

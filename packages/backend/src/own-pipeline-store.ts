@@ -368,16 +368,17 @@ export async function recordBodyGate(articleId: string, gate: BodyGate): Promise
   return sql.begin(async (tx) => {
     const [article] = await tx<{ revision: number; raw: unknown }[]>`SELECT revision, raw FROM articles WHERE id = ${articleId}`;
     if (!article) throw new Error("文章不存在");
-    const [latest] = await tx<{ version: number }[]>`
-      SELECT version FROM own_evidence_versions WHERE article_id = ${articleId} ORDER BY version DESC LIMIT 1`;
+    const [latest] = await tx<{ version: number; raw_file: Buffer | null; raw_identity: unknown }[]>`
+      SELECT version, raw_file, raw_identity FROM own_evidence_versions WHERE article_id = ${articleId} ORDER BY version DESC LIMIT 1`;
     const version = (latest?.version ?? 0) + 1;
     const evidenceHash = cumulativeEvidenceHash({
       title: gate.title, raw: { gate: gate.reason, start: gate.start, end: gate.end }, bodyText: gate.sectionText, quotedText: null, xPost: null,
     });
     await tx`INSERT INTO own_evidence_versions
-      (article_id, version, article_revision, raw, body_text, quoted_text, x_post, evidence_hash, body_gate)
+      (article_id, version, article_revision, raw, body_text, quoted_text, x_post, evidence_hash, raw_identity, raw_file, body_gate)
       VALUES (${articleId}, ${version}, ${article.revision}, ${article.raw === null ? null : tx.json(article.raw as never)},
-        ${gate.queue === "ready_for_features" ? gate.sectionText : null}, null, null, ${evidenceHash}, ${tx.json(gate as never)})`;
+        ${gate.queue === "ready_for_features" ? gate.sectionText : null}, null, null, ${evidenceHash},
+        ${latest?.raw_identity ? tx.json(latest.raw_identity as never) : null}, ${latest?.raw_file ?? null}, ${tx.json(gate as never)})`;
     await tx`UPDATE articles SET processing_state = 'skipped', processing_queued_at = NULL
       WHERE id = ${articleId} AND processing_state = 'new'`;
     return { version };
@@ -398,9 +399,13 @@ export async function listFeatureQueue(): Promise<Array<{ articleId: string; url
   databaseUrl();
   const rows = await sql<{ article_id: string; url: string; title: string; version: number; evidence_hash: string; body_gate: BodyGate }[]>`
     SELECT a.id AS article_id, a.url, a.title, v.version, v.evidence_hash, v.body_gate
-    FROM own_evidence_versions v JOIN articles a ON a.id = v.article_id
+    FROM (
+      SELECT DISTINCT ON (article_id) article_id, version, evidence_hash, body_gate
+      FROM own_evidence_versions WHERE body_gate IS NOT NULL
+      ORDER BY article_id, version DESC
+    ) v JOIN articles a ON a.id = v.article_id
     WHERE v.body_gate->>'queue' = 'ready_for_features'
-    ORDER BY a.source_id, a.url, v.version`;
+    ORDER BY a.source_id, a.url`;
   return rows.map((row) => ({ articleId: row.article_id, url: row.url, title: row.title, version: row.version, evidenceHash: row.evidence_hash, gate: row.body_gate }));
 }
 

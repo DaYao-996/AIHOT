@@ -28,6 +28,8 @@ test("ten equal scalars do not make two clause readings the same record", () => 
   assert.equal(compared.identical, false);
   const draft = draftFromDebug({ postId: "2120452474305904776", fields: shared, rootText: "根帖", quoteText: null, publishedAt: "2026-11-01", inputPackageSha256: "abc" });
   assert.equal(draft.scored, false);
+  assert.equal(draft.fieldSource, "fixed_debug_input");
+  assert.equal(draft.structuralSource, "record_file");
   assert.equal(draft.humanVerification, "unverified");
   assert.equal(draft.usedClaim, "窄主张");
   assert.equal(draft.primaryClauseId, "ai_tool_hands_on");

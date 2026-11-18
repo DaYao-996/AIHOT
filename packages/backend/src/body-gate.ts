@@ -1,6 +1,7 @@
 // Body attribution before feature extraction. A long page is not each item's text.
 import { sha256 } from "./lib/ids.ts";
 
+export type Completeness = "complete" | "partial" | "blocked" | "ambiguous";
 export type FetchState = "feed_stored" | "detail_forbidden" | "detail_not_stored";
 export type BodyState = "attributed" | "summary_only" | "missing" | "ambiguous" | "not_stored";
 export type FactState = "unchecked";
@@ -19,6 +20,7 @@ export interface BodyGate {
   start: number | null;
   end: number | null;
   sectionText: string | null;
+  completeness?: Completeness;
 }
 
 interface Heading {
@@ -29,8 +31,26 @@ interface Heading {
   contentFrom: number;
 }
 
+function decodeEntities(value: string): string {
+  return value
+    .replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/&amp;/g, "&")
+    .replace(/&quot;/g, "\"").replace(/&#39;/g, "'").replace(/&nbsp;/g, " ");
+}
+
 function plain(value: string): string {
-  return value.replace(/<[^>]+>/g, " ").replace(/&nbsp;/g, " ").replace(/\s+/g, " ").trim();
+  return decodeEntities(value).replace(/<script\b[\s\S]*?<\/script>/gi, " ").replace(/<style\b[\s\S]*?<\/style>/gi, " ")
+    .replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim();
+}
+
+function elementText(html: string, id: string): string | null {
+  const open = new RegExp(`<([a-z0-9]+)\\b[^>]*\\bid=["']${id.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}["'][^>]*>`, "i").exec(html);
+  if (!open) return null;
+  const tag = open[1]!;
+  const from = (open.index ?? 0) + open[0].length;
+  const close = html.slice(from).search(new RegExp(`</${tag}>`, "i"));
+  if (close < 0) return null;
+  const text = plain(html.slice(from, from + close));
+  return text || null;
 }
 
 function norm(value: string): string {
@@ -57,7 +77,7 @@ function sectionSpan(html: string, heading: Heading, all: Heading[]): { start: n
 }
 
 /** Cut one update out of a stored page. The whole page is never returned as the section. */
-export function cutHtmlSection(html: string, opts: { fragment?: string | null; title: string; dateLabel?: string | null }): Omit<BodyGate, "fetch" | "queue" | "fact"> & { fact: FactState } {
+export function cutHtmlSection(html: string, opts: { fragment?: string | null; title: string; dateLabel?: string | null; article?: boolean }): Omit<BodyGate, "fetch" | "queue" | "fact" | "completeness"> & { fact: FactState } {
   const pageSha256 = sha256(html);
   const fragment = opts.fragment ? decodeURIComponent(opts.fragment) : null;
   const found = headings(html);
@@ -76,7 +96,7 @@ export function cutHtmlSection(html: string, opts: { fragment?: string | null; t
   if (!heading) return { ...empty, body: "missing", reason: "no heading matches the fragment or the title" };
   const cut = sectionSpan(html, heading, found);
   const pageText = plain(html);
-  if (found.length > 1 && cut.text.length > pageText.length * 0.85) {
+  if (!opts.article && found.length > 1 && cut.text.length > pageText.length * 0.85) {
     return { ...empty, body: "ambiguous", reason: "section is almost the whole page" };
   }
   if (opts.dateLabel && !cut.text.includes(opts.dateLabel) && !heading.text.includes(opts.dateLabel)) {
@@ -105,9 +125,128 @@ export function atomReleaseNote(xml: string, title: string): { body: BodyState; 
   const entry = hits[0]!;
   const updated = /<updated>([^<]*)<\/updated>/i.exec(entry)?.[1] ?? null;
   const content = /<content\b[^>]*>([\s\S]*?)<\/content>/i.exec(entry)?.[1] ?? "";
-  const text = plain(content.replace(/<!\[CDATA\[([\s\S]*?)\]\]>/, "$1"));
+  const text = plain(decodeEntities(content).replace(/<!\[CDATA\[([\s\S]*?)\]\]>/, "$1"));
   if (!text) return { body: "missing", text: null, updated, reason: "atom content is empty; a short detail page is not evidence of truncation" };
   return { body: "attributed", text, updated, reason: "atom content element is the release note" };
+}
+
+const TRUNCATION = /(?:\bread more\b|\bcontinue reading\b|\[\s*(?:…|\.\.\.)\s*\]|…)\s*$/i;
+
+function datePhrase(title: string): string | null {
+  return title.match(/\b(?:January|February|March|April|May|June|July|August|September|October|November|December)\s+\d{1,2},\s+\d{4}\b/)?.[0] ?? null;
+}
+
+/** Classify a fetched page. Length alone is not completeness. */
+const CHROME = [
+  /get the latest news from google in your inbox/i,
+  /newsletters with product updates/i,
+  /your information will be used in accordance/i,
+  /\bread more from /i,
+];
+
+export function trimChrome(text: string): { text: string; cut: string | null } {
+  let at = text.length;
+  let cut: string | null = null;
+  for (const mark of CHROME) {
+    const found = text.search(mark);
+    if (found > 200 && found < at) {
+      at = found;
+      cut = mark.source;
+    }
+  }
+  return { text: text.slice(0, at).trim(), cut };
+}
+
+export function classifyProse(title: string, text: string): { completeness: Completeness; reason: string; text: string } {
+  if (/document\.head|<\/script>|\bfunction\s*\(/.test(text)) return { completeness: "ambiguous", reason: "main text still contains page script", text };
+  const trimmed = trimChrome(text);
+  const body = trimmed.text;
+  const words = norm(title).split(" ").filter((word) => word.length > 3);
+  const have = words.filter((word) => norm(body).includes(word)).length;
+  if (words.length > 0 && have < Math.min(2, words.length)) return { completeness: "ambiguous", reason: "main text does not contain the title", text: body };
+  if (TRUNCATION.test(body) || !/[.!?。]"?$/.test(body)) {
+    return { completeness: "partial", reason: trimmed.cut ? `footer removed at ${trimmed.cut}; the remaining tail is not a sentence` : "main text does not end at a sentence boundary", text: body };
+  }
+  return {
+    completeness: "complete",
+    reason: trimmed.cut ? `title is in the article; a site footer was removed at ${trimmed.cut}` : "the title is in the main text and the tail is a sentence",
+    text: body,
+  };
+}
+
+export function classifyFetched(input: {
+  title: string;
+  url: string;
+  httpStatus: number;
+  html: string | null;
+  atomXml?: string | null;
+  feedExcerpt?: string | null;
+  prose?: string | null;
+}): BodyGate {
+  const fragment = input.url.includes("#") ? decodeURIComponent(input.url.slice(input.url.indexOf("#") + 1)) : null;
+  const pageSha256 = input.html ? sha256(input.html) : null;
+  const base = {
+    fact: "unchecked" as const, fragment, title: input.title, dateLabel: datePhrase(input.title),
+    pageSha256, sectionSha256: null as string | null, start: null as number | null, end: null as number | null, sectionText: null as string | null,
+  };
+  if (input.httpStatus === 403 || input.httpStatus === 401) {
+    const summary = input.feedExcerpt && input.feedExcerpt.length < 400;
+    return {
+      ...base, fetch: "detail_forbidden", body: summary ? "summary_only" : "missing", completeness: "blocked", queue: "held",
+      reason: summary ? "detail is 403; the feed excerpt is a short summary, not an equivalent full section" : "detail is forbidden and no official full section is stored",
+    };
+  }
+  if (input.atomXml && input.url.includes("/releases/")) {
+    const note = atomReleaseNote(input.atomXml, input.title);
+    if (note.body !== "attributed" || !note.text) {
+      return { ...base, fetch: "feed_stored", body: note.body, completeness: note.body === "ambiguous" ? "ambiguous" : "partial", queue: "held", reason: note.reason };
+    }
+    const truncated = TRUNCATION.test(note.text);
+    return {
+      ...base, fetch: "feed_stored", body: "attributed", completeness: truncated ? "partial" : "complete",
+      queue: "ready_for_features", reason: truncated
+        ? "atom content ends in a continuation mark"
+        : "atom content is the official release note; a short page render is not treated as truncation",
+      sectionText: note.text, sectionSha256: sha256(note.text), dateLabel: note.updated,
+    };
+  }
+  if (fragment && input.html) {
+    const text = elementText(input.html, fragment);
+    if (!text) return { ...base, fetch: "feed_stored", body: "missing", completeness: "ambiguous", queue: "held", reason: "fragment id is not on an element of the saved page" };
+    return {
+      ...base, fetch: "feed_stored", body: "attributed", completeness: TRUNCATION.test(text) ? "partial" : "complete",
+      queue: "ready_for_features", reason: "the fragment id is one element; the cut is that element, not the overview",
+      sectionText: text, sectionSha256: sha256(text),
+    };
+  }
+  if (input.prose) {
+    const prose = classifyProse(input.title, input.prose);
+    const ready = prose.completeness === "complete" || prose.completeness === "partial";
+    return {
+      ...base, fetch: "feed_stored", body: ready ? "attributed" : "ambiguous", completeness: prose.completeness, queue: ready ? "ready_for_features" : "held",
+      reason: prose.reason, sectionText: ready ? prose.text : null, sectionSha256: ready ? sha256(prose.text) : null,
+    };
+  }
+  if (!input.html) {
+    return { ...base, fetch: "detail_not_stored", body: "not_stored", completeness: "ambiguous", queue: "held", reason: "no response body was saved" };
+  }
+  const cut = cutHtmlSection(input.html, { fragment, title: input.title, dateLabel: fragment ? datePhrase(input.title) : null, article: !fragment });
+  if (fragment) {
+    const usable = cut.body === "attributed" && !!cut.sectionText && !TRUNCATION.test(cut.sectionText);
+    return {
+      ...cut, fetch: "feed_stored", completeness: cut.body === "ambiguous" ? "ambiguous" : cut.body === "missing" ? "ambiguous" : usable ? "complete" : "partial",
+      queue: usable ? "ready_for_features" : "held",
+    };
+  }
+  if (cut.body !== "attributed" || !cut.sectionText) {
+    return { ...cut, fetch: "feed_stored", completeness: cut.body === "missing" ? "ambiguous" : "ambiguous", queue: "held" };
+  }
+  const titleWords = norm(input.title).split(" ").filter((word) => word.length > 3);
+  const have = titleWords.filter((word) => norm(cut.sectionText!).includes(word)).length;
+  const titleOk = titleWords.length === 0 || have >= Math.min(2, titleWords.length);
+  const truncated = TRUNCATION.test(cut.sectionText);
+  const completeness: Completeness = !titleOk ? "ambiguous" : truncated ? "partial" : "complete";
+  return { ...cut, fetch: "feed_stored", completeness, queue: completeness === "ambiguous" ? "held" : "ready_for_features" };
 }
 
 export interface StoredSample {
