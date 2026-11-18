@@ -1,0 +1,18 @@
+[
+  {
+    "articleId": "i5d3e8sv1zup81f7dqbryixtj",
+    "revision": 2,
+    "bodySha": "4267fd0cdbe5ceb04adb5bd98fda70c0faeb64a261baca5e8da78193ffde8b8b",
+    "match": true,
+    "start": 15,
+    "end": 111
+  },
+  {
+    "articleId": "uxdnh10q3y7lvo9xsp4cld41e",
+    "revision": 1,
+    "bodySha": "2f8a401fa60a627510193f9b6e8489bf331c2344e6831b1ca8074f00a9b8fbbe",
+    "match": true,
+    "start": 7,
+    "end": 205
+  }
+]

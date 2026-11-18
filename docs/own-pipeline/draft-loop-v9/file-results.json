@@ -1,0 +1,88 @@
+{
+  "schema": "own-file-result-v1",
+  "items": [
+    {
+      "articleId": "i5d3e8sv1zup81f7dqbryixtj",
+      "evidenceHash": "2819a4844f82b751cc519e958ddf6dfdcb2ea48246cd31f83f33a8eaeec80c0f",
+      "evidenceVersion": 1,
+      "inputRevision": 2,
+      "rulesetVersion": "17-选题打分推荐-v2.3#sha256:45c5a6a0105268a6ecf887c8bc7611595e9626fe0a25b7ce76ca48ee64e3e43e",
+      "promptVersion": "assistant-file-semantics-public40-two-completion-v1",
+      "executionSource": "assistant-file",
+      "modelKnowledge": "unknown",
+      "knownModel": null,
+      "output": {
+        "narrowClaim": "The official Claude Code v2.1.323 release note adds Code Mode, an experimental opt-in in which Claude writes JavaScript to call its tools, and tells the reader to see https://code.claude.com/docs/en/code-mode to turn it on, or to turn it off for an organization.",
+        "quoteLocation": {
+          "excerpt": "Added Code Mode, an experimental opt-in in which Claude writes JavaScript to call its tools; see",
+          "start": 15,
+          "end": 111
+        },
+        "conditions": [
+          "This is a version release note, not a standalone major product-update announcement.",
+          "Publication time is unknown. List timeSource is atom:updated and is not used as publishedAt. Detail publicationTime is absent.",
+          "Extractor ws slightly off versus 40445; the official changelog body was read.",
+          "Other Claude Code tags in this source’s top 5 remain in the denominator as a release series.",
+          "A short official note (v2.1.322) is short-but-complete, not missing_material.",
+          "Code Mode is experimental opt-in; an organization can turn it off. The enable/disable URL is in the bound body_text (not a dropped href).",
+          "The documentation page at https://code.claude.com/docs/en/code-mode was not opened and is not treated as already read or as a verified runnable walkthrough.",
+          "Being a version changelog is not a step-8 bar against prioritize."
+        ],
+        "time": "unknown; Atom updated not used as published time; detail publicationTime absent",
+        "valueBasis": "依据约定选题规则 17（17-选题打分推荐-v2.3，sha256 45c5a6a0105268a6ecf887c8bc7611595e9626fe0a25b7ce76ca48ee64e3e43e）§4.6 第 158 行「任何一个」中的「电子产品、好用的软硬件工具（含跟 AI 无关的，例如 iOS 系统工具）」。「含跟 AI 无关」不排除 AI 产品；本条是官方版本说明，不是第 158 行里的「AI 工具上手实测」。可更新到 Claude Code v2.1.323 的读者，能从该说明获知：此版本新增实验性 Code Mode，由 Claude 编写 JavaScript 调用其工具，需要主动开启；同一段说明给出文档入口 https://code.claude.com/docs/en/code-mode，用于开启，也可供组织关闭。证据是绑定正文精确摘录 offset 15 与 offset 108。上述为来源主张，不是亲测；该文档页未打开，不能把入口写成已读操作步骤或可运行验证。不另加「必须已就绪」「须面向大众」或「版本说明不得优先」等规则中没有的门槛。",
+        "audience": [
+          "Claude Code users who can move to v2.1.323"
+        ],
+        "substantiveAddition": "相对仅有发布标签 v2.1.323，绑定正文具体写出了新功能名称 Code Mode、机制（Claude 编写 JavaScript 调用其工具）、实验性需主动开启，以及开启或供组织关闭的文档入口 URL。版本号字符串本身不在绑定正文中，只出现在来源页标签；这些功能说明不是仅靠标签能得到的。文档页正文不在本材料内，本判断不补充未读外页事实。",
+        "clauses": [
+          {
+            "id": "17s158-useful-software-or-hardware-tools",
+            "text": "电子产品、好用的软硬件工具（含跟 AI 无关的，例如 iOS 系统工具）"
+          }
+        ]
+      }
+    },
+    {
+      "articleId": "uxdnh10q3y7lvo9xsp4cld41e",
+      "evidenceHash": "d42be07f129c7e2a47d32e2895e9e052212e8fa1ba99645f862d067f04e12062",
+      "evidenceVersion": 1,
+      "inputRevision": 1,
+      "rulesetVersion": "17-选题打分推荐-v2.3#sha256:45c5a6a0105268a6ecf887c8bc7611595e9626fe0a25b7ce76ca48ee64e3e43e",
+      "promptVersion": "assistant-file-semantics-public40-two-completion-v1",
+      "executionSource": "assistant-file",
+      "modelKnowledge": "unknown",
+      "knownModel": null,
+      "output": {
+        "narrowClaim": "The Antigravity changelog entry for v2.33.0 (dated November 17, 2026 in the listing) says the release adds SSH host connections for running projects and agents on remote Linux machines, live GitHub pull-request status in the UI, in-page browser find, /swarm and UI plugin panels for business and enterprise accounts, plus 16 improvements and 21 fixes.",
+        "quoteLocation": {
+          "excerpt": "This release adds SSH host connections for running projects and agents on remote Linux machines, along with live GitHub pull request status pills, hover cards, and an Overview Pull Requests section.",
+          "start": 7,
+          "end": 205
+        },
+        "conditions": [
+          "This is a version changelog entry, not a standalone major product-update announcement; it must not be dressed up as a major launch.",
+          "SSH host connection is described for a remote 64-bit Linux machine, over OpenSSH, using ~/.ssh/config; Antigravity installs its remote server automatically.",
+          "/swarm and UI plugin panels are opened to business and enterprise accounts when allowed by organization admin settings.",
+          "The v1 detail fetch returned HTTP 200 but wholePageRejected / sectionLength 0; the bound body is listing_section, evidence version 1 / revision 1.",
+          "List publicationTime is date_only 2026-11-17 with timeSource unknown (changelog heading “November 17, 2026”). Detail publicationTime is unknown and is not filled from the list date.",
+          "Other version rows in this source’s top 5 remain in the denominator as a release series.",
+          "SSH is described for a remote 64-bit Linux machine over OpenSSH using ~/.ssh/config; three in-app entry points are in the bound body.",
+          "/swarm and UI plugin panels are for business and enterprise accounts when allowed by organization admin settings.",
+          "Being a version changelog is not a step-8 bar against prioritize."
+        ],
+        "time": "listing changelog date only (date_only, timeSource unknown); detail publicationTime unknown and not substituted",
+        "valueBasis": "依据约定选题规则 17（17-选题打分推荐-v2.3，sha256 45c5a6a0105268a6ecf887c8bc7611595e9626fe0a25b7ce76ca48ee64e3e43e）§4.6 第 158 行「任何一个」中的「电子产品、好用的软硬件工具（含跟 AI 无关的，例如 iOS 系统工具）」。「含跟 AI 无关」不排除 AI 产品；本条是官方版本说明，不是第 158 行里的「AI 工具上手实测」。可更新到 Antigravity v2.33.0、并拥有远程 64 位 Linux 主机的读者，能从该说明获知：此版本新增 SSH 主机连接，可把项目和代理放到远程 64 位 Linux 上运行；入口有三个：侧栏、项目菜单的 SSH Host...、命令面板的 Connect to SSH Host...；连接使用 OpenSSH 和 ~/.ssh/config，远程服务器会自动安装。说明还称，关闭窗口后，项目、Git worktrees、代理和终端仍会留在主机运行；此为来源主张，尚未做实际连接验证。证据是绑定正文精确摘录 offset 7、408 与 589。不另加「必须已就绪」「须面向大众」或「版本说明不得优先」等规则中没有的门槛。",
+        "audience": [
+          "Antigravity users who can update to v2.33.0, including those with a 64-bit Linux SSH host; business/enterprise users for /swarm subject to admin settings"
+        ],
+        "substantiveAddition": "相对仅有版本参数或标签 2.33.0，绑定正文具体写出了 SSH 主机连接的用途、远程须为 64 位 Linux、三条应用内入口的名称、OpenSSH 与 ~/.ssh/config、远程服务器会自动安装，以及关闭窗口后仍在主机运行的来源主张。这些内容不是仅靠标签能得到的。同一绑定节还列出了 GitHub pull request 状态展示等其他改动，也属于相对仅有标签的正文信息；本完成文件的价值说明以 SSH 连接及其前提为主，不把其余列出项写成已实测，也不改现有条件。本判断不补充未读外页事实。",
+        "clauses": [
+          {
+            "id": "17s158-useful-software-or-hardware-tools",
+            "text": "电子产品、好用的软硬件工具（含跟 AI 无关的，例如 iOS 系统工具）"
+          }
+        ]
+      }
+    }
+  ]
+}

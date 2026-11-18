@@ -1,0 +1,68 @@
+{
+  "adapter": "public-sample-v4-calibration-to-file-v9",
+  "rulesetVersion": "17-选题打分推荐-v2.3#sha256:45c5a6a0105268a6ecf887c8bc7611595e9626fe0a25b7ce76ca48ee64e3e43e",
+  "items": [
+    {
+      "url": "https://github.com/anthropics/claude-code/releases/tag/v2.1.323",
+      "articleId": "i5d3e8sv1zup81f7dqbryixtj",
+      "articleIdWasNullOnFrozenDecision": true,
+      "articleIdMappingSource": {
+        "articleId": "i5d3e8sv1zup81f7dqbryixtj",
+        "source_pack": "/workspace/aihot-handoff-v3/v3-bound-bodies-1734.tar",
+        "source_pack_sha256": "4f5dd03545a908665c917450129cb752b01daa41b8186a01c00b8253d26fb57e",
+        "source": "read-only MANIFEST of own_pub_v3_read_test bound body_text export",
+        "database": "own_pub_v3_read_test",
+        "not_in_original_v3_decisions": true,
+        "do_not_treat_as_v3_had_this_id": true
+      },
+      "semanticPromptVersion": "assistant-file-semantics-public40-two-completion-v1",
+      "semanticPromptRole": "这次补 valueBasis 和 substantiveAddition 的任务，不充当以往语义提示词",
+      "selectionItemPromptVersion": "assistant-selection-decision-public-sample-v2-independent-v1",
+      "selectionPackPromptVersion": "assistant-selection-decision-public-sample-v4-calibration-after-comparison-v1",
+      "draftPromptVersion": "real-draft-inputs-v2",
+      "draftPromptRole": "稿件包 schema 名。稿件原件没有 promptVersion，不把语义提示词或选择提示词写到稿上",
+      "valueBasis": "依据约定选题规则 17（17-选题打分推荐-v2.3，sha256 45c5a6a0105268a6ecf887c8bc7611595e9626fe0a25b7ce76ca48ee64e3e43e）§4.6 第 158 行「任何一个」中的「电子产品、好用的软硬件工具（含跟 AI 无关的，例如 iOS 系统工具）」。「含跟 AI 无关」不排除 AI 产品；本条是官方版本说明，不是第 158 行里的「AI 工具上手实测」。可更新到 Claude Code v2.1.323 的读者，能从该说明获知：此版本新增实验性 Code Mode，由 Claude 编写 JavaScript 调用其工具，需要主动开启；同一段说明给出文档入口 https://code.claude.com/docs/en/code-mode，用于开启，也可供组织关闭。证据是绑定正文精确摘录 offset 15 与 offset 108。上述为来源主张，不是亲测；该文档页未打开，不能把入口写成已读操作步骤或可运行验证。不另加「必须已就绪」「须面向大众」或「版本说明不得优先」等规则中没有的门槛。",
+      "substantiveAddition": "相对仅有发布标签 v2.1.323，绑定正文具体写出了新功能名称 Code Mode、机制（Claude 编写 JavaScript 调用其工具）、实验性需主动开启，以及开启或供组织关闭的文档入口 URL。版本号字符串本身不在绑定正文中，只出现在来源页标签；这些功能说明不是仅靠标签能得到的。文档页正文不在本材料内，本判断不补充未读外页事实。",
+      "completionFlagsNotCopiedIntoCli": [
+        "valueBasisAndSubstantiveAdditionArePlainStrings",
+        "cliTypeAdaptationIsMainsResponsibility",
+        "didNotInventCliTypes"
+      ],
+      "modelKnowledge": "unknown",
+      "knownModel": null,
+      "executionSource": "assistant-file",
+      "vendorReceipt": false
+    },
+    {
+      "url": "https://antigravity.google/releases?tab=hub&version=2.33.0",
+      "articleId": "uxdnh10q3y7lvo9xsp4cld41e",
+      "articleIdWasNullOnFrozenDecision": true,
+      "articleIdMappingSource": {
+        "articleId": "uxdnh10q3y7lvo9xsp4cld41e",
+        "source_pack": "/workspace/aihot-handoff-v3/v3-bound-bodies-1734.tar",
+        "source_pack_sha256": "4f5dd03545a908665c917450129cb752b01daa41b8186a01c00b8253d26fb57e",
+        "source": "read-only MANIFEST of own_pub_v3_read_test bound body_text export",
+        "database": "own_pub_v3_read_test",
+        "not_in_original_v3_decisions": true,
+        "do_not_treat_as_v3_had_this_id": true
+      },
+      "semanticPromptVersion": "assistant-file-semantics-public40-two-completion-v1",
+      "semanticPromptRole": "这次补 valueBasis 和 substantiveAddition 的任务，不充当以往语义提示词",
+      "selectionItemPromptVersion": "assistant-selection-decision-public-sample-v1-independent-v1",
+      "selectionPackPromptVersion": "assistant-selection-decision-public-sample-v4-calibration-after-comparison-v1",
+      "draftPromptVersion": "real-draft-inputs-v2",
+      "draftPromptRole": "稿件包 schema 名。稿件原件没有 promptVersion，不把语义提示词或选择提示词写到稿上",
+      "valueBasis": "依据约定选题规则 17（17-选题打分推荐-v2.3，sha256 45c5a6a0105268a6ecf887c8bc7611595e9626fe0a25b7ce76ca48ee64e3e43e）§4.6 第 158 行「任何一个」中的「电子产品、好用的软硬件工具（含跟 AI 无关的，例如 iOS 系统工具）」。「含跟 AI 无关」不排除 AI 产品；本条是官方版本说明，不是第 158 行里的「AI 工具上手实测」。可更新到 Antigravity v2.33.0、并拥有远程 64 位 Linux 主机的读者，能从该说明获知：此版本新增 SSH 主机连接，可把项目和代理放到远程 64 位 Linux 上运行；入口有三个：侧栏、项目菜单的 SSH Host...、命令面板的 Connect to SSH Host...；连接使用 OpenSSH 和 ~/.ssh/config，远程服务器会自动安装。说明还称，关闭窗口后，项目、Git worktrees、代理和终端仍会留在主机运行；此为来源主张，尚未做实际连接验证。证据是绑定正文精确摘录 offset 7、408 与 589。不另加「必须已就绪」「须面向大众」或「版本说明不得优先」等规则中没有的门槛。",
+      "substantiveAddition": "相对仅有版本参数或标签 2.33.0，绑定正文具体写出了 SSH 主机连接的用途、远程须为 64 位 Linux、三条应用内入口的名称、OpenSSH 与 ~/.ssh/config、远程服务器会自动安装，以及关闭窗口后仍在主机运行的来源主张。这些内容不是仅靠标签能得到的。同一绑定节还列出了 GitHub pull request 状态展示等其他改动，也属于相对仅有标签的正文信息；本完成文件的价值说明以 SSH 连接及其前提为主，不把其余列出项写成已实测，也不改现有条件。本判断不补充未读外页事实。",
+      "completionFlagsNotCopiedIntoCli": [
+        "valueBasisAndSubstantiveAdditionArePlainStrings",
+        "cliTypeAdaptationIsMainsResponsibility",
+        "didNotInventCliTypes"
+      ],
+      "modelKnowledge": "unknown",
+      "knownModel": null,
+      "executionSource": "assistant-file",
+      "vendorReceipt": false
+    }
+  ]
+}
