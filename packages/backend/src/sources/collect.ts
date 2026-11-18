@@ -439,8 +439,18 @@ export async function collectSource(sourceId: string, opts: { force?: boolean; x
 
     // Detail pages can establish a date the listing did not have, including an old archive date: such an
     // entry is not stored, and the cursor remembers what its page said (enrichDetails).
+    // After the first import, an identity that is still undated is not stored either. Initializing the
+    // cursor must not release the rest of an undated listing on the next run.
     const datedOut: DatedOut = {};
+    let undatedNotStored = 0;
     candidates = candidates.filter((c) => {
+      const already = known.get(c.identityKey!);
+      if (!firstImport && !c.publishedAt && !(already && already.source_id === source.id)) {
+        undatedNotStored += 1;
+        const listed = reads.listed.get(c.identityKey!);
+        if (listed !== undefined) datedOut[c.identityKey!] = listed;
+        return false;
+      }
       if (admits(c)) return true;
       // A future entry can become admissible without changing the feed's bytes or validator.
       if (source.kind === "rss" && c.publishedAt && c.publishedAt.getTime() > Date.now() + FUTURE_TOLERANCE_MS) delete nextCursor.rss;
@@ -450,6 +460,7 @@ export async function collectSource(sourceId: string, opts: { force?: boolean; x
     });
     // Kept while the listing offers them; a 304 offers no entries and keeps the last ones.
     if (found) { nextCursor.detailDatedOut = datedOut; nextCursor.detailRetries = reads.retries; }
+    detail = { ...(detail ?? {}), undatedNotStored };
     if (!d || !Object.keys(nextCursor.detailDatedOut ?? {}).length) delete nextCursor.detailDatedOut;
     if (!d || !Object.keys(nextCursor.detailRetries ?? {}).length) delete nextCursor.detailRetries;
     const stored = await storeCollected(sourceId, source.kind, candidates, firstImport ? "first-import" : null);

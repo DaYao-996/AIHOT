@@ -76,6 +76,9 @@ try {
       continue;
     }
     if (source.action === "one_get") {
+      await sql`INSERT INTO sources (id, name, kind, participation_mode, config, enabled, interval_minutes, site_fulltext, syndicate_fulltext, next_fetch_at)
+        VALUES (${source.sourceId}, ${source.sourceId}, 'web_list', 'editorial', ${sql.json({ url: source.url })}, false, ${source.intervalMinutes ?? 1440}, false, false, '2100-01-01')
+        ON CONFLICT (id) DO NOTHING`;
       let status: number | null = null;
       let error = "";
       try {
@@ -87,8 +90,11 @@ try {
       }
       const forbidden = status === 403 || status === 401 || /403|401/.test(error);
       const tooLarge = /too large/i.test(error);
-      connected.push({ sourceId: source.sourceId, role: source.role, action: "one_get", requests: 1, httpStatus: status, error, retryable: false, bypassed403: false, poolEntered: false, reason: forbidden ? "http_forbidden" : tooLarge ? "response_too_large_not_bypassed" : "page_not_stored" });
-      log(`GET ${source.sourceId} status=${status} error=${error}`);
+      const failed = forbidden || tooLarge || status === null || (status !== null && status >= 400);
+      await sql`INSERT INTO fetch_runs (source_id, status, finished_at, found_count, new_count, error, detail)
+        VALUES (${source.sourceId}, ${failed ? "failed" : "ok"}, now(), 0, 0, ${error || null}, ${sql.json({ requests: 1, httpStatus: status, bypassed403: false, retryable: false })})`;
+      connected.push({ sourceId: source.sourceId, role: source.role, action: "one_get", requests: 1, httpStatus: status, error, retryable: false, bypassed403: false, poolEntered: false, reason: forbidden ? "http_forbidden" : tooLarge ? "response_too_large_not_bypassed" : failed ? "page_not_stored" : "fetched_not_a_list" });
+      log(`GET ${source.sourceId} status=${status} error=${error} fetchRun=1`);
       continue;
     }
     const config = source.config!;
@@ -123,20 +129,24 @@ try {
     await sql`UPDATE articles SET processing_state = 'skipped', processing_queued_at = NULL WHERE source_id IN ${sql(inserted)} AND processing_state = 'new'`;
   }
   const x = contract.sources.filter((row) => row.roster_family === "X174_historical");
-  const disabled = contract.sources.filter((row) => row.roster_family !== "X174_historical" && frozen.doNotEnableRoles.includes(String(row.historical_role ?? "")));
+  const roleHeld = (row: Row) => frozen.doNotEnableRoles.includes(String(row.historical_role ?? ""));
+  const disabled = contract.sources.filter((row) => row.roster_family !== "X174_historical" && roleHeld(row));
+  const xRolesInsideNotRun = contract.sources.filter((row) => row.roster_family === "X174_historical" && roleHeld(row));
   const priorQualified = prior.map((row) => ({ ...row, refetched: false, ...qualify({
     articles: Number(row.articles), bodyOk: Number(row.bodyOk), pending: Number(row.pending),
     unconfirmed: Number(row.unconfirmed), evidence: Number(row.evidenceRows), found: Number(row.found),
   }) }));
   const report = {
     database, config: configPath, paidX: false, modelCalls: 0, workerStarted: false,
-    x: { total: x.length, daily132: x.filter((row) => row.in_frozen_daily132 === true).length, nonDaily: x.filter((row) => row.in_frozen_daily132 !== true).length, fetched: 0, reason: "no_free_x_api" },
+    contractPassed: false,
+    x: { total: x.length, daily132: x.filter((row) => row.in_frozen_daily132 === true).length, nonDaily: x.filter((row) => row.in_frozen_daily132 !== true).length, fetched: 0, status: "not_run", reason: "no_free_x_api" },
     disabledNotEnabled: disabled.length,
+    xRolesInsideNotRun: xRolesInsideNotRun.length,
     prior17: priorQualified,
     connected,
   };
   writeFileSync(`${outDir}/LEDGER.json`, JSON.stringify(report, null, 2));
-  log(JSON.stringify({ ok: true, x: report.x, disabledNotEnabled: report.disabledNotEnabled, connected: connected.map((row) => ({ id: row.sourceId, reason: row.reason })) }));
+  log(JSON.stringify({ ok: true, contractPassed: false, x: report.x, disabledNotEnabled: report.disabledNotEnabled, xRolesInsideNotRun: report.xRolesInsideNotRun, connected: connected.map((row) => ({ id: row.sourceId, reason: row.reason })) }));
 } finally {
   await stopBoss();
   await closeDb();

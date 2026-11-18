@@ -642,6 +642,27 @@ for (const reverse of [false, true]) {
   });
 }
 
+test("an initialized source does not create the rest of an undated listing", async () => {
+  const rows = items("undated-bound", 5).map((row) => ({ ...row, date: null }));
+  const { id } = await tailSource("undated-bound", "web_list", rows, {
+    publishedAtSelector: "time",
+    _aihot: { initialBackfillLimit: 2 },
+    detail: { maxFetches: 1 },
+  }, false);
+  const first = await collectSource(id, { force: true });
+  assert.deepEqual([first.status, first.created], ["ok", 2]);
+  const second = await collectSource(id, { force: true });
+  assert.deepEqual([second.status, second.created], ["ok", 0]);
+  assert.equal(await count(id), 2, "a later run must not store the undated history the first import left out");
+  const third = await collectSource(id, { force: true });
+  assert.equal(third.created, 0);
+  assert.equal(await count(id), 2, "created 0 on the run after that is not the archive already having been stored");
+  const runs = await sql<{ status: string; new_count: number; undated: number | null }[]>`
+    SELECT status, new_count, (detail->>'undatedNotStored')::int AS undated FROM fetch_runs WHERE source_id = ${id} ORDER BY id`;
+  assert.deepEqual(runs.map((run) => run.status), ["ok", "ok", "ok"]);
+  assert.equal(runs[1]!.undated, 3);
+});
+
 test("the first import keeps its count and age limits; later runs take what was published since, and undated entries, before accepting 304", async () => {
   const rows = items("initial", 100);
   rows[0]!.date = new Date(Date.now() - 400 * 86400000).toISOString();
@@ -656,14 +677,13 @@ test("the first import keeps its count and age limits; later runs take what was 
   assert.ok(imported.every(a => a.backfill && a.backfill_reason === "first-import"));
   assert.ok(!imported.some(a => a.url === rows[0]!.url), "an entry past the age limit takes no place in the first import");
   const second = await collectSource(id);
-  assert.deepEqual([second.status, second.found, second.created, second.revised], ["ok", 100, 87, 0]);
+  assert.deepEqual([second.status, second.found, second.created, second.revised], ["ok", 100, 83, 0]);
   const stored = await sql`SELECT url,backfill_reason FROM articles WHERE source_id=${id}`;
   const urls = new Set(stored.map(a => a.url));
   assert.deepEqual([0, 90, 91, 92, 93, 94].filter(i => urls.has(rows[i]!.url)), [], "what was published before the source was added stays out");
   assert.ok(urls.has(rows[95]!.url) && urls.has(rows[89]!.url), "what was published since is kept, however far down the listing");
-  assert.deepEqual(stored.filter(a => rows.slice(96).some(r => r.url === a.url)).map(a => a.backfill_reason), Array(4).fill("unknown-publication-time"),
-    "undated entries are kept and wait for a date");
-  assert.equal(await count(id), 94);
+  assert.equal(stored.filter(a => rows.slice(96).some(r => r.url === a.url)).length, 0, "undated entries past the first import are not created later");
+  assert.equal(await count(id), 90);
   assert.equal((await collectSource(id)).found, 0);
   assert.deepEqual(listing.requests.map(r => r.status), [200, 200, 304]);
   assert.equal(listing.requests[1]!.etag, undefined);
