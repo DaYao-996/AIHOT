@@ -285,6 +285,13 @@ async function storeCover(articleId: string, created: boolean, c: CollectionCand
   if (cover) await sql`UPDATE articles SET cover = ${sql.json(cover as never)} WHERE id = ${articleId} AND cover IS NULL`;
 }
 
+/** Undated identities that were not stored. Retrievable after the run, not only a line in that run's log. */
+export async function listUndatedRetries(sourceId: string): Promise<{ identityKey: string; url: string; state: "retryable" | "page_has_no_time"; firstSeenAt: Date; lastSeenAt: Date }[]> {
+  const rows = await sql<{ identity_key: string; url: string; state: "retryable" | "page_has_no_time"; first_seen_at: Date; last_seen_at: Date }[]>`
+    SELECT identity_key, url, state, first_seen_at, last_seen_at FROM own_collect_retries WHERE source_id = ${sourceId} ORDER BY url`;
+  return rows.map((row) => ({ identityKey: row.identity_key, url: row.url, state: row.state, firstSeenAt: row.first_seen_at, lastSeenAt: row.last_seen_at }));
+}
+
 export async function storeCollected(sourceId: string, kind: string, candidates: CollectionCandidate[], backfill: string | null) {
   let created = 0;
   let revised = 0;
@@ -415,6 +422,20 @@ export async function collectSource(sourceId: string, opts: { force?: boolean; x
     }
     found = candidates.length;
     candidates = await listingEntries(source, candidates);
+    // The next run reads the durable retry rows, including a URL that has left the listing.
+    let retryRead = 0;
+    if (!firstImport) {
+      const queued = await sql<{ identity_key: string; url: string }[]>`
+        SELECT identity_key, url FROM own_collect_retries WHERE source_id = ${sourceId} ORDER BY first_seen_at`;
+      const seen = new Set(candidates.map((c) => c.identityKey));
+      const recovered = queued.filter((row) => !seen.has(row.identity_key)).map((row) => ({
+        url: row.url, title: row.url, identityKey: row.identity_key, publishedAt: null, publicationTime: null,
+      }));
+      if (recovered.length) {
+        candidates = [...recovered, ...candidates];
+        retryRead = recovered.length;
+      }
+    }
     // Admission of old archive entries and detail recovery both need the same stored identities.
     // A later date correction must still reach material that was already admitted without a date.
     const known = d || (!firstImport && source.kind !== "x_search")
@@ -425,7 +446,7 @@ export async function collectSource(sourceId: string, opts: { force?: boolean; x
     if (firstImport) candidates = candidates.slice(0, Number(source.config._aihot?.initialBackfillLimit ?? 30));
     const reads = await enrichDetails(candidates, source, known, {
       budget: Number(d?.maxFetches ?? 0), admits,
-      after: source.cursor?.detailRules === rules ? source.cursor?.detailAfter : undefined,
+      after: retryRead > 0 ? undefined : source.cursor?.detailRules === rules ? source.cursor?.detailAfter : undefined,
       datedOut: source.cursor?.detailRules === rules ? source.cursor?.detailDatedOut ?? {} : {},
       retries: source.cursor?.detailRules === rules ? source.cursor?.detailRetries ?? {} : {},
     });
@@ -443,7 +464,7 @@ export async function collectSource(sourceId: string, opts: { force?: boolean; x
     // cursor must not release the rest of an undated listing on the next run.
     const datedOut: DatedOut = {};
     let undatedNotStored = 0;
-    const undatedRetry: { url: string; state: "retryable" | "page_has_no_time" }[] = [];
+    const undatedRetry: { url: string; identityKey: string; state: "retryable" | "page_has_no_time" }[] = [];
     candidates = candidates.filter((c) => {
       const already = known.get(c.identityKey!);
       if (!firstImport && !c.publishedAt && !(already && already.source_id === source.id)) {
@@ -452,7 +473,7 @@ export async function collectSource(sourceId: string, opts: { force?: boolean; x
         // A page that was opened and still has no time stays marked for another look.
         // One that the budget did not reach stays retryable. Neither is stored, and neither is forgotten.
         if (listed !== undefined) datedOut[c.identityKey!] = listed;
-        undatedRetry.push({ url: c.url, state: listed !== undefined ? "page_has_no_time" : "retryable" });
+        undatedRetry.push({ url: c.url, identityKey: c.identityKey!, state: listed !== undefined ? "page_has_no_time" : "retryable" });
         return false;
       }
       if (admits(c)) return true;
@@ -466,7 +487,7 @@ export async function collectSource(sourceId: string, opts: { force?: boolean; x
     if (found) { nextCursor.detailDatedOut = datedOut; nextCursor.detailRetries = reads.retries; }
     if (undatedRetry.length) nextCursor.undatedRetry = undatedRetry;
     else delete nextCursor.undatedRetry;
-    detail = { ...(detail ?? {}), undatedNotStored, undatedRetry };
+    detail = { ...(detail ?? {}), undatedNotStored, undatedRetry, retryRead };
     if (!d || !Object.keys(nextCursor.detailDatedOut ?? {}).length) delete nextCursor.detailDatedOut;
     if (!d || !Object.keys(nextCursor.detailRetries ?? {}).length) delete nextCursor.detailRetries;
     const stored = await storeCollected(sourceId, source.kind, candidates, firstImport ? "first-import" : null);
@@ -477,6 +498,20 @@ export async function collectSource(sourceId: string, opts: { force?: boolean; x
     nextCursor.lastOkAt = new Date().toISOString();
     await sql.begin(async (tx) => {
       await recordFetch(tx, sourceId, run!.id, { found, created, detail, cursor: nextCursor, response: responseBody });
+      for (const row of undatedRetry) {
+        await tx`INSERT INTO own_collect_retries (source_id, identity_key, url, state)
+          VALUES (${sourceId}, ${row.identityKey}, ${row.url}, ${row.state})
+          ON CONFLICT (source_id, identity_key) DO UPDATE
+          SET url = EXCLUDED.url, state = EXCLUDED.state, last_seen_at = now()`;
+      }
+      const kept = candidates.map((c) => c.identityKey!).filter(Boolean);
+      if (kept.length) await tx`DELETE FROM own_collect_retries WHERE source_id = ${sourceId} AND identity_key IN ${tx(kept)}`;
+      for (const cap of reads.captures) {
+        const extracted = cap.sectionText ? Buffer.byteLength(cap.sectionText) : null;
+        await tx`INSERT INTO own_detail_responses (source_id, url, http_status, response, response_sha256, truncated, extracted_bytes, extraction_note)
+          VALUES (${sourceId}, ${cap.url}, ${cap.status}, ${cap.bytes}, ${sha256(cap.bytes)}, ${cap.truncated}, ${extracted},
+            ${cap.truncated ? "response truncated; extracted text is not this response" : "extracted text is the readability slice of this response, not a claim the page ends there"})`;
+      }
       for (const receiptId of paidReceiptIds) await completeReceipt(tx, receiptId);
     });
     return { sourceId, status: "ok", found, created, revised, listingBytes: responseBody, detailCaptures: reads.captures };

@@ -8,7 +8,7 @@ import { after, before, test } from "node:test";
 import { config } from "@aihot/backend/config";
 import { closeDb, sql } from "@aihot/backend/db";
 import { stopBoss, QUEUES } from "@aihot/backend/jobs/queue";
-import { collectSource } from "@aihot/backend/sources/collect";
+import { collectSource, listUndatedRetries } from "@aihot/backend/sources/collect";
 import { upsertMaterial, identityKeyFor } from "@aihot/backend/content/materials";
 import { collectFindings } from "@aihot/backend/operations/alerts";
 
@@ -666,6 +666,9 @@ test("an initialized source does not create the rest of an undated listing", asy
   assert.equal(runs[1]!.undated, 3);
   const [retry] = await sql<{ n: number }[]>`SELECT jsonb_array_length(detail->'undatedRetry')::int AS n FROM fetch_runs WHERE source_id = ${id} ORDER BY id OFFSET 1 LIMIT 1`;
   assert.equal(retry!.n, 3);
+  const persisted = await listUndatedRetries(id);
+  assert.equal(persisted.length, 3);
+  assert.ok(persisted.every((row) => row.state === "retryable" || row.state === "page_has_no_time"));
 });
 
 test("a new undated listing entry stays retryable and is stored only after its page has a time", async () => {
@@ -680,7 +683,7 @@ test("a new undated listing entry stays retryable and is stored only after its p
   listing.items = [fresh, ...rows];
   listing.version += 1;
   const path = new URL(fresh.url).pathname;
-  articlePages.set(path, `<html><head><meta name="original-publication" content="${new Date().toISOString()}"></head><body><article><p>${"A full article paragraph. ".repeat(40)}</p><p>See <a href="https://example.org/paper.pdf">the paper</a>.</p></article></body></html>`);
+  articlePages.set(path, `<html><head><meta name="original-publication" content="2026-11-17"></head><body><article><p>${"A full article paragraph. ".repeat(40)}</p><p>See <a href="https://example.org/paper.pdf">the paper</a>.</p></article></body></html>`);
   await sql`UPDATE sources SET config = config || ${sql.json({ detail: { maxFetches: 0 } })} WHERE id = ${id}`;
   const held = await collectSource(id, { force: true });
   assert.equal(held.created, 0);
@@ -689,14 +692,26 @@ test("a new undated listing entry stays retryable and is stored only after its p
     SELECT item->>'state' AS state FROM fetch_runs, jsonb_array_elements(detail->'undatedRetry') item
     WHERE source_id = ${id} AND item->>'url' = ${fresh.url} ORDER BY id DESC LIMIT 1`;
   assert.equal(marked!.state, "retryable");
+  const persisted = await listUndatedRetries(id);
+  assert.equal(persisted.find((row) => row.url === fresh.url)?.state, "retryable");
+  const [notStored] = await sql`SELECT id FROM articles WHERE source_id = ${id} AND url = ${fresh.url}`;
+  assert.equal(notStored, undefined);
   await sql`UPDATE sources SET config = jsonb_set(config, '{detail}', ${sql.json({ maxFetches: 1, publishedAtSelector: 'meta[name="original-publication"]' })}) WHERE id = ${id}`;
+  listing.items = rows;
+  listing.version += 1;
   const opened = await collectSource(id, { force: true });
   assert.equal(opened.created, 1);
   const [saved] = await sql<{ published_at: Date | null; body_status: string; n: number }[]>`
     SELECT published_at, body_status, octet_length(body_text)::int AS n FROM articles WHERE source_id = ${id} AND url = ${fresh.url}`;
-  assert.ok(saved!.published_at);
+  const published = saved!.published_at!.toISOString();
+  assert.notEqual(published.slice(0, 10), new Date().toISOString().slice(0, 10));
+  assert.match(published, /^2026-11-1[67]/);
   assert.equal(saved!.body_status, "ok");
   assert.ok(saved!.n > 200);
+  assert.equal((await listUndatedRetries(id)).some((row) => row.url === fresh.url), false);
+  const [page] = await sql<{ n: number; sha: string }[]>`
+    SELECT octet_length(response)::int AS n, response_sha256 AS sha FROM own_detail_responses WHERE source_id = ${id} AND url = ${fresh.url}`;
+  assert.ok(page!.n > 200 && page!.sha.length === 64);
 });
 
 test("the first import keeps its count and age limits; later runs take what was published since, and undated entries, before accepting 304", async () => {
