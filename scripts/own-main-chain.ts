@@ -1,4 +1,7 @@
 // Independently runnable entry for one contract run. Defaults to the v15 inputs.
+// The replay is on localhost; collection otherwise refuses a private address.
+import { config } from "@aihot/backend/config";
+config.allowPrivateNetworkFetch = true;
 const defaults: Record<string, string> = {
   "--config": "docs/own-pipeline/contract-run-v15/CONFIG.json",
   "--out-dir": "docs/own-pipeline/contract-run-v15",
