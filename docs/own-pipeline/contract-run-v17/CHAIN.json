@@ -1,0 +1,77 @@
+{
+  "contractPassed": false,
+  "workerStarted": false,
+  "chain": [
+    {
+      "url": "https://research.meta.ai/blog/muse-ember",
+      "publishedAt": "2026-11-09",
+      "bodyBytes": 10917,
+      "scoringSame": true,
+      "evidenceHash": "89dea45000ef67d135722ced79817c000855d774d44a59d5e9f12dd07198b423",
+      "semanticId": "e97bdcaef91cec557263904c382606b3a2c03923f3d7c84d8ada86a2ae392daa",
+      "selectionId": "ba088e4b30ced6cbbdaf95a8c4c829a201be3e37ebb55085e49c189f98448527",
+      "draftId": "2eb99ee503adfa548a5a1189bc974fed50644de9d4e06515d118a46386ca6586",
+      "releaseStatus": "not_licensed",
+      "factStatus": "unchecked"
+    },
+    {
+      "url": "https://research.meta.ai/blog/specialized-models-for-muse-and-metaai",
+      "publishedAt": "2026-11-06",
+      "bodyBytes": 3281,
+      "scoringSame": true,
+      "evidenceHash": "f9aef8dbc67da4f9e57fb4612e275eff5e10080df32c47f4cc114e4ab38227d0",
+      "semanticId": "39082925165877106923c24252e7111bcab264d496a0647ff0c2e68d5cb441d5",
+      "selectionId": "a13d9e99909a424abe6df4b584f487fb06f2a0d1e6279bbcc582166542e5b17d",
+      "draftId": "8c8ad501c334c85dcdb5fe4803d7631234c4cd9c473f87d4654686360018129c",
+      "releaseStatus": "not_licensed",
+      "factStatus": "unchecked"
+    },
+    {
+      "url": "https://thinkingmachines.ai/news/inkling-2-small/",
+      "publishedAt": "2026-11-05",
+      "bodyBytes": 52295,
+      "scoringSame": true,
+      "evidenceHash": "49e8e21b4ed256bb6bbd849437f7b1a32aa4e6e37536ee4be8522243b4946a1a",
+      "semanticId": "caccd26e356d63867ee4e56c96ff727172c89e2d0f56c1262a55c8b340511b16",
+      "selectionId": "19dcf87d7ea2ec3080329bef2c1b5db4b100ef178a6e6a066cbcc0eea4104ca4",
+      "draftId": "6155d0ffb975c272bc980828194f02f0fd2734eb56a5e57e1f2597da8098fad7",
+      "releaseStatus": "not_licensed",
+      "factStatus": "unchecked"
+    },
+    {
+      "url": "https://thinkingmachines.ai/news/one-year-of-tinker/",
+      "publishedAt": "2026-10-15",
+      "bodyBytes": 12312,
+      "scoringSame": true,
+      "evidenceHash": "c9b402bd302bfbcee019911e7668a24b7bcdbc28ebeecb07612ffd3017826738",
+      "semanticId": "aa03175673f1e06acb0ecd0761c56331736388568df1e06a8d91beec898566f5",
+      "selectionId": "cf259ec7d1804b3155876e21b95d23e9b3bb027d3291c9de2dc7855216d940d2",
+      "draftId": "1e9dead3e7045be2224d911b276263c0cf76978a420aa838ce19ea5f18aa5b02",
+      "releaseStatus": "not_licensed",
+      "factStatus": "unchecked"
+    },
+    {
+      "url": "https://www.anthropic.com/news/public-benefit-fund",
+      "publishedAt": "2026-10-18",
+      "bodyBytes": 2812,
+      "scoringSame": true,
+      "evidenceHash": "e6dd07b75a1e6bfbb66a26372d88789017bbd22b484db8bd07233431bdfde7a1",
+      "semanticId": "4c82a704bcab9afbfbb98f64b37725fd761b281681629b6626d604e02baabd5e",
+      "selectionId": "42ca08b180e030ba8fb870e18ce610cdb4badec97a26487f225904e65c654b5e",
+      "draftId": "4a807e81907b7aed14cfb305887dedb115bd97ee436110a0ee9566b93f370ed4",
+      "releaseStatus": "not_licensed",
+      "factStatus": "unchecked"
+    }
+  ],
+  "probe": {
+    "url": "https://nvidianews.nvidia.com/news/nvidia-announces-financial-results-for-third-quarter-fiscal-2027",
+    "status": 200,
+    "rawBytes": 398481,
+    "sha256": "595d2f53a2624ca6907d66930240aa81c480c8071e0b9c68e365ba8336585d40",
+    "extractedBytes": 20335,
+    "note": "rawHasAbout=true extractedHasAbout=false extractedBytes=20335 rawBytes=398481; the slice is not a completeness claim",
+    "publishedAt": null
+  },
+  "publications": 0,
+  "receipts": 0
+}

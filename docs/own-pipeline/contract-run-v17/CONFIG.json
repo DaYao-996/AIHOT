@@ -1,0 +1,15 @@
+{
+  "version": "contract-run-v17",
+  "frozen": true,
+  "fileChain": {
+    "minBodyBytes": 2000,
+    "rulesetVersion": "file-read-v17",
+    "semanticPrompt": "assistant-file-semantics-v17-stored-body-v1",
+    "selectionPrompt": "assistant-selection-v17-stored-body-v1",
+    "draftPrompt": "real-draft-v17-stored-body-v1"
+  },
+  "detailProbe": {
+    "sourceId": "nvidia_newsroom_page",
+    "url": "https://nvidianews.nvidia.com/news/nvidia-announces-financial-results-for-third-quarter-fiscal-2027"
+  }
+}

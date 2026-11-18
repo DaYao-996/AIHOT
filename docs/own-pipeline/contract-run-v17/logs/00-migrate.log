@@ -1,0 +1,7 @@
+
+> db:migrate
+> node --env-file-if-exists=.env scripts/migrate.ts
+
+applied 0184_own_collect_retries.sql (8ms, transaction)
+applied 0185_own_detail_responses.sql (5ms, transaction)
+2 migration(s) applied

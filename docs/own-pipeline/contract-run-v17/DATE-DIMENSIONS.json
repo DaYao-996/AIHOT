@@ -1,0 +1,18 @@
+{
+  "articles": 41,
+  "labels": {
+    "pending_body": 19,
+    "rejected_page": 2,
+    "has_body_date_and_evidence": 9,
+    "pending_date": 2,
+    "pending_evidence": 9
+  },
+  "missingDate": 12,
+  "missingDateByLabel": {
+    "pending_date": 2,
+    "pending_body": 4,
+    "pending_evidence": 5,
+    "rejected_page": 1
+  },
+  "note": "待日期标签数不是缺日期文章数。缺日期里被标成待证据的仍然没有日期。"
+}
