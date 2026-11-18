@@ -758,14 +758,26 @@ test("a selection file keeps its rationale, stays pending, and does not rewrite 
   assert.equal(semanticRow!.fact_status, "unchecked");
   assert.equal(semanticRow!.release_status, "not_licensed");
   const queue = await listPendingSelections();
-  assert.equal(queue.find((row) => row.id === first.id)?.item.audience_benefit, item.audience_benefit);
+  const queued = queue.find((row) => row.id === first.id);
+  assert.equal(queued?.item.audience_benefit, item.audience_benefit);
+  assert.equal(queued?.evidenceHash, saved.evidenceHash);
+  assert.equal(queued?.inputRevision, saved.articleRevision);
+  assert.equal(queued?.boundSemanticJudgmentId, semantic.id);
+  const [parked] = await sql<{ processing_state: string }[]>`SELECT processing_state FROM articles WHERE id = ${saved.articleId}`;
+  assert.equal(parked!.processing_state, "skipped");
+  const [published] = await sql<{ n: number }[]>`SELECT count(*)::int AS n FROM publications WHERE article_id = ${saved.articleId}`;
+  const [analysed] = await sql<{ n: number }[]>`SELECT count(*)::int AS n FROM analyses WHERE article_id = ${saved.articleId}`;
+  assert.equal(published!.n, 0);
+  assert.equal(analysed!.n, 0);
   const moved = await appendControlledEvidence({ sourceId: SOURCE, url, title: "选择夹具", raw: { n: 1 }, bodyText: `${body}补充。` });
   assert.notEqual(moved.evidenceHash, saved.evidenceHash);
   const [selectionStale] = await sql<{ stale: boolean }[]>`SELECT stale FROM own_judgments WHERE id = ${first.id}`;
   assert.equal(selectionStale!.stale, true);
-  const [semanticStill] = await sql<{ output_sha: string }[]>`
-    SELECT comparison->'fileResult'->>'outputSha256' AS output_sha FROM own_judgments WHERE id = ${semantic.id}`;
+  const [semanticStill] = await sql<{ stale: boolean; output_sha: string }[]>`
+    SELECT stale, comparison->'fileResult'->>'outputSha256' AS output_sha FROM own_judgments WHERE id = ${semantic.id}`;
+  assert.equal(semanticStill!.stale, true);
   assert.equal(semanticStill!.output_sha, semantic.fileReceipt.outputSha256);
+  assert.equal((await listPendingSelections()).some((row) => row.id === first.id), false);
   const other = await appendControlledEvidence({ sourceId: SOURCE, url: `https://example.com/selection-other-${tag()}`, title: "旁观", raw: { n: 2 }, bodyText: body });
   const otherSemantic = await recordFileResult({
     articleId: other.articleId, evidenceHash: other.evidenceHash, evidenceVersion: other.evidenceVersion,
@@ -781,6 +793,7 @@ test("a selection file keeps its rationale, stays pending, and does not rewrite 
   assert.equal(otherDecision.body.selectionDecision?.boundSemanticJudgmentId, otherSemantic.id);
   const [untouched] = await sql<{ stale: boolean }[]>`SELECT stale FROM own_judgments WHERE id = ${otherDecision.id}`;
   assert.equal(untouched!.stale, false);
+  assert.equal((await listPendingSelections()).some((row) => row.id === otherDecision.id), true);
 });
 
 test("three unblinded public samples go through the import command", { skip: existsSync(SAMPLES) ? false : "public samples are not in this checkout" }, () => {

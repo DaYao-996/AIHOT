@@ -20,6 +20,9 @@ Then, only through the CLIs, not by inserting judgment rows:
   node scripts/own-selection-decision.ts --file SELECTION_DECISIONS_v3.json
 Expected after those commands: 9 current file judgments, 3 stale, 9 pending selections.
 The second file import and the second selection import are idempotent.
+Then read the queue without writing a manuscript:
+  node scripts/own-pending-review.ts --out <pending.json>
+That file is a technical read of the stored nine. It is not a quality pass.
 COLLECT_ENABLED and MODEL_CALLS_ENABLED stay false. No worker.
 
 Atom updated is stored on the entry and is not the publication time.
