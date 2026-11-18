@@ -26,11 +26,11 @@ async function main() {
   const items = [];
   for (const item of parsed.items) {
     const mapped = mapControlledImport(item);
-    const complete = mapped.bodyText !== null;
+    const completeness = !mapped.bodyText ? "missing_body" : mapped.quotedText ? "body_and_quote_unverified" : "missing_quote";
     if (dryRun) {
       items.push({
         url: item.url, identityKey: mapped.identityKey, rawFileSha256: item.rawFileSha256, rawCanonicalSha256: item.rawCanonicalSha256, gaps: mapped.gaps,
-        completeness: complete ? "body_present" : "missing_body", judgment: "dry_run", scored: false, valueJudgment: false,
+        completeness, quality: "unverified", judgment: "dry_run", scored: false, valueJudgment: false,
       });
       continue;
     }
@@ -38,7 +38,7 @@ async function main() {
       const evidence = await appendControlledEvidence(item);
       if (evidence.idempotent) counts.idempotent += 1;
       else counts.evidenceAppended += 1;
-      if (!complete) counts.judgmentSkippedIncomplete += 1;
+      if (!mapped.bodyText || !mapped.quotedText) counts.judgmentSkippedIncomplete += 1;
       const judgment = "not_written";
       const [projection] = await sql<{ publications: number; deliveries: number }[]>`
         SELECT (SELECT count(*)::int FROM publications WHERE article_id = ${evidence.articleId}) AS publications,
@@ -47,7 +47,7 @@ async function main() {
         url: item.url, identityKey: mapped.identityKey, rawFileSha256: item.rawFileSha256, rawCanonicalSha256: item.rawCanonicalSha256,
         articleId: evidence.articleId, articleRevision: evidence.articleRevision,
         evidenceVersion: evidence.evidenceVersion, evidenceHash: evidence.evidenceHash, gaps: evidence.gaps,
-        completeness: complete ? "body_present" : "missing_body", judgment, scored: false, valueJudgment: false,
+        completeness, quality: "unverified", judgment, scored: false, valueJudgment: false,
         publicationRows: projection!.publications, deliveryRows: projection!.deliveries,
       });
     } catch (error) {

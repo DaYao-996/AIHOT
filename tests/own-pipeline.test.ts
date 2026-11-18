@@ -11,7 +11,8 @@ import { after, before, test } from "node:test";
 import { closeDb, sql } from "@aihot/backend/db";
 import { stableJson } from "@aihot/backend/lib/ids";
 import { HISTORICAL_RULESET, type JudgmentBody } from "../site/own-pipeline.ts";
-import { JudgmentConflict, appendControlledEvidence, commitControlledLoop, recordJudgment } from "../packages/backend/src/own-pipeline-store.ts";
+import { sweepUnprocessed } from "../packages/backend/src/jobs/content.ts";
+import { activeJudgment, JudgmentConflict, appendControlledEvidence, commitControlledLoop, recordJudgment } from "../packages/backend/src/own-pipeline-store.ts";
 
 const SOURCE = `own-pipeline-${tag()}`;
 const SAMPLES = process.env.OWN_PUBLIC_SAMPLES
@@ -34,7 +35,7 @@ function gapBody(reasons: string[]): JudgmentBody {
 function supplementedBody(reasons: string[]): JudgmentBody {
   return {
     informationTypeId: null, contentLine: null, materialStatus: "complete", factStatus: "unchecked",
-    valueStatus: "reference_only", releaseStatus: "not_licensed", origin: "deterministic", reasons,
+    valueStatus: "incomplete_material", releaseStatus: "not_licensed", origin: "deterministic", reasons,
   };
 }
 
@@ -82,13 +83,14 @@ test("supplementing body and quote versions evidence without replacing the origi
   );
   assert.equal(withNewRaw.evidence.evidenceVersion, 4);
 
-  const [article] = await sql<{ revision: number; raw: unknown; body_text: string | null; x_post: unknown; processing_queued_at: Date | null }[]>`
-    SELECT revision, raw, body_text, x_post, processing_queued_at FROM articles WHERE id = ${first.evidence.articleId}`;
+  const [article] = await sql<{ revision: number; raw: unknown; body_text: string | null; x_post: unknown; processing_queued_at: Date | null; processing_state: string }[]>`
+    SELECT revision, raw, body_text, x_post, processing_queued_at, processing_state FROM articles WHERE id = ${first.evidence.articleId}`;
   assert.equal(article!.revision, 2);
-  assert.equal(stableJson(article!.raw), stableJson(original));
+  assert.equal(stableJson(article!.raw), stableJson(replacedRaw));
   assert.equal(article!.body_text, "显式正文");
   assert.equal(article!.x_post, null);
   assert.equal(article!.processing_queued_at, null);
+  assert.equal(article!.processing_state, "skipped");
   const revisions = await sql<{ revision: number; body_text: string | null }[]>`
     SELECT revision, body_text FROM article_revisions WHERE article_id = ${first.evidence.articleId} ORDER BY revision`;
   assert.deepEqual(revisions.map((row) => row.revision), [1, 2]);
@@ -98,10 +100,10 @@ test("supplementing body and quote versions evidence without replacing the origi
     WHERE article_id = ${first.evidence.articleId} ORDER BY version`;
   assert.equal(stableJson(versions[0]!.raw), stableJson(original));
   assert.equal(versions[0]!.body_text, null);
-  assert.equal(versions[1]!.raw, null);
+  assert.equal(stableJson(versions[1]!.raw), stableJson(original));
   assert.equal(versions[1]!.body_text, "显式正文");
   assert.equal(versions[2]!.quoted_text, "显式引用");
-  assert.equal(versions[2]!.raw, null);
+  assert.equal(stableJson(versions[2]!.raw), stableJson(original));
   assert.equal(stableJson(versions[3]!.raw), stableJson(replacedRaw));
   assert.equal(stableJson(versions[0]!.raw), stableJson(original));
 
@@ -192,9 +194,18 @@ test("judgement hashes must be the current stored evidence, including under a co
     () => recordJudgment(saved.judgment.identity, { ...gapBody(["模型空版本"]), origin: "model" }, "2026-11-18T04:00:02.000Z"),
     /可追溯/,
   );
+  await assert.rejects(
+    () => recordJudgment({
+      ...saved.judgment.identity, promptVersion: "prefilter@abc", modelVersion: "stub-model",
+    }, { ...gapBody(["只有版本字符串"]), origin: "model" }, "2026-11-18T04:00:03.000Z"),
+    /回执/,
+  );
+  const [receipt] = await sql<{ id: number }[]>`
+    INSERT INTO receipts (logical_key, service, model, purpose, status)
+    VALUES (${`own-${tag()}`}, 'llm', 'stub-model', 'own-judgment', 'completed') RETURNING id`;
   const traced = await recordJudgment({
     ...saved.judgment.identity, promptVersion: "prefilter@abc", modelVersion: "stub-model",
-  }, { ...gapBody(["带来源"]), origin: "model" }, "2026-11-18T04:00:03.000Z");
+  }, { ...gapBody(["带来源"]), origin: "model", modelReceiptId: receipt!.id }, "2026-11-18T04:00:03.000Z");
   assert.equal(traced.idempotent, false);
   const raced = await Promise.allSettled([
     appendControlledEvidence({ sourceId: SOURCE, url, title: "绑定", raw: { n: 1 }, bodyText: "补上的正文" }),
@@ -263,6 +274,137 @@ test("the import command is the supported entry and does not score incomplete ma
   assert.equal(/queueProcessing\s*\(/.test(importer), false);
   assert.equal(importer.includes("apps/worker"), false);
   assert.equal(importer.includes("DELETE FROM own_evidence"), false);
+});
+
+test("title and publishedAt stay in one evidence transaction, and a repeated raw is a new current state", async () => {
+  const dir = mkdtempSync(path.join(tmpdir(), "own-revise-"));
+  const quiet: NodeJS.ProcessEnv = {
+    ...process.env, DATABASE_URL: process.env.DATABASE_URL, COLLECT_ENABLED: "false", MODEL_CALLS_ENABLED: "false",
+    FEISHU_CONTENT_PUSH_ENABLED: "false", DINGTALK_CONTENT_PUSH_ENABLED: "false", FEISHU_INTERNAL_ENABLED: "false",
+    INDEXNOW_SUBMIT_ENABLED: "false", BAIDU_PUSH_ENABLED: "false",
+  };
+  const run = (body: unknown) => {
+    const file = path.join(dir, `${tag()}.json`);
+    writeFileSync(file, JSON.stringify(body));
+    return spawnSync(process.execPath, [path.join(process.cwd(), "scripts/own-import.ts"), "--file", file], {
+      cwd: process.cwd(), encoding: "utf8", env: quiet,
+    });
+  };
+  const url = `https://example.com/title-${tag()}`;
+  const raw = { kind: "title" };
+  const base = { url, title: "标题甲", raw, bodyText: "同一正文" };
+  const first = run({ sourceId: SOURCE, items: [base] });
+  assert.equal(first.status, 0, first.stderr);
+  const firstJson = JSON.parse(first.stdout);
+  assert.equal(firstJson.counts.judgmentRecorded, 0);
+  assert.equal(firstJson.items[0].completeness, "missing_quote");
+  assert.equal(firstJson.items[0].quality, "unverified");
+  const second = run({ sourceId: SOURCE, items: [{ ...base, title: "标题乙" }] });
+  assert.equal(second.status, 0, second.stderr);
+  const secondJson = JSON.parse(second.stdout);
+  assert.equal(secondJson.counts.evidenceAppended, 1);
+  assert.equal(secondJson.counts.idempotent, 0);
+  assert.equal(secondJson.counts.rejected, 0);
+  const [article] = await sql<{ revision: number; title: string; processing_state: string }[]>`
+    SELECT revision, title, processing_state FROM articles WHERE url = ${url}`;
+  const evidence = await sql<{ version: number; article_revision: number }[]>`
+    SELECT version, article_revision FROM own_evidence_versions WHERE article_id = ${firstJson.items[0].articleId} ORDER BY version`;
+  assert.equal(article!.revision, 2);
+  assert.equal(article!.title, "标题乙");
+  assert.equal(article!.processing_state, "skipped");
+  assert.deepEqual(evidence.map((row) => row.article_revision), [1, 2]);
+  const [judged] = await sql<{ n: number }[]>`SELECT count(*)::int AS n FROM own_judgments WHERE article_id = ${firstJson.items[0].articleId}`;
+  assert.equal(judged!.n, 0);
+
+  const dated = `https://example.com/date-${tag()}`;
+  const dateRaw = { kind: "date" };
+  const dateFirst = run({ sourceId: SOURCE, items: [{ url: dated, title: "补时间", raw: dateRaw, bodyText: "补时间正文" }] });
+  assert.equal(dateFirst.status, 0, dateFirst.stderr);
+  const dateSecond = run({ sourceId: SOURCE, items: [{ url: dated, title: "补时间", raw: dateRaw, bodyText: "补时间正文", publishedAt: "2024-01-15T00:00:00.000Z" }] });
+  assert.equal(dateSecond.status, 0, dateSecond.stderr);
+  const dateJson = JSON.parse(dateSecond.stdout);
+  assert.equal(dateJson.counts.rejected, 0);
+  assert.equal(dateJson.items[0].articleRevision, dateJson.items[0].evidenceVersion === 2 ? 2 : dateJson.items[0].articleRevision);
+  const [dateArticle] = await sql<{ revision: number }[]>`SELECT revision FROM articles WHERE url = ${dated}`;
+  const dateEvidence = await sql<{ article_revision: number }[]>`
+    SELECT article_revision FROM own_evidence_versions WHERE article_id = ${JSON.parse(dateFirst.stdout).items[0].articleId} ORDER BY version`;
+  assert.equal(dateArticle!.revision, dateEvidence.at(-1)!.article_revision);
+
+  const loopUrl = `https://example.com/loop-${tag()}`;
+  const loopItem = { sourceId: SOURCE, url: loopUrl, title: "循环甲", raw: { kind: "loop" }, bodyText: "循环正文" };
+  const loopFirst = await commitControlledLoop(loopItem, gapBody(["未评分"]), "2026-11-18T09:00:00.000Z", binding);
+  const loopNext = await commitControlledLoop({ ...loopItem, title: "循环乙" }, gapBody(["未评分"]), "2026-11-18T09:01:00.000Z", binding);
+  assert.equal(loopNext.evidence.articleRevision, 2);
+  assert.equal(loopNext.judgment.identity.inputRevision, 2);
+  assert.equal(loopNext.judgment.stale, false);
+  const [loopOld] = await sql<{ stale: boolean }[]>`SELECT stale FROM own_judgments WHERE id = ${loopFirst.judgment.id}`;
+  assert.equal(loopOld!.stale, true);
+  const active = await activeJudgment(loopFirst.evidence.articleId, binding);
+  assert.equal(active?.id, loopNext.judgment.id);
+  const other = await recordJudgment(
+    { ...loopNext.judgment.identity, rulesetVersion: "other-ruleset" },
+    gapBody(["另一规则"]), "2026-11-18T09:02:00.000Z",
+  );
+  assert.equal((await activeJudgment(loopFirst.evidence.articleId, binding))?.id, loopNext.judgment.id);
+  assert.equal((await activeJudgment(loopFirst.evidence.articleId, { ...binding, rulesetVersion: "other-ruleset" }))?.id, other.id);
+
+  const rawUrl = `https://example.com/raw-${tag()}`;
+  const rawA = { kind: "A" };
+  const rawB = { kind: "B" };
+  const a = await appendControlledEvidence({ sourceId: SOURCE, url: rawUrl, title: "回退", raw: rawA, bodyText: "正文一", quotedText: "引用一" });
+  await appendControlledEvidence({ sourceId: SOURCE, url: rawUrl, title: "回退", raw: rawA, bodyText: "正文二", quotedText: "引用一" });
+  await appendControlledEvidence({ sourceId: SOURCE, url: rawUrl, title: "回退", raw: rawA, bodyText: "正文二", quotedText: "引用二" });
+  const atB = await appendControlledEvidence({ sourceId: SOURCE, url: rawUrl, title: "回退", raw: rawB, bodyText: "正文二", quotedText: "引用二" });
+  const judgedB = await recordJudgment({
+    articleId: atB.articleId, inputRevision: atB.articleRevision, evidenceHash: atB.evidenceHash, ...binding,
+  }, gapBody(["停在 B"]), "2026-11-18T10:00:00.000Z");
+  const back = await appendControlledEvidence({ sourceId: SOURCE, url: rawUrl, title: "回退", raw: rawA, bodyText: "正文二", quotedText: "引用二" });
+  assert.equal(back.idempotent, false);
+  assert.notEqual(back.evidenceHash, atB.evidenceHash);
+  const cleared = await appendControlledEvidence({ sourceId: SOURCE, url: rawUrl, title: "回退", raw: rawA, bodyText: "正文三", quotedText: null });
+  assert.equal(cleared.idempotent, false);
+  const versions = await sql<{ version: number; raw: unknown; quoted_text: string | null }[]>`
+    SELECT version, raw, quoted_text FROM own_evidence_versions WHERE article_id = ${a.articleId} ORDER BY version`;
+  assert.equal(stableJson(versions[0]!.raw), stableJson(rawA));
+  assert.equal(stableJson(versions.at(-2)!.raw), stableJson(rawA));
+  assert.equal(versions.at(-1)!.quoted_text, null);
+  const [currentRaw] = await sql<{ raw: unknown }[]>`SELECT raw FROM articles WHERE id = ${a.articleId}`;
+  assert.equal(stableJson(currentRaw!.raw), stableJson(rawA));
+  const [bJudgment] = await sql<{ stale: boolean }[]>`SELECT stale FROM own_judgments WHERE id = ${judgedB.id}`;
+  assert.equal(bJudgment!.stale, true);
+
+  const xUrl = `https://example.com/x-${tag()}`;
+  const xPost = { tweetId: "2117095432526700999", authorName: "A", handle: "someone", text: "帖子" };
+  const withPost = await appendControlledEvidence({ sourceId: SOURCE, url: xUrl, title: "帖", raw: { kind: "x" }, bodyText: "帖子", xPost });
+  const withoutPost = await appendControlledEvidence({ sourceId: SOURCE, url: xUrl, title: "帖", raw: { kind: "x" }, bodyText: "帖子", xPost: null });
+  assert.equal(withoutPost.articleId, withPost.articleId);
+  const [rows] = await sql<{ n: number }[]>`SELECT count(*)::int AS n FROM articles WHERE url = ${xUrl}`;
+  assert.equal(rows!.n, 1);
+  const xVersions = await sql<{ x_post: unknown }[]>`
+    SELECT x_post FROM own_evidence_versions WHERE article_id = ${withPost.articleId} ORDER BY version`;
+  assert.equal(xVersions.at(-1)!.x_post, null);
+  await assert.rejects(
+    () => appendControlledEvidence({ sourceId: SOURCE, url: xUrl, title: "帖", raw: { kind: "x" }, xPost: { ...xPost, tweetId: "2117095432526700888" } }),
+    /已绑定帖子身份/,
+  );
+
+  const bytes = Buffer.from('{"b":1,"aa":2}', "utf8");
+  const byteUrl = `https://example.com/bytes-${tag()}`;
+  const stored = await appendControlledEvidence({
+    sourceId: SOURCE, url: byteUrl, title: "字节", raw: { aa: 2, b: 1 },
+    rawFileBase64: bytes.toString("base64"), rawFileSha256: createHash("sha256").update(bytes).digest("hex"),
+  });
+  const [fileRow] = await sql<{ raw_file: Buffer; raw_text: string }[]>`
+    SELECT raw_file, raw::text AS raw_text FROM own_evidence_versions WHERE article_id = ${stored.articleId} AND version = 1`;
+  assert.equal(createHash("sha256").update(fileRow!.raw_file).digest("hex"), createHash("sha256").update(bytes).digest("hex"));
+  assert.notEqual(fileRow!.raw_text, bytes.toString("utf8"));
+
+  await sql`UPDATE articles SET created_at = now() - interval '10 minutes' WHERE source_id = ${SOURCE}`;
+  const swept = await sweepUnprocessed();
+  const [still] = await sql<{ n: number }[]>`
+    SELECT count(*)::int AS n FROM articles WHERE source_id = ${SOURCE} AND processing_state = 'new'`;
+  assert.equal(still!.n, 0);
+  assert.equal(swept.enqueued, 0);
 });
 
 test("three unblinded public samples go through the import command", { skip: existsSync(SAMPLES) ? false : "public samples are not in this checkout" }, () => {

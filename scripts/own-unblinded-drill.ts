@@ -128,7 +128,8 @@ for (const row of rows) {
   if (!first.has_raw || first.file !== sample.declared || first.canonical !== sample.canonicalSha256) throw new Error(`${row.url} 原件哈希没有按两种身份保留`);
   if (first.body_len) throw new Error(`${row.url} 第一版不该有正文`);
   const supplemented = row.versions[1];
-  if (!supplemented || supplemented.has_raw || !supplemented.body_len || !supplemented.has_x) throw new Error(`${row.url} 补料没有形成新版本或覆盖了原件`);
+  if (!supplemented || !supplemented.body_len || !supplemented.has_x) throw new Error(`${row.url} 补料没有形成新版本`);
+  if (supplemented.has_raw && supplemented.canonical !== first.canonical) throw new Error(`${row.url} 补料换成了另一份原件`);
   if (sample.explicit.quotedText && !supplemented.quote_len) throw new Error(`${row.url} 显式引用没有写入`);
 }
 if (rawOnly.counts.evidenceAppended !== 3 || rawOnly.counts.judgmentRecorded !== 0 || rawOnly.counts.judgmentSkippedIncomplete !== 3) {

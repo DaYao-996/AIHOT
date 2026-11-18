@@ -86,15 +86,26 @@ export function canonicalIdentity(identity: JudgmentIdentity): JudgmentIdentity 
 }
 
 /**
- * 累计证据哈希。rawVersions 按版本保留每一份未覆盖的原件；补正文或引用会得到新哈希。
+ * 当前证据快照的哈希。只含这一次的标题、原件、正文、引用和 xPost。
+ * 旧调用若只给了 rawVersions，取最后一份当作当前原件，不把历史集合算进去。
+ * 回到较早的原件会得到新的当前哈希，并另存一版；先前各版仍留在表里。
  */
 export function cumulativeEvidenceHash(input: {
-  rawVersions: unknown[];
+  title?: string;
+  raw?: unknown;
+  rawVersions?: unknown[];
   bodyText: string | null;
   quotedText: string | null;
   xPost: XPostData | null;
 }): string {
-  return sha256(stableJson(input));
+  const raw = input.raw !== undefined ? input.raw : input.rawVersions?.at(-1) ?? null;
+  return sha256(stableJson({
+    title: input.title ?? "",
+    raw,
+    bodyText: input.bodyText,
+    quotedText: input.quotedText,
+    xPost: input.xPost,
+  }));
 }
 
 /** 只接受本机上名字以 _test 或 _ci 结尾的库。生产地址和 private24 直接拒绝。 */
@@ -116,6 +127,12 @@ export function assertThrowawayDatabase(url: string): void {
 export type MaterialStatus = "complete" | "missing_body" | "missing_quote" | "missing_article_body";
 export type FactStatus = "unchecked" | "source_claim" | "checked";
 export type ValueStatus = "incomplete_material" | "reference_only";
+
+/** 对照规则实际算过的输入。没有这份证据不能写成 reference_only。 */
+export interface ComparisonEvidence {
+  algorithm: string;
+  inputHash: string;
+}
 export type ReleaseStatus = "not_licensed";
 /** 确定性规则可以没有模型版本。模型提取或判断必须带上可追溯版本，空字符串不能代替来源。 */
 export type JudgmentOrigin = "deterministic" | "model";
@@ -129,6 +146,10 @@ export interface JudgmentBody {
   releaseStatus: ReleaseStatus;
   origin: JudgmentOrigin;
   reasons: string[];
+  /** reference_only 必填。未评分不填，也不写判断行。 */
+  comparison?: ComparisonEvidence | null;
+  /** origin=model 时必填，并且必须对上 receipts 里的一条回执。版本字符串不能代替它。 */
+  modelReceiptId?: number | null;
 }
 
 export interface JudgmentRow {
@@ -165,8 +186,16 @@ export class JudgmentLedger {
     if (body.materialStatus !== "complete" && body.valueStatus !== "incomplete_material") {
       throw new Error("材料不完整时不能记成价值判断");
     }
+    if (body.valueStatus === "reference_only") {
+      if (!body.comparison || !body.comparison.algorithm.trim() || !/^[0-9a-f]{64}$/.test(body.comparison.inputHash)) {
+        throw new Error("reference_only 必须带对照算法和输入哈希");
+      }
+    }
     if (body.origin === "model" && (!identity.promptVersion || !identity.modelVersion)) {
       throw new Error("模型判断必须带可追溯的提示词版本和模型版本");
+    }
+    if (body.origin === "model" && !(Number.isInteger(body.modelReceiptId) && (body.modelReceiptId ?? 0) > 0)) {
+      throw new Error("模型判断必须带可追溯回执");
     }
     if (body.origin !== "model" && body.origin !== "deterministic") throw new Error("判断来源无法识别");
     const id = judgmentId(identity);
@@ -253,6 +282,8 @@ export interface ControlledImportItem {
   bodyText?: string | null;
   quotedText?: string | null;
   xPost?: XPostData | null;
+  /** 原始文件字节的 base64。给出时写入 bytea，并必须对上 rawFileSha256。jsonb 不是这份字节。 */
+  rawFileBase64?: string | null;
 }
 
 export interface MappedMaterial {
@@ -260,7 +291,7 @@ export interface MappedMaterial {
   identityKey: string;
   /** 上游修订哈希：标题、正文、摘要。不含 raw，不含引用。 */
   upstreamContentHash: string;
-  /** 自有判断用的证据哈希：在上游哈希之外纳入引用和显式 xPost。 */
+  /** 与库内同一函数：当前标题、原件、正文、引用、xPost。不含上游内容哈希，也不含历史 raw 集合。 */
   evidenceHash: string;
   bodyText: string | null;
   quotedText: string | null;
@@ -279,7 +310,7 @@ export class ImportRejected extends Error {
 }
 
 const FILE_KEYS = new Set(["sourceId", "items"]);
-const ITEM_KEYS = new Set(["url", "title", "author", "publishedAt", "raw", "rawFileSha256", "rawCanonicalSha256", "bodyText", "quotedText", "xPost"]);
+const ITEM_KEYS = new Set(["url", "title", "author", "publishedAt", "raw", "rawFileSha256", "rawFileBase64", "rawCanonicalSha256", "bodyText", "quotedText", "xPost"]);
 const XPOST_KEYS = new Set(["tweetId", "authorName", "handle", "text", "quoted", "media", "lang", "replyTo", "avatarUrl"]);
 
 function rejectUnknown(obj: Record<string, unknown>, allowed: Set<string>, label: string): void {
@@ -339,6 +370,16 @@ export function parseImportDocument(value: unknown): { sourceId: string; items: 
     if (row.rawFileSha256 !== undefined && (typeof row.rawFileSha256 !== "string" || !/^[0-9a-f]{64}$/.test(row.rawFileSha256))) {
       throw new ImportRejected(`items[${index}].rawFileSha256 必须是原始文件字节的 64 位十六进制 SHA256`);
     }
+    if (row.rawFileBase64 !== undefined && row.rawFileBase64 !== null && typeof row.rawFileBase64 !== "string") {
+      throw new ImportRejected(`items[${index}].rawFileBase64 必须是字符串`);
+    }
+    if (typeof row.rawFileBase64 === "string") {
+      const bytes = Buffer.from(row.rawFileBase64, "base64");
+      const digest = sha256(bytes);
+      if (typeof row.rawFileSha256 === "string" && row.rawFileSha256 !== digest) {
+        throw new ImportRejected(`items[${index}].rawFileBase64 与 rawFileSha256 不一致`);
+      }
+    }
     const author = optionalText(row.author, `items[${index}].author`);
     const bodyText = optionalText(row.bodyText, `items[${index}].bodyText`);
     const quotedText = optionalText(row.quotedText, `items[${index}].quotedText`);
@@ -356,6 +397,7 @@ export function parseImportDocument(value: unknown): { sourceId: string; items: 
       ...(row.publishedAt !== undefined ? { publishedAt: row.publishedAt as string | null } : {}),
       ...(bodyText !== undefined ? { bodyText } : {}),
       ...(quotedText !== undefined ? { quotedText } : {}),
+      ...(typeof row.rawFileBase64 === "string" ? { rawFileBase64: row.rawFileBase64 } : {}),
     };
     const xPost = parseXPost(row.xPost);
     if (xPost !== undefined) parsed.xPost = xPost;
@@ -391,7 +433,13 @@ export function mapControlledImport(item: ControlledImportItem): MappedMaterial 
     material,
     identityKey: identityKeyFor(material),
     upstreamContentHash,
-    evidenceHash: sha256(stableJson({ upstreamContentHash, quotedText, xPost: item.xPost ?? null })),
+    evidenceHash: cumulativeEvidenceHash({
+      title: item.title,
+      raw: item.raw,
+      bodyText,
+      quotedText,
+      xPost: item.xPost ?? null,
+    }),
     bodyText,
     quotedText,
     gaps,

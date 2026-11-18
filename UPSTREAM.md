@@ -39,6 +39,13 @@
 - `scripts/own-gap-check.ts`
 - `database/migrations/0170_own_judgments.sql`
 - `database/migrations/0171_own_evidence_versions.sql`
+- `database/migrations/0176_own_evidence_raw_file.sql`
+- `database/migrations/0177_own_judgments_comparison.sql`
+- `database/migrations/0178_own_judgments_model_receipt.sql`
+- `docs/own-pipeline/IMPORT_BINDING_v8.md`
+- `docs/own-pipeline/probes/INDEPENDENT_v6_probe.ts`
+- `docs/own-pipeline/probes/own-v6-probe-adapter.ts`
+- `docs/own-pipeline/probes/ADAPTER.md`
 
 复查：
 
@@ -47,4 +54,4 @@ git diff --stat 7b446b1008d832ee25084f8e7baf62ce493f40c3
 git rev-list --count origin/main..7b446b1008d832ee25084f8e7baf62ce493f40c3
 ```
 
-`0170` 尚未在任何数据库执行。
+`0170` 起的自有表只在名字以 `_test` 结尾的本机临时库执行过。

@@ -133,7 +133,11 @@ test("the same judgment identity cannot change its result, and a gap cannot beco
   assert.throws(() => ledger.record(identity({ evidenceHash: "e9" }), body({ valueStatus: "reference_only" }), "t3"), /材料不完整/);
   const kept = ledger.record(identity({ articleId: "c", evidenceHash: "e3" }), body({
     materialStatus: "complete", factStatus: "source_claim", valueStatus: "reference_only", reasons: ["来源这样说，尚未核对"],
+    comparison: { algorithm: "source-claim-v1", inputHash: "ab".repeat(32) },
   }), "t5");
+  assert.throws(() => ledger.record(identity({ articleId: "d", evidenceHash: "e4" }), body({
+    materialStatus: "complete", valueStatus: "reference_only", reasons: ["没有对照"],
+  }), "t6"), /对照算法/);
   assert.equal(kept.row.body.factStatus, "source_claim");
   assert.equal(kept.row.body.releaseStatus, "not_licensed");
   assert.throws(() => ledger.staleMatching({}), /不能为空/);
@@ -169,7 +173,7 @@ test("raw text is stored aside and does not become body, quote, or the upstream 
     sourceId: "src-x", url: held.material.url, title: "一条标题", raw: { ...raw, extra: 1 }, bodyText: "显式正文", quotedText: "显式引用",
   });
   assert.equal(rawChanged.upstreamContentHash, withBody.upstreamContentHash);
-  assert.equal(rawChanged.evidenceHash, withBody.evidenceHash);
+  assert.notEqual(rawChanged.evidenceHash, withBody.evidenceHash);
 
   const quoteChanged = mapControlledImport({
     sourceId: "src-x", url: held.material.url, title: "一条标题", raw, bodyText: "显式正文", quotedText: "另一段引用",
@@ -316,7 +320,8 @@ test("import files reject unknown fields and a mismatched original hash", () => 
 test("a model judgement cannot hide behind an empty version", () => {
   const ledger = new JudgmentLedger();
   assert.throws(() => ledger.record(identity({ promptVersion: null, modelVersion: "" }), body({ origin: "model" }), "t"), /可追溯/);
-  const row = ledger.record(identity({ promptVersion: "prefilter@abc", modelVersion: "stub" }), body({ origin: "model", reasons: ["带来源"] }), "t2");
+  assert.throws(() => ledger.record(identity({ promptVersion: "prefilter@abc", modelVersion: "stub" }), body({ origin: "model", reasons: ["只有版本字符串"] }), "t2"), /回执/);
+  const row = ledger.record(identity({ promptVersion: "prefilter@abc", modelVersion: "stub" }), body({ origin: "model", reasons: ["带来源"], modelReceiptId: 1 }), "t3");
   assert.equal(row.row.body.origin, "model");
   assert.equal(row.row.identity.promptVersion, "prefilter@abc");
   assert.equal(cliEntryAllowed({}).ok, true);
