@@ -12,7 +12,7 @@ import { closeDb, sql } from "@aihot/backend/db";
 import { stableJson } from "@aihot/backend/lib/ids";
 import { HISTORICAL_RULESET, type JudgmentBody } from "../site/own-pipeline.ts";
 import { sweepUnprocessed } from "../packages/backend/src/jobs/content.ts";
-import { activeJudgment, JudgmentConflict, appendControlledEvidence, commitControlledLoop, recordJudgment } from "../packages/backend/src/own-pipeline-store.ts";
+import { activeJudgment, JudgmentConflict, appendControlledEvidence, commitControlledLoop, materialForScoring, recordJudgment } from "../packages/backend/src/own-pipeline-store.ts";
 
 const SOURCE = `own-pipeline-${tag()}`;
 const SAMPLES = process.env.OWN_PUBLIC_SAMPLES
@@ -30,6 +30,10 @@ function gapBody(reasons: string[]): JudgmentBody {
     informationTypeId: null, contentLine: null, materialStatus: "missing_body", factStatus: "unchecked",
     valueStatus: "incomplete_material", releaseStatus: "not_licensed", origin: "deterministic", reasons,
   };
+}
+
+function bodyOnly(reasons: string[]): JudgmentBody {
+  return { ...gapBody(reasons), materialStatus: "missing_quote" };
 }
 
 function supplementedBody(reasons: string[]): JudgmentBody {
@@ -61,7 +65,7 @@ test("supplementing body and quote versions evidence without replacing the origi
 
   const withBody = await commitControlledLoop(
     { sourceId: SOURCE, url, title: "合成材料", raw: original, bodyText: "显式正文" },
-    supplementedBody(["已补正文，仍未评分"]), "2026-11-18T00:01:00.000Z", binding,
+    bodyOnly(["已补正文，仍未评分"]), "2026-11-18T00:01:00.000Z", binding,
   );
   assert.equal(withBody.evidence.evidenceVersion, 2);
   assert.equal(withBody.evidence.articleRevision, 2);
@@ -201,8 +205,10 @@ test("judgement hashes must be the current stored evidence, including under a co
     /回执/,
   );
   const [receipt] = await sql<{ id: number }[]>`
-    INSERT INTO receipts (logical_key, service, model, purpose, status)
-    VALUES (${`own-${tag()}`}, 'llm', 'stub-model', 'own-judgment', 'completed') RETURNING id`;
+    INSERT INTO receipts (logical_key, service, model, purpose, subject, status, request)
+    VALUES (${`own-${tag()}`}, 'llm', 'stub-model', 'own-judgment', ${`article:${saved.evidence.articleId}`}, 'completed',
+      ${sql.json({ articleId: saved.evidence.articleId, evidenceHash: saved.evidence.evidenceHash, promptVersion: "prefilter@abc" } as never)})
+    RETURNING id`;
   const traced = await recordJudgment({
     ...saved.judgment.identity, promptVersion: "prefilter@abc", modelVersion: "stub-model",
   }, { ...gapBody(["带来源"]), origin: "model", modelReceiptId: receipt!.id }, "2026-11-18T04:00:03.000Z");
@@ -228,7 +234,7 @@ test("the import command is the supported entry and does not score incomplete ma
   const file = path.join(dir, "items.json");
   writeFileSync(file, JSON.stringify({
     sourceId: SOURCE,
-    items: [{ url: `https://example.com/cli-${tag()}`, title: "命令导入", raw, rawCanonicalSha256: createHash("sha256").update(stableJson(raw)).digest("hex"), rawFileSha256: "b".repeat(64) }],
+    items: [{ url: `https://example.com/cli-${tag()}`, title: "命令导入", raw, rawCanonicalSha256: createHash("sha256").update(stableJson(raw)).digest("hex") }],
   }));
   const quiet: NodeJS.ProcessEnv = {
     ...process.env, DATABASE_URL: process.env.DATABASE_URL, COLLECT_ENABLED: "false", MODEL_CALLS_ENABLED: "false",
@@ -332,8 +338,8 @@ test("title and publishedAt stay in one evidence transaction, and a repeated raw
 
   const loopUrl = `https://example.com/loop-${tag()}`;
   const loopItem = { sourceId: SOURCE, url: loopUrl, title: "循环甲", raw: { kind: "loop" }, bodyText: "循环正文" };
-  const loopFirst = await commitControlledLoop(loopItem, gapBody(["未评分"]), "2026-11-18T09:00:00.000Z", binding);
-  const loopNext = await commitControlledLoop({ ...loopItem, title: "循环乙" }, gapBody(["未评分"]), "2026-11-18T09:01:00.000Z", binding);
+  const loopFirst = await commitControlledLoop(loopItem, bodyOnly(["未评分"]), "2026-11-18T09:00:00.000Z", binding);
+  const loopNext = await commitControlledLoop({ ...loopItem, title: "循环乙" }, bodyOnly(["未评分"]), "2026-11-18T09:01:00.000Z", binding);
   assert.equal(loopNext.evidence.articleRevision, 2);
   assert.equal(loopNext.judgment.identity.inputRevision, 2);
   assert.equal(loopNext.judgment.stale, false);
@@ -343,7 +349,7 @@ test("title and publishedAt stay in one evidence transaction, and a repeated raw
   assert.equal(active?.id, loopNext.judgment.id);
   const other = await recordJudgment(
     { ...loopNext.judgment.identity, rulesetVersion: "other-ruleset" },
-    gapBody(["另一规则"]), "2026-11-18T09:02:00.000Z",
+    bodyOnly(["另一规则"]), "2026-11-18T09:02:00.000Z",
   );
   assert.equal((await activeJudgment(loopFirst.evidence.articleId, binding))?.id, loopNext.judgment.id);
   assert.equal((await activeJudgment(loopFirst.evidence.articleId, { ...binding, rulesetVersion: "other-ruleset" }))?.id, other.id);
@@ -357,7 +363,7 @@ test("title and publishedAt stay in one evidence transaction, and a repeated raw
   const atB = await appendControlledEvidence({ sourceId: SOURCE, url: rawUrl, title: "回退", raw: rawB, bodyText: "正文二", quotedText: "引用二" });
   const judgedB = await recordJudgment({
     articleId: atB.articleId, inputRevision: atB.articleRevision, evidenceHash: atB.evidenceHash, ...binding,
-  }, gapBody(["停在 B"]), "2026-11-18T10:00:00.000Z");
+  }, supplementedBody(["停在 B"]), "2026-11-18T10:00:00.000Z");
   const back = await appendControlledEvidence({ sourceId: SOURCE, url: rawUrl, title: "回退", raw: rawA, bodyText: "正文二", quotedText: "引用二" });
   assert.equal(back.idempotent, false);
   assert.notEqual(back.evidenceHash, atB.evidenceHash);
@@ -405,6 +411,110 @@ test("title and publishedAt stay in one evidence transaction, and a repeated raw
     SELECT count(*)::int AS n FROM articles WHERE source_id = ${SOURCE} AND processing_state = 'new'`;
   assert.equal(still!.n, 0);
   assert.equal(swept.enqueued, 0);
+});
+
+test("a receipt must name this evidence, and checked facts need a human excerpt", async () => {
+  const url = `https://example.com/bound-${tag()}`;
+  const saved = await appendControlledEvidence({
+    sourceId: SOURCE, url, title: "绑定回执", raw: { n: 1 }, bodyText: "显式正文里有这段可核的原句",
+  });
+  await assert.rejects(() => recordJudgment({
+    articleId: saved.articleId, inputRevision: saved.articleRevision, evidenceHash: saved.evidenceHash, ...binding,
+  }, {
+    ...gapBody(["写成完整"]), materialStatus: "complete", factStatus: "checked",
+  }, "2026-11-18T05:00:01.000Z"), /持久证据是missing_quote/);
+  const withQuote = await appendControlledEvidence({
+    sourceId: SOURCE, url, title: "绑定回执", raw: { n: 1 }, bodyText: "显式正文里有这段可核的原句", quotedText: "引用原句也在这里",
+  });
+  const algorithm = "sha256-evidence";
+  const inputHash = createHash("sha256").update(stableJson({ algorithm, evidenceHash: withQuote.evidenceHash })).digest("hex");
+  await assert.rejects(() => recordJudgment({
+    articleId: withQuote.articleId, inputRevision: withQuote.articleRevision, evidenceHash: withQuote.evidenceHash, ...binding,
+  }, {
+    informationTypeId: null, contentLine: null, materialStatus: "complete", factStatus: "checked",
+    valueStatus: "reference_only", releaseStatus: "not_licensed", origin: "deterministic", reasons: ["假核对"],
+    comparison: { algorithm: "none", inputHash: "ab".repeat(32) },
+  }, "2026-11-18T05:00:02.000Z"), /可重算|事实已核/);
+  const unchecked = await recordJudgment({
+    articleId: withQuote.articleId, inputRevision: withQuote.articleRevision, evidenceHash: withQuote.evidenceHash, ...binding,
+  }, {
+    informationTypeId: null, contentLine: null, materialStatus: "complete", factStatus: "unchecked",
+    valueStatus: "reference_only", releaseStatus: "not_licensed", origin: "deterministic", reasons: ["未核可以留下"],
+    comparison: { algorithm, inputHash },
+  }, "2026-11-18T05:00:03.000Z");
+  assert.equal(unchecked.body.factStatus, "unchecked");
+  assert.equal(unchecked.body.releaseStatus, "not_licensed");
+  const checked = await recordJudgment({
+    articleId: withQuote.articleId, inputRevision: withQuote.articleRevision, evidenceHash: withQuote.evidenceHash,
+    rulesetVersion: "human-check", promptVersion: null, modelVersion: null,
+  }, {
+    informationTypeId: null, contentLine: null, materialStatus: "complete", factStatus: "checked",
+    valueStatus: "incomplete_material", releaseStatus: "not_licensed", origin: "deterministic", reasons: ["人核了摘录"],
+    factCheck: { claim: "原句在正文里", sourceExcerpt: "这段可核的原句", by: "human" },
+  }, "2026-11-18T05:00:04.000Z");
+  assert.equal(checked.body.factStatus, "checked");
+  const [forged] = await sql<{ id: number }[]>`
+    INSERT INTO receipts (logical_key, service, model, purpose, subject, status, request, response)
+    VALUES (${`forged-${tag()}`}, 'llm', 'stub-no-call', 'probe', 'unrelated-subject', 'completed',
+      ${sql.json({ input: "not this article" } as never)}, ${sql.json({ output: "not a judgment" } as never)}) RETURNING id`;
+  await assert.rejects(() => recordJudgment({
+    articleId: withQuote.articleId, inputRevision: withQuote.articleRevision, evidenceHash: withQuote.evidenceHash,
+    rulesetVersion: HISTORICAL_RULESET, promptVersion: "prefilter@probe", modelVersion: "stub-no-call",
+  }, {
+    informationTypeId: null, contentLine: null, materialStatus: "complete", factStatus: "unchecked",
+    valueStatus: "incomplete_material", releaseStatus: "not_licensed", origin: "model", reasons: ["无关回执"],
+    modelReceiptId: forged!.id,
+  }, "2026-11-18T05:00:05.000Z"), /没有绑到这篇文章的当前证据/);
+  await assert.rejects(() => recordJudgment({
+    articleId: withQuote.articleId, inputRevision: withQuote.articleRevision, evidenceHash: withQuote.evidenceHash,
+    rulesetVersion: "missing-receipt", promptVersion: "prefilter@probe", modelVersion: "stub-no-call",
+  }, {
+    informationTypeId: null, contentLine: null, materialStatus: "complete", factStatus: "unchecked",
+    valueStatus: "incomplete_material", releaseStatus: "not_licensed", origin: "model", reasons: ["没有回执"],
+    modelReceiptId: 999999,
+  }, "2026-11-18T05:00:06.000Z"), /模型回执不存在/);
+  const [pending] = await sql<{ id: number }[]>`
+    INSERT INTO receipts (logical_key, service, model, purpose, status)
+    VALUES (${`pending-${tag()}`}, 'llm', 'stub-no-call', 'probe', 'pending') RETURNING id`;
+  await assert.rejects(() => recordJudgment({
+    articleId: withQuote.articleId, inputRevision: withQuote.articleRevision, evidenceHash: withQuote.evidenceHash,
+    rulesetVersion: "pending-receipt", promptVersion: "prefilter@probe", modelVersion: "stub-no-call",
+  }, {
+    informationTypeId: null, contentLine: null, materialStatus: "complete", factStatus: "unchecked",
+    valueStatus: "incomplete_material", releaseStatus: "not_licensed", origin: "model", reasons: ["未完成"],
+    modelReceiptId: pending!.id,
+  }, "2026-11-18T05:00:07.000Z"), /尚未完成/);
+  const [bound] = await sql<{ id: number }[]>`
+    INSERT INTO receipts (logical_key, service, model, purpose, subject, status, request)
+    VALUES (${`bound-${tag()}`}, 'llm', 'stub-no-call', 'own-judgment', ${`article:${withQuote.articleId}`}, 'completed',
+      ${sql.json({ articleId: withQuote.articleId, evidenceHash: withQuote.evidenceHash, promptVersion: "prefilter@probe" } as never)})
+    RETURNING id`;
+  const modelUnchecked = await recordJudgment({
+    articleId: withQuote.articleId, inputRevision: withQuote.articleRevision, evidenceHash: withQuote.evidenceHash,
+    rulesetVersion: HISTORICAL_RULESET, promptVersion: "prefilter@probe", modelVersion: "stub-no-call",
+  }, {
+    informationTypeId: null, contentLine: null, materialStatus: "complete", factStatus: "unchecked",
+    valueStatus: "incomplete_material", releaseStatus: "not_licensed", origin: "model", reasons: ["未核但回执对得上"],
+    modelReceiptId: bound!.id,
+  }, "2026-11-18T05:00:08.000Z");
+  assert.equal(modelUnchecked.body.factStatus, "unchecked");
+  assert.equal(modelUnchecked.body.origin, "model");
+  await assert.rejects(() => appendControlledEvidence({
+    sourceId: SOURCE, url: `https://example.com/hash-only-${tag()}`, title: "只声明", raw: { not: "the file" }, rawFileSha256: "a".repeat(64),
+  }), /没有原件字节/);
+  const cleared = await appendControlledEvidence({
+    sourceId: SOURCE, url, title: "绑定回执", raw: { n: 1 }, bodyText: null, quotedText: null,
+  });
+  const scored = await materialForScoring(cleared.articleId);
+  assert.equal(scored?.bodyText, null);
+  assert.equal(scored?.quotedText, null);
+  await sql`UPDATE articles SET body_text = '旧正文不该被抽走' WHERE id = ${cleared.articleId}`;
+  const still = await materialForScoring(cleared.articleId);
+  assert.equal(still?.bodyText, null);
+  const [identity] = await sql<{ identity_key: string; body_text: string | null }[]>`
+    SELECT identity_key, body_text FROM articles WHERE id = ${cleared.articleId}`;
+  assert.equal(identity!.body_text, "旧正文不该被抽走");
+  assert.ok(identity!.identity_key);
 });
 
 test("three unblinded public samples go through the import command", { skip: existsSync(SAMPLES) ? false : "public samples are not in this checkout" }, () => {

@@ -69,7 +69,7 @@ const prepared = ids.map((id) => {
   const base = {
     url: `https://x.com/${record.handle}/status/${record.post_id}`,
     title: record.root_text.slice(0, 80),
-    raw, rawFileSha256: fileSha256, rawCanonicalSha256: canonicalSha256,
+    raw, rawFileSha256: fileSha256, rawFileBase64: rawBytes.toString("base64"), rawCanonicalSha256: canonicalSha256,
   };
   const quoteText = record.quote?.status === "present" ? record.quote.text : undefined;
   const explicit = {
@@ -126,6 +126,10 @@ for (const row of rows) {
   const first = row.versions[0]!;
   if (row.judgments !== 0 || row.analyses !== 0 || row.processing_queued_at) throw new Error(`${row.url} 出现判断、分析或队列`);
   if (!first.has_raw || first.file !== sample.declared || first.canonical !== sample.canonicalSha256) throw new Error(`${row.url} 原件哈希没有按两种身份保留`);
+  const [bytes] = await sql<{ raw_file: Buffer | null }[]>`
+    SELECT raw_file FROM own_evidence_versions v JOIN articles a ON a.id = v.article_id
+    WHERE a.url = ${row.url} AND v.version = 1`;
+  if (!bytes?.raw_file || sha256(bytes.raw_file) !== sample.declared) throw new Error(`${row.url} 库里的原件字节取不回声明的文件哈希`);
   if (first.body_len) throw new Error(`${row.url} 第一版不该有正文`);
   const supplemented = row.versions[1];
   if (!supplemented || !supplemented.body_len || !supplemented.has_x) throw new Error(`${row.url} 补料没有形成新版本`);

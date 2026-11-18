@@ -4,6 +4,7 @@
 import { identityKeyFor, upsertMaterial, type XPostData } from "./content/materials.ts";
 import { sql, type Db } from "./db.ts";
 import { sha256, stableJson } from "./lib/ids.ts";
+import { type BodyGate, type ModelFileItem } from "./body-gate.ts";
 import {
   ImportRejected,
   assertThrowawayDatabase,
@@ -79,7 +80,7 @@ function uniqueViolation(error: unknown): boolean {
 }
 
 function canonicalBody(body: JudgmentBody): JudgmentBody {
-  return { ...body, comparison: body.comparison ?? null, modelReceiptId: body.modelReceiptId ?? null };
+  return { ...body, comparison: body.comparison ?? null, modelReceiptId: body.modelReceiptId ?? null, factCheck: body.factCheck ?? null };
 }
 
 function explicitText(value: string | null): string | null {
@@ -131,11 +132,19 @@ export async function writeEvidence(tx: Db, item: ControlledImportItem): Promise
     FROM own_evidence_versions WHERE article_id = ${saved.articleId} ORDER BY version FOR UPDATE`;
   const canonicalSha256 = sha256(stableJson(item.raw));
   const bytes = fileBytes(item);
-  const fileSha256 = item.rawFileSha256 ?? (bytes ? sha256(bytes) : null);
-  if (bytes && item.rawFileSha256 && item.rawFileSha256 !== sha256(bytes)) throw new ImportRejected("原件字节与声明的文件哈希不一致");
+  const verifiedFromBytes = bytes ? sha256(bytes) : null;
+  if (bytes && item.rawFileSha256 && item.rawFileSha256 !== verifiedFromBytes) throw new ImportRejected("原件字节与声明的文件哈希不一致");
+  if (item.rawFileSha256 && !bytes) {
+    const [storedBytes] = await tx<{ raw_file: Buffer | null }[]>`
+      SELECT raw_file FROM own_evidence_versions WHERE article_id = ${saved.articleId} AND raw_file IS NOT NULL ORDER BY version DESC LIMIT 1`;
+    if (!storedBytes?.raw_file || sha256(storedBytes.raw_file) !== item.rawFileSha256) {
+      throw new ImportRejected("没有原件字节，不能把文件哈希标成已验证");
+    }
+  }
+  const fileSha256 = verifiedFromBytes;
   const priorFile = versions.map((row) => row.raw_identity?.fileSha256).find((value) => value);
   if (fileSha256 && priorFile && priorFile !== fileSha256) throw new ImportRejected("原件文件哈希与已保存的审阅声明不一致");
-  const rawIdentity = { fileSha256, canonicalSha256 };
+  const rawIdentity = { fileSha256, canonicalSha256, bytesVerified: !!fileSha256 };
   const [article] = await tx<{ revision: number }[]>`SELECT revision FROM articles WHERE id = ${saved.articleId}`;
   const latest = versions.at(-1);
   // 缺省字段沿用当前一版（patch）。显式 null 清空。与当前快照不同才另记一版；完全相同则幂等。回到较早的另一份原件会另记一版，旧版仍留着。
@@ -145,6 +154,12 @@ export async function writeEvidence(tx: Db, item: ControlledImportItem): Promise
   const evidenceHash = cumulativeEvidenceHash({ title: item.title, raw: item.raw, bodyText, quotedText, xPost });
   await tx`UPDATE articles SET raw = ${tx.json(item.raw as never)}
     WHERE id = ${saved.articleId} AND raw IS DISTINCT FROM ${tx.json(item.raw as never)}::jsonb`;
+  if (item.bodyText !== undefined) {
+    await tx`UPDATE articles SET body_text = ${bodyText}, body_status = ${bodyText ? "ok" : "pending"} WHERE id = ${saved.articleId}`;
+  }
+  if (item.xPost !== undefined) {
+    await tx`UPDATE articles SET x_post = ${xPost ? tx.json(xPost as never) : null} WHERE id = ${saved.articleId}`;
+  }
   const park = async () => {
     await tx`UPDATE articles SET processing_state = 'skipped', processing_queued_at = NULL
       WHERE id = ${saved.articleId} AND processing_state = 'new'`;
@@ -200,8 +215,9 @@ function bodyFromRow(row: {
     releaseStatus: row.release_status,
     origin: row.origin,
     reasons: row.reasons,
-    comparison: row.comparison ?? null,
+    comparison: row.comparison?.algorithm ? { algorithm: row.comparison.algorithm, inputHash: row.comparison.inputHash } : null,
     modelReceiptId: row.model_receipt_id,
+    factCheck: (row.comparison as { factCheck?: JudgmentBody["factCheck"] } | null)?.factCheck ?? null,
   };
 }
 
@@ -209,11 +225,6 @@ function assertBody(body: JudgmentBody, identity: JudgmentIdentity): void {
   if (body.releaseStatus !== "not_licensed") throw new JudgmentConflict("判断不能发放发布许可");
   if (body.materialStatus !== "complete" && body.valueStatus !== "incomplete_material") {
     throw new JudgmentConflict("材料不完整时不能记成价值判断");
-  }
-  if (body.valueStatus === "reference_only") {
-    if (!body.comparison || !body.comparison.algorithm.trim() || !/^[0-9a-f]{64}$/.test(body.comparison.inputHash)) {
-      throw new JudgmentConflict("reference_only 必须带对照算法和输入哈希");
-    }
   }
   if (body.origin === "model" && (!identity.promptVersion || !identity.modelVersion)) {
     throw new JudgmentConflict("模型判断必须带可追溯的提示词版本和模型版本");
@@ -230,21 +241,42 @@ async function writeJudgment(tx: Db, identity: JudgmentIdentity, body: JudgmentB
   assertBody(body, canonical);
   const id = sha256(stableJson(canonical));
   await tx`SELECT pg_advisory_xact_lock(${advisoryKey(`judgment\0${canonical.articleId}`)}::bigint)`;
-  const [current] = await tx<{ evidence_hash: string; article_revision: number }[]>`
-    SELECT evidence_hash, article_revision FROM own_evidence_versions
+  const [current] = await tx<{ evidence_hash: string; article_revision: number; body_text: string | null; quoted_text: string | null }[]>`
+    SELECT evidence_hash, article_revision, body_text, quoted_text FROM own_evidence_versions
     WHERE article_id = ${canonical.articleId} ORDER BY version DESC LIMIT 1`;
   if (!current) throw new JudgmentConflict("没有持久证据，拒绝判断");
   if (current.evidence_hash !== canonical.evidenceHash || current.article_revision !== canonical.inputRevision) {
     throw new JudgmentConflict("判断必须绑定当前持久证据");
   }
+  const derived = !current.body_text ? "missing_body" : current.quoted_text ? "complete" : "missing_quote";
+  if (body.materialStatus !== derived) throw new JudgmentConflict(`持久证据是${derived}，不能写成${body.materialStatus}`);
   if (body.origin === "model") {
-    const [receipt] = await tx<{ id: number; model: string | null; status: string }[]>`
-      SELECT id, model, status FROM receipts WHERE id = ${body.modelReceiptId!}`;
-    if (!receipt || (receipt.status !== "received" && receipt.status !== "completed")) {
-      throw new JudgmentConflict("模型判断的回执不存在或尚未完成");
+    if (!body.modelReceiptId) throw new JudgmentConflict("模型判断必须带可追溯回执");
+    const [receipt] = await tx<{ id: number; model: string | null; status: string; subject: string | null; request: Record<string, unknown> | null }[]>`
+      SELECT id, model, status, subject, request FROM receipts WHERE id = ${body.modelReceiptId}`;
+    if (!receipt) throw new JudgmentConflict("模型回执不存在");
+    if (receipt.status !== "received" && receipt.status !== "completed") throw new JudgmentConflict("模型回执尚未完成");
+    if (!receipt.model || receipt.model !== canonical.modelVersion) throw new JudgmentConflict("模型判断的回执模型与 modelVersion 不一致");
+    const request = receipt.request ?? {};
+    const bound = receipt.subject === `article:${canonical.articleId}`
+      && request.articleId === canonical.articleId
+      && request.evidenceHash === canonical.evidenceHash
+      && request.promptVersion === canonical.promptVersion;
+    if (!bound) throw new JudgmentConflict("回执没有绑到这篇文章的当前证据");
+  }
+  if (body.valueStatus === "reference_only") {
+    if (!body.comparison || !body.comparison.algorithm.trim() || body.comparison.algorithm === "none") {
+      throw new JudgmentConflict("reference_only 必须带可重算的对照算法");
     }
-    if (!receipt.model || receipt.model !== canonical.modelVersion) {
-      throw new JudgmentConflict("模型判断的回执模型与 modelVersion 不一致");
+    const expected = sha256(stableJson({ algorithm: body.comparison.algorithm, evidenceHash: canonical.evidenceHash }));
+    if (body.comparison.inputHash !== expected) throw new JudgmentConflict("对照输入哈希无法按算法重算");
+  }
+  if (body.factStatus === "checked") {
+    if (body.origin === "model") throw new JudgmentConflict("模型判断不能把事实标成已核");
+    const excerpt = body.factCheck?.sourceExcerpt ?? "";
+    const inMaterial = excerpt.trim().length >= 4 && ((current.body_text ?? "").includes(excerpt) || (current.quoted_text ?? "").includes(excerpt));
+    if (!body.factCheck || body.factCheck.by !== "human" || !body.factCheck.claim.trim() || !inMaterial) {
+      throw new JudgmentConflict("事实已核必须能在持久正文或引用里找到来源摘录，并且由人核验");
     }
   }
   const [existing] = await tx<{
@@ -270,7 +302,7 @@ async function writeJudgment(tx: Db, identity: JudgmentIdentity, body: JudgmentB
     VALUES (${id}, ${canonical.articleId}, ${canonical.inputRevision}, ${canonical.evidenceHash}, ${canonical.rulesetVersion},
       ${canonical.promptVersion}, ${canonical.modelVersion}, ${body.informationTypeId}, ${body.contentLine},
       ${body.materialStatus}, ${body.factStatus}, ${body.valueStatus}, ${body.releaseStatus}, ${body.origin}, ${tx.json(body.reasons as never)}, ${recordedAt},
-      ${body.comparison ? tx.json(body.comparison as never) : null}, ${body.modelReceiptId ?? null})`;
+      ${body.comparison ? tx.json({ ...body.comparison, ...(body.factCheck ? { factCheck: body.factCheck } : {}) } as never) : body.factCheck ? tx.json({ factCheck: body.factCheck } as never) : null}, ${body.modelReceiptId ?? null})`;
   return { id, identity: canonical, body, stale: false, idempotent: false };
 }
 
@@ -328,6 +360,65 @@ export async function activeJudgment(
     },
     body: bodyFromRow(row),
   };
+}
+
+/** 正文归属结果写在已有证据表上。ready 只表示可以做特征提取，不评分、不入 worker 队列。 */
+export async function recordBodyGate(articleId: string, gate: BodyGate): Promise<{ version: number }> {
+  databaseUrl();
+  return sql.begin(async (tx) => {
+    const [article] = await tx<{ revision: number; raw: unknown }[]>`SELECT revision, raw FROM articles WHERE id = ${articleId}`;
+    if (!article) throw new Error("文章不存在");
+    const [latest] = await tx<{ version: number }[]>`
+      SELECT version FROM own_evidence_versions WHERE article_id = ${articleId} ORDER BY version DESC LIMIT 1`;
+    const version = (latest?.version ?? 0) + 1;
+    const evidenceHash = cumulativeEvidenceHash({
+      title: gate.title, raw: { gate: gate.reason, start: gate.start, end: gate.end }, bodyText: gate.sectionText, quotedText: null, xPost: null,
+    });
+    await tx`INSERT INTO own_evidence_versions
+      (article_id, version, article_revision, raw, body_text, quoted_text, x_post, evidence_hash, body_gate)
+      VALUES (${articleId}, ${version}, ${article.revision}, ${article.raw === null ? null : tx.json(article.raw as never)},
+        ${gate.queue === "ready_for_features" ? gate.sectionText : null}, null, null, ${evidenceHash}, ${tx.json(gate as never)})`;
+    await tx`UPDATE articles SET processing_state = 'skipped', processing_queued_at = NULL
+      WHERE id = ${articleId} AND processing_state = 'new'`;
+    return { version };
+  });
+}
+
+/** 评分和抽取只读最新证据。文章列上留下的旧正文不能绕过这次显式撤回。身份键不在这里。 */
+export async function materialForScoring(articleId: string): Promise<{ bodyText: string | null; quotedText: string | null; xPost: unknown; evidenceHash: string } | null> {
+  databaseUrl();
+  const [row] = await sql<{ body_text: string | null; quoted_text: string | null; x_post: unknown; evidence_hash: string }[]>`
+    SELECT body_text, quoted_text, x_post, evidence_hash FROM own_evidence_versions
+    WHERE article_id = ${articleId} ORDER BY version DESC LIMIT 1`;
+  if (!row) return null;
+  return { bodyText: row.body_text, quotedText: row.quoted_text, xPost: row.x_post, evidenceHash: row.evidence_hash };
+}
+
+export async function listFeatureQueue(): Promise<Array<{ articleId: string; url: string; title: string; version: number; evidenceHash: string; gate: BodyGate }>> {
+  databaseUrl();
+  const rows = await sql<{ article_id: string; url: string; title: string; version: number; evidence_hash: string; body_gate: BodyGate }[]>`
+    SELECT a.id AS article_id, a.url, a.title, v.version, v.evidence_hash, v.body_gate
+    FROM own_evidence_versions v JOIN articles a ON a.id = v.article_id
+    WHERE v.body_gate->>'queue' = 'ready_for_features'
+    ORDER BY a.source_id, a.url, v.version`;
+  return rows.map((row) => ({ articleId: row.article_id, url: row.url, title: row.title, version: row.version, evidenceHash: row.evidence_hash, gate: row.body_gate }));
+}
+
+/** 接受一份已经填好的模型输出。不调用模型，不写分数。对不上当前证据哈希就拒绝。 */
+export async function attachModelFile(item: ModelFileItem): Promise<{ version: number }> {
+  databaseUrl();
+  return sql.begin(async (tx) => {
+    const [current] = await tx<{ version: number; evidence_hash: string; article_revision: number }[]>`
+      SELECT version, evidence_hash, article_revision FROM own_evidence_versions
+      WHERE article_id = ${item.articleId} ORDER BY version DESC LIMIT 1`;
+    if (!current || current.evidence_hash !== item.evidenceHash) throw new ImportRejected("模型文件没有对上当前证据哈希");
+    const version = current.version + 1;
+    const payload = { modelFile: { promptVersion: item.promptVersion, modelVersion: item.modelVersion, inputHash: item.inputHash, costUsd: item.costUsd, output: item.output } };
+    await tx`INSERT INTO own_evidence_versions
+      (article_id, version, article_revision, body_text, evidence_hash, body_gate)
+      VALUES (${item.articleId}, ${version}, ${current.article_revision}, null, ${current.evidence_hash}, ${tx.json(payload as never)})`;
+    return { version };
+  });
 }
 
 /** 只追加证据，不写判断、不排队。不读采集或模型开关。 */

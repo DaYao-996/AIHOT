@@ -7,6 +7,7 @@ import { promptVersion } from "../packages/backend/src/editorial/prompts.ts";
 import { missingEvidence } from "../packages/backend/src/editorial/writing.ts";
 import { needsGrouping } from "../packages/backend/src/jobs/content.ts";
 import { pushEnabled } from "../packages/backend/src/notify/deliver.ts";
+import { sha256, stableJson } from "@aihot/backend/lib/ids";
 import { migrationPlan } from "../scripts/migration-safety.ts";
 import {
   CONTENT_LINES,
@@ -133,7 +134,7 @@ test("the same judgment identity cannot change its result, and a gap cannot beco
   assert.throws(() => ledger.record(identity({ evidenceHash: "e9" }), body({ valueStatus: "reference_only" }), "t3"), /材料不完整/);
   const kept = ledger.record(identity({ articleId: "c", evidenceHash: "e3" }), body({
     materialStatus: "complete", factStatus: "source_claim", valueStatus: "reference_only", reasons: ["来源这样说，尚未核对"],
-    comparison: { algorithm: "source-claim-v1", inputHash: "ab".repeat(32) },
+    comparison: { algorithm: "source-claim-v1", inputHash: sha256(stableJson({ algorithm: "source-claim-v1", evidenceHash: "e3" })) },
   }), "t5");
   assert.throws(() => ledger.record(identity({ articleId: "d", evidenceHash: "e4" }), body({
     materialStatus: "complete", valueStatus: "reference_only", reasons: ["没有对照"],

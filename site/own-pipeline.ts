@@ -148,8 +148,13 @@ export interface JudgmentBody {
   reasons: string[];
   /** reference_only 必填。未评分不填，也不写判断行。 */
   comparison?: ComparisonEvidence | null;
-  /** origin=model 时必填，并且必须对上 receipts 里的一条回执。版本字符串不能代替它。 */
+  /** origin=model 时必填。回执必须指向这篇文章的当前证据，不能只对上模型名。 */
   modelReceiptId?: number | null;
+  /**
+   * fact_status=checked 时必填。摘录必须出现在持久正文或引用里，并由人核验。
+   * unchecked 可以记判断，但不表示事实已核，也不能发放许可。
+   */
+  factCheck?: { claim: string; sourceExcerpt: string; by: "human" } | null;
 }
 
 export interface JudgmentRow {
@@ -187,8 +192,16 @@ export class JudgmentLedger {
       throw new Error("材料不完整时不能记成价值判断");
     }
     if (body.valueStatus === "reference_only") {
-      if (!body.comparison || !body.comparison.algorithm.trim() || !/^[0-9a-f]{64}$/.test(body.comparison.inputHash)) {
-        throw new Error("reference_only 必须带对照算法和输入哈希");
+      if (!body.comparison || !body.comparison.algorithm.trim() || body.comparison.algorithm === "none") {
+        throw new Error("reference_only 必须带可重算的对照算法");
+      }
+      const expected = sha256(stableJson({ algorithm: body.comparison.algorithm, evidenceHash: identity.evidenceHash }));
+      if (body.comparison.inputHash !== expected) throw new Error("对照输入哈希无法按算法重算");
+    }
+    if (body.factStatus === "checked") {
+      if (body.origin === "model") throw new Error("模型判断不能把事实标成已核");
+      if (!body.factCheck || body.factCheck.by !== "human" || !body.factCheck.claim.trim() || body.factCheck.sourceExcerpt.trim().length < 4) {
+        throw new Error("事实已核必须带人工核验的主张和来源摘录");
       }
     }
     if (body.origin === "model" && (!identity.promptVersion || !identity.modelVersion)) {
