@@ -425,7 +425,7 @@ export interface DetailNeed {
  * text ("Published Time: …", "# Heading"), so that paid rendering is bought only when such a rule is
  * needed; selectors and page metadata read the page's own HTML.
  */
-export async function fetchDetail(url: string, source: SourceRow, need: DetailNeed): Promise<PublicationDate & { title: string | null; summary: string | null; body: ExtractedBody | null }> {
+export async function fetchDetail(url: string, source: SourceRow, need: DetailNeed): Promise<PublicationDate & { title: string | null; summary: string | null; body: ExtractedBody | null; response: { bytes: Buffer; status: number; url: string; truncated: boolean; requests: number } | null }> {
   const d = source.config.detail ?? {};
   const offset = articleUtcOffset(source.config);
   const jinaListing = String(source.config.url ?? "").startsWith(JINA_PREFIX);
@@ -433,14 +433,16 @@ export async function fetchDetail(url: string, source: SourceRow, need: DetailNe
   const titleInJina = need.title && jinaListing && !!d.titleRegex;
   const jina = dateInJina || titleInJina ? (await jinaRead(url, { purpose: "source_detail", subject: `source:${source.id}` })).raw : null;
   let html: string | null = null;
+  let response: { bytes: Buffer; status: number; url: string; truncated: boolean; requests: number } | null = null;
   let page: { document: ReturnType<typeof contentDocument>; url: string; whole: boolean } | null = null;
-  if ((need.date && !dateInJina) || (need.title && !titleInJina) || need.summary) {
+  if ((need.date && !dateInJina) || (need.title && !titleInJina) || need.summary || need.body) {
     // The rules read a page's head and byline. A page past the size limit (a long paper with inline
     // figures) is read up to it rather than failing on every run; a body cut there is not kept.
     const res = requireOk(await guardedFetch(url, { headers: languageHeaders(source.config.acceptLanguage), timeoutMs: 20_000, truncate: true }), "detail");
     // A sign-in form is no detail page: its title, date and text are not the post's.
     if (isSignInRedirect(url, res.url)) throw new UnavailablePageError("redirected to a sign-in form");
     html = res.text();
+    response = { bytes: res.body, status: res.status, url: res.url, truncated: res.truncated, requests: res.requests ?? 1 };
     page = { document: contentDocument(html), url: res.url, whole: !res.truncated && /html/.test(res.headers.get("content-type") ?? "") };
   }
   const $ = html === null ? null : cheerio.load(html);
@@ -477,5 +479,5 @@ export async function fetchDetail(url: string, source: SourceRow, need: DetailNe
     // Outside it: a failure of the store while checking the cover fails the read, which is retried.
     if (body) body = { ...body, cover: await articleCover(body.cover ?? null, url, page.url) };
   }
-  return { ...date, title, summary, body };
+  return { ...date, title, summary, body, response };
 }

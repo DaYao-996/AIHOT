@@ -28,6 +28,8 @@ export interface CollectResult {
   created: number;
   revised: number;
   error?: string;
+  listingBytes?: Buffer | null;
+  detailCaptures?: DetailReads["captures"];
 }
 
 export async function loadSource(id: string): Promise<SourceRow | null> {
@@ -135,6 +137,8 @@ export interface DetailReads {
   listed: Map<string, DatedOut[string]>;
   /** Listed entries whose page still fails with a recoverable error. */
   retries: Retries;
+  /** Detail responses already fetched. Not a second request. */
+  captures: Array<{ url: string; status: number; finalUrl: string; truncated: boolean; requests: number; bytes: Buffer; sectionText: string | null }>;
 }
 
 /**
@@ -201,7 +205,7 @@ function applyDetail(c: CollectionCandidate, got: Awaited<ReturnType<typeof fetc
 export async function enrichDetails(candidates: CollectionCandidate[], source: SourceRow, known: Map<string, StoredDetail>,
   opts: { budget: number; after?: string; datedOut: DatedOut; retries: Retries; admits: (c: Candidate) => boolean }): Promise<DetailReads> {
   const rules = detailRulesOf(source);
-  const reads: DetailReads = { attempts: 0, pending: 0, failures: [], refused: [], listed: new Map(), retries: {} };
+  const reads: DetailReads = { attempts: 0, pending: 0, failures: [], refused: [], listed: new Map(), retries: {}, captures: [] };
   let providerBudgetSpent = false;
   const start = candidates.findIndex(c => c.identityKey === opts.after) + 1;
   const ordered = [...candidates.slice(start), ...candidates.slice(0, start)];
@@ -229,6 +233,10 @@ export async function enrichDetails(candidates: CollectionCandidate[], source: S
       reads.after = c.identityKey;
       try {
         const got = await fetchDetail(c.url, source, need);
+        if (got.response) reads.captures.push({
+          url: c.url, status: got.response.status, finalUrl: got.response.url, truncated: got.response.truncated,
+          requests: got.response.requests, bytes: got.response.bytes, sectionText: got.body?.text ?? null,
+        });
         if (got.publishedAt) c.publishedAt = listed ? new Date(listed) : null;
         applyDetail(c, got, rules!);
         reads.listed.set(c.identityKey!, [listed, c.publishedAt?.toISOString() ?? null, Date.now()]);
@@ -444,7 +452,7 @@ export async function collectSource(sourceId: string, opts: { force?: boolean; x
       await recordFetch(tx, sourceId, run!.id, { found, created, detail, cursor: nextCursor, response: responseBody });
       for (const receiptId of paidReceiptIds) await completeReceipt(tx, receiptId);
     });
-    return { sourceId, status: "ok", found, created, revised };
+    return { sourceId, status: "ok", found, created, revised, listingBytes: responseBody, detailCaptures: reads.captures };
   } catch (error) {
     if (shutdownSignal.signal.aborted) {
       await sql`UPDATE fetch_runs SET status = 'skipped', finished_at = now(), found_count = ${found}, new_count = ${created},
