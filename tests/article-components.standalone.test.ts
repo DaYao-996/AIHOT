@@ -255,3 +255,15 @@ test("document theme classes do not remove the article's plain text paragraphs",
   assert.ok(body.text.includes(introduction.trim()));
   assert.doesNotMatch(body.text, /HIDDEN_CONTENT|SIDEBAR_CONTENT/);
 });
+
+test("a press release closing in the next sibling stays once, and the site footer stays out", () => {
+  const table = "<table><tr><td>Q4 outlook last row 10.7</td></tr></table>";
+  const closing = "<p><strong>About Example</strong></p><p>Example builds tools for the release.</p><p>Certain statements in this press release are forward-looking.</p>";
+  const html = `<html><head><title>Results</title></head><body><div class="main-content"><div class="article"><div class="article-body"><p>${prose}</p>${table}</div></div><div class="article-bottom mobile">${closing}</div></div><div class="article-bottom desktop">${closing}</div><div class="page-footer"><p>Investors Careers NVIDIA Partner Network</p><p>About Example</p></div></body></html>`;
+  const body = readable(html, "https://publisher.example/results");
+  assert.ok(body);
+  assert.equal(body.text.split("About Example").length - 1, 1);
+  assert.ok(body.text.includes("Q4 outlook last row 10.7"));
+  assert.ok(body.text.includes("forward-looking"));
+  assert.equal(body.text.includes("NVIDIA Partner Network"), false);
+});

@@ -16,7 +16,7 @@ import type { SourceRow } from "../sources/types.ts";
 import { onlyXArticleLink, xArticleText } from "../sources/x.ts";
 import { sanitizeBody, trimTrailingChrome } from "./sanitize.ts";
 import { contentAside, type ContentAside } from "../sources/saved-supplements.ts";
-import { recordCollectedEvidence } from "../own-pipeline-store.ts";
+import { recordCollectedEvidence, recordCurrentBodyEvidence } from "../own-pipeline-store.ts";
 import { contentHash, fillPublicationTime, reviseMaterial, updatePresentation, type MediaItem } from "./materials.ts";
 import { markdownBody } from "./markdown.ts";
 import { articleCover, declaredCover, hasPicture, type Cover } from "./cover.ts";
@@ -744,6 +744,29 @@ function keepMediaAmongParagraphs(document: Doc) {
  * about what the box holds, so they are taken off before scoring.
  */
 const LAYOUT_CLASS = /^(?:[\w-]+:)*(?:tw-)?(?:overflow|overscroll|scroll|snap)-[\w-]+$/;
+
+/**
+ * The next sibling a template names as the bottom of the same article (the company close and the
+ * release's own forward-looking statements). It is not the site footer, and a second copy for another
+ * layout is dropped so the close is not stored twice. Nothing is added because a heading says "About".
+ */
+const ARTICLE_CLOSING = /(?:^|\s)(?:article-bottom|article-footer|article-end)(?:\s|$)/;
+function keepArticleClosing(document: Doc) {
+  for (const article of [...document.querySelectorAll("div.article")]) {
+    const next = article.nextElementSibling;
+    if (!next || !ARTICLE_CLOSING.test(next.getAttribute("class") ?? "")) continue;
+    if (next.closest("footer, nav, [role=contentinfo], [role=navigation]")) continue;
+    const closing = collapsed(next.textContent);
+    if (closing.length < 80) continue;
+    if (collapsed(article.textContent).includes(closing.slice(0, 60))) continue;
+    article.appendChild(next);
+    for (const other of [...document.querySelectorAll("div")]) {
+      if (other === next) continue;
+      if (!ARTICLE_CLOSING.test(other.getAttribute("class") ?? "")) continue;
+      if (collapsed(other.textContent) === closing) other.remove();
+    }
+  }
+}
 function dropLayoutClasses(document: Doc) {
   for (const el of document.querySelectorAll("[class]")) {
     const classes: string[] = (el.getAttribute("class") ?? "").split(/\s+/).filter(Boolean);
@@ -780,6 +803,8 @@ export function readableDocument(document: Doc, url: string, rules: PageRules = 
   dropLayoutClasses(document);
   // After the names that only say "media" or set overflow are gone, which would count against a box of figures.
   unwrapFigureBoxes(document);
+  // A press-release template scores div.article and leaves the release's own closing in the next sibling.
+  keepArticleClosing(document);
   // A document theme is not an article candidate: names such as "header-dark" can discard the root.
   document.documentElement.removeAttribute("class");
   const article = new Readability(document as unknown as ConstructorParameters<typeof Readability>[0], { charThreshold: MIN_BODY_CHARS, keepClasses: false }).parse();
@@ -888,6 +913,49 @@ export async function extractArticleBody(articleId: string, opts: { paidFallback
   });
   if (outcome === "ok") await recordCollectedEvidence(articleId, got.aside);
   return outcome;
+}
+
+/**
+ * Re-reads a detail response this source already stored. No request. A longer extract replaces the
+ * body only when it still begins with the stored text, and that revision invalidates judgments of
+ * the shorter body. A different article, a shorter slice, or a missing response leaves the row.
+ */
+export async function reviseBodyFromStoredDetail(articleId: string): Promise<{
+  status: "revised" | "unchanged" | "no_stored_response" | "not_an_extension";
+  revision: number;
+  bodyBytes: number;
+  extractedBytes: number;
+  staled: number;
+  evidenceHash: string | null;
+}> {
+  const [a] = await sql<{ id: string; url: string; source_id: string; title: string; excerpt: string | null; body_text: string | null; revision: number; config: SourceRow["config"] }[]>`
+    SELECT a.id, a.url, a.source_id, a.title, a.excerpt, a.body_text, a.revision, s.config
+    FROM articles a JOIN sources s ON s.id = a.source_id WHERE a.id = ${articleId}`;
+  if (!a) throw new Error("文章不存在");
+  const [stored] = await sql<{ http_status: number | null; response: Buffer; truncated: boolean }[]>`
+    SELECT http_status, response, truncated FROM own_detail_responses
+    WHERE source_id = ${a.source_id} AND url = ${a.url} AND http_status = 200 AND truncated = false
+    ORDER BY fetched_at DESC LIMIT 1`;
+  const empty = { revision: Number(a.revision), bodyBytes: Buffer.byteLength(a.body_text ?? ""), extractedBytes: 0, staled: 0, evidenceHash: null as string | null };
+  if (!stored) return { status: "no_stored_response", ...empty };
+  const got = readable(Buffer.from(stored.response).toString("utf8"), a.url, pageRules(a.config));
+  if (!got) return { status: "unchanged", ...empty };
+  const old = a.body_text ?? "";
+  const extractedBytes = Buffer.byteLength(got.text);
+  if (got.text === old) return { status: "unchanged", ...empty, extractedBytes };
+  if (!old || !got.text.startsWith(old)) return { status: "not_an_extension", ...empty, extractedBytes };
+  const hash = contentHash({ title: a.title, bodyText: got.text, excerpt: a.excerpt });
+  await sql.begin(async (tx) => {
+    await reviseMaterial(tx, articleId, {
+      set: sql`body_html = ${got.html}, body_text = ${got.text}, body_status = 'ok'`,
+      hash, title: a.title, bodyText: got.text,
+    });
+  });
+  const evidence = await recordCurrentBodyEvidence(articleId, got.aside);
+  return {
+    status: "revised", revision: evidence.articleRevision, bodyBytes: extractedBytes, extractedBytes,
+    staled: evidence.staled, evidenceHash: evidence.evidenceHash,
+  };
 }
 
 async function markUnconfirmed(articleId: string, revision: number): Promise<"unconfirmed" | "skipped"> {

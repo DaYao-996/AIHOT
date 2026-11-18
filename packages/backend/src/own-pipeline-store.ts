@@ -562,6 +562,41 @@ export async function recordCollectedEvidence(articleId: string, aside: ContentA
   });
 }
 
+/** 正文已经改过。有旁路时沿用采集的证据写入；没有旁路也要让评分读到当前正文，并让旧判断失效。 */
+export async function recordCurrentBodyEvidence(articleId: string, aside: ContentAside | null | undefined): Promise<{ version: number; evidenceHash: string; articleRevision: number; idempotent: boolean; staled: number }> {
+  databaseUrl();
+  const [before] = await sql<{ n: number }[]>`SELECT count(*)::int AS n FROM own_judgments WHERE article_id = ${articleId} AND stale = false`;
+  const recorded = await recordCollectedEvidence(articleId, aside);
+  if (recorded) {
+    const [after] = await sql<{ n: number }[]>`SELECT count(*)::int AS n FROM own_judgments WHERE article_id = ${articleId} AND stale = false`;
+    return { ...recorded, staled: (before?.n ?? 0) - (after?.n ?? 0) };
+  }
+  return sql.begin(async (tx) => {
+    const [article] = await tx<{ title: string; body_text: string | null; revision: number; raw: unknown }[]>`
+      SELECT title, body_text, revision, raw FROM articles WHERE id = ${articleId} FOR UPDATE`;
+    if (!article) throw new JudgmentConflict("文章不存在");
+    const evidenceHash = cumulativeEvidenceHash({
+      title: article.title, raw: article.raw, bodyText: article.body_text, quotedText: null, xPost: null,
+    });
+    const [latest] = await tx<{ version: number; evidence_hash: string; article_revision: number; body_text: string | null }[]>`
+      SELECT version, evidence_hash, article_revision, body_text FROM own_evidence_versions
+      WHERE article_id = ${articleId} ORDER BY version DESC LIMIT 1`;
+    if (latest && latest.evidence_hash === evidenceHash && Number(latest.article_revision) === Number(article.revision) && latest.body_text === article.body_text) {
+      return { version: Number(latest.version), evidenceHash, articleRevision: Number(article.revision), idempotent: true, staled: 0 };
+    }
+    const version = (latest?.version ?? 0) + 1;
+    await tx`INSERT INTO own_evidence_versions
+      (article_id, version, article_revision, raw, body_text, quoted_text, x_post, evidence_hash)
+      VALUES (${articleId}, ${version}, ${article.revision}, ${article.raw === null ? null : tx.json(article.raw as never)},
+        ${article.body_text}, null, null, ${evidenceHash})`;
+    const staled = await tx<{ id: string }[]>`UPDATE own_judgments SET stale = true
+      WHERE article_id = ${articleId} AND stale = false
+        AND (evidence_hash <> ${evidenceHash} OR input_revision <> ${article.revision})
+      RETURNING id`;
+    return { version, evidenceHash, articleRevision: Number(article.revision), idempotent: false, staled: staled.length };
+  });
+}
+
 /** 评分和抽取只读最新证据。文章列上留下的旧正文不能绕过这次显式撤回。身份键不在这里。 */
 function coveredAside(row: { title: string; raw: unknown; body_text: string | null; quoted_text: string | null; x_post: unknown; evidence_hash: string; body_gate: unknown }) {
   const parsed = asideFromGate(row.body_gate);
