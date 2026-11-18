@@ -1,0 +1,12 @@
+# throwaway database own_contract_run_v13_test. COLLECT_ENABLED and MODEL_CALLS_ENABLED stayed false.
+# No worker was started. X was not requested. Paid fallback was off.
+
+DATABASE_URL=postgres://own_test:own_test@127.0.0.1:5432/own_contract_run_v13_test \
+NODE_TEST_CONTEXT=1 COLLECT_ENABLED=false MODEL_CALLS_ENABLED=false \
+node scripts/own-contract-run-v13.ts --out docs/own-pipeline/contract-run-v13/LEDGER.json
+
+# EXIT 0
+# rows 221, daily X 132, X unverified 174, not auto-enabled 24, collected 17, adapter pending 5, no endpoint 1
+# openai_news backfill remainder created 7; settled re-read created 0 revised 0
+# scheduleDueSources enqueued 1, other enabled 0, workerStarted false
+# publications 0, deliveries 0, receipts 0

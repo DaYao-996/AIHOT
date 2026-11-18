@@ -16,6 +16,7 @@ import type { SourceRow } from "../sources/types.ts";
 import { onlyXArticleLink, xArticleText } from "../sources/x.ts";
 import { sanitizeBody, trimTrailingChrome } from "./sanitize.ts";
 import { contentAside, type ContentAside } from "../sources/saved-supplements.ts";
+import { recordCollectedEvidence } from "../own-pipeline-store.ts";
 import { contentHash, fillPublicationTime, reviseMaterial, updatePresentation, type MediaItem } from "./materials.ts";
 import { markdownBody } from "./markdown.ts";
 import { articleCover, declaredCover, hasPicture, type Cover } from "./cover.ts";
@@ -853,18 +854,18 @@ export function pageFetchable(url: string, sourceKind: string): boolean {
 }
 
 /** Fetches and stores the body of one article. Unconfirmed bodies are recorded as such. */
-export async function extractArticleBody(articleId: string): Promise<"ok" | "unconfirmed" | "skipped"> {
+export async function extractArticleBody(articleId: string, opts: { paidFallback?: boolean } = {}): Promise<"ok" | "unconfirmed" | "skipped"> {
   const [a] = await sql<{ id: string; url: string; body_status: string; revision: number; x_post: { tweetId?: string } | null; config: SourceRow["config"] }[]>`
     SELECT a.id, a.url, a.body_status, a.revision, a.x_post, s.config
     FROM articles a JOIN sources s ON s.id = a.source_id WHERE a.id = ${articleId}`;
   if (!a || a.body_status === "ok") return "skipped";
   if (a.x_post?.tweetId) return extractXArticle(a.id, a.x_post.tweetId, a.revision);
-  const got = await extractFromUrl(a.url, `article:${a.id}`, pageRules(a.config));
+  const got = await extractFromUrl(a.url, `article:${a.id}`, pageRules(a.config), { paidFallback: opts.paidFallback });
   if (!got) {
     return markUnconfirmed(articleId, a.revision);
   }
   // The body is new content: a new revision, so an analysis of the body-less input counts as stale.
-  return sql.begin(async (tx) => {
+  const outcome = await sql.begin(async (tx) => {
     const [row] = await tx<{ title: string; excerpt: string | null; content_hash: string | null; media: MediaItem[] }[]>`
       SELECT title, excerpt, content_hash, media FROM articles
       WHERE id = ${articleId} AND revision = ${a.revision} AND body_status <> 'ok' FOR UPDATE`;
@@ -885,6 +886,8 @@ export async function extractArticleBody(articleId: string): Promise<"ok" | "unc
     });
     return "ok";
   });
+  if (outcome === "ok") await recordCollectedEvidence(articleId, got.aside);
+  return outcome;
 }
 
 async function markUnconfirmed(articleId: string, revision: number): Promise<"unconfirmed" | "skipped"> {
