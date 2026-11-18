@@ -172,6 +172,8 @@ export async function fetchJsonList(source: SourceRow, retained?: { body: Buffer
   }
   let items = c.itemsPath ? getPath(data, c.itemsPath) : c.jsonKey ? getPath(data, c.jsonKey) : data;
   if (c.itemsObjectValues && items && typeof items === "object" && !Array.isArray(items)) items = Object.values(items);
+  // One official object, such as a GitHub release tag document, is that one item. Not a list of other releases.
+  if (c.singleObject === true && items && typeof items === "object" && !Array.isArray(items)) items = [items];
   if (!Array.isArray(items)) throw new FetchError("items path did not resolve to an array");
 
   const out: Candidate[] = [];

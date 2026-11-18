@@ -38,6 +38,7 @@ const pages: Record<string, () => string> = {
     `<published>2026-09-30T00:00:00Z</published><summary type="html">How leaders build confidence with their team.</summary></entry></feed>`,
   // A list API that gives wall-clock times without a zone, and a page whose metadata does too.
   "/zoneless.json": () => JSON.stringify({ result: [{ id: "a", title: "采购公告", publishDate: "2026-09-30 17:43:58" }, { id: "b", title: "Zoned", publishDate: "2026-09-30T17:43:58Z" }, { id: "c", title: "Abbreviated zone", publishDate: "Wed, 30 Sep 2026 17:43:58 EST" }] }),
+  "/one-release.json": () => JSON.stringify({ tag_name: "v1", name: "v1", html_url: "https://example.org/releases/tag/v1", body: "Release v1", published_at: "2026-11-18T05:21:54Z" }),
   "/zoneless-post": () => `<html><head><meta property="article:published_time" content="2026-09-30 17:43:58"></head><body><p>Post</p></body></html>`,
   // A Next.js page whose embedded posts hold arrays and brackets of their own.
   "/flight": () => `<html><body><script>self.__next_f.push([1,${JSON.stringify(`5:["$","div",null,{"children":[],"posts":${JSON.stringify([
@@ -266,6 +267,17 @@ test("a time without a zone is read in the source's offset, in JSON lists and in
 test("posts embedded in a flight payload keep their own arrays and brackets inside strings", async () => {
   const posts = await fetchJsonList({ id: "test-json", config: { url: `${site}/flight`, mode: "html_json_key", jsonKey: "posts", titlePaths: ["title"], urlTemplate: "https://example.org/blog/{slug}" } } as never);
   assert.deepEqual(posts.map((c) => [c.title, c.url]), [["First [draft] post", "https://example.org/blog/first"], ["Second post", "https://example.org/blog/second"]]);
+});
+
+test("a single release object is one item, and its published_at is the publication time", async () => {
+  const config = { url: `${site}/one-release.json`, singleObject: true, titlePaths: ["name"], urlTemplate: "{raw:html_url}", summaryPaths: ["body"], summaryIsBody: true, publishedAtPath: "published_at" };
+  assert.deepEqual(unsupportedConfig("json_list", config), []);
+  const [item] = await fetchJsonList({ id: "test-json", config } as never);
+  assert.equal(item!.url, "https://example.org/releases/tag/v1");
+  assert.equal(item!.bodyText, "Release v1");
+  assert.equal(item!.publicationTime, "2026-11-18T05:21:54.000Z");
+  assert.equal((item!.raw as { timeSource: string }).timeSource, "json:published_at");
+  await assert.rejects(fetchJsonList({ id: "test-json", config: { ...config, singleObject: false } } as never), /array/);
 });
 
 test("dates in yyyymmdd and in JSON-LD are read", async () => {
