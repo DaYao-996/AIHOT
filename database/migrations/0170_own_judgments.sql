@@ -7,8 +7,10 @@ CREATE TABLE own_judgments (
   input_revision integer NOT NULL,
   evidence_hash text NOT NULL,
   ruleset_version text NOT NULL,
-  prompt_version text,
-  model_version text,
+  -- Absent prompt and model versions are stored as empty strings, so NULL cannot
+  -- become a second identity beside ''.
+  prompt_version text NOT NULL DEFAULT '',
+  model_version text NOT NULL DEFAULT '',
   information_type_id text,
   content_line text CHECK (content_line IN ('line1', 'line2')),
   material_status text NOT NULL CHECK (material_status IN ('complete', 'missing_body', 'missing_quote', 'missing_article_body')),
@@ -19,6 +21,6 @@ CREATE TABLE own_judgments (
   stale boolean NOT NULL DEFAULT false,
   recorded_at timestamptz NOT NULL,
   created_at timestamptz NOT NULL DEFAULT now(),
-  UNIQUE NULLS NOT DISTINCT (article_id, input_revision, evidence_hash, ruleset_version, prompt_version, model_version),
+  UNIQUE (article_id, input_revision, evidence_hash, ruleset_version, prompt_version, model_version),
   CHECK (material_status = 'complete' OR value_status = 'incomplete_material')
 );

@@ -75,6 +75,44 @@ export interface JudgmentIdentity {
   modelVersion: string | null;
 }
 
+/** 空、空白和 null 是同一个「未指定版本」，不能再变成第二条身份。 */
+export function canonicalVersion(value: string | null | undefined): string {
+  if (typeof value !== "string") return "";
+  return value.trim();
+}
+
+export function canonicalIdentity(identity: JudgmentIdentity): JudgmentIdentity {
+  return { ...identity, promptVersion: canonicalVersion(identity.promptVersion), modelVersion: canonicalVersion(identity.modelVersion) };
+}
+
+/**
+ * 累计证据哈希。rawVersions 按版本保留每一份未覆盖的原件；补正文或引用会得到新哈希。
+ */
+export function cumulativeEvidenceHash(input: {
+  rawVersions: unknown[];
+  bodyText: string | null;
+  quotedText: string | null;
+  xPost: XPostData | null;
+}): string {
+  return sha256(stableJson(input));
+}
+
+/** 只接受本机上名字以 _test 或 _ci 结尾的库。生产地址和 private24 直接拒绝。 */
+export function assertThrowawayDatabase(url: string): void {
+  let parsed: URL;
+  try {
+    parsed = new URL(url);
+  } catch {
+    throw new Error("拒绝无法解析的数据库地址");
+  }
+  if (parsed.protocol !== "postgres:" && parsed.protocol !== "postgresql:") throw new Error("拒绝非 PostgreSQL 地址");
+  const host = parsed.hostname.replace(/^\[|\]$/g, "");
+  if (host !== "127.0.0.1" && host !== "localhost" && host !== "::1") throw new Error(`拒绝非本机数据库：${host}`);
+  const name = decodeURIComponent(parsed.pathname.replace(/^\//, ""));
+  if (!/_(test|ci)$/.test(name)) throw new Error(`拒绝非临时库：${name}`);
+  if (/prod|private24/i.test(name)) throw new Error(`拒绝疑似生产库名：${name}`);
+}
+
 export type MaterialStatus = "complete" | "missing_body" | "missing_quote" | "missing_article_body";
 export type FactStatus = "unchecked" | "source_claim" | "checked";
 export type ValueStatus = "incomplete_material" | "reference_only";
@@ -119,6 +157,7 @@ export class JudgmentLedger {
   readonly rows: JudgmentRow[] = [];
 
   record(identity: JudgmentIdentity, body: JudgmentBody, recordedAt: string): { row: JudgmentRow; idempotent: boolean } {
+    identity = canonicalIdentity(identity);
     if (body.releaseStatus !== "not_licensed") throw new Error("判断不能发放发布许可");
     if (body.materialStatus !== "complete" && body.valueStatus !== "incomplete_material") {
       throw new Error("材料不完整时不能记成价值判断");
@@ -142,13 +181,15 @@ export class JudgmentLedger {
   staleMatching(match: { articleId?: string; rulesetVersion?: string; promptVersion?: string | null; modelVersion?: string | null }): string[] {
     const keys = ["articleId", "rulesetVersion", "promptVersion", "modelVersion"] as const;
     if (!keys.some((key) => match[key] !== undefined)) throw new Error("失效条件不能为空");
+    const prompt = match.promptVersion === undefined ? undefined : canonicalVersion(match.promptVersion);
+    const model = match.modelVersion === undefined ? undefined : canonicalVersion(match.modelVersion);
     const ids: string[] = [];
     for (const row of this.rows) {
       if (row.stale) continue;
       if (match.articleId !== undefined && row.identity.articleId !== match.articleId) continue;
       if (match.rulesetVersion !== undefined && row.identity.rulesetVersion !== match.rulesetVersion) continue;
-      if (match.promptVersion !== undefined && row.identity.promptVersion !== match.promptVersion) continue;
-      if (match.modelVersion !== undefined && row.identity.modelVersion !== match.modelVersion) continue;
+      if (prompt !== undefined && row.identity.promptVersion !== prompt) continue;
+      if (model !== undefined && row.identity.modelVersion !== model) continue;
       row.stale = true;
       ids.push(row.id);
     }
@@ -156,11 +197,13 @@ export class JudgmentLedger {
   }
 
   current(articleId: string, binding: Pick<JudgmentIdentity, "rulesetVersion" | "promptVersion" | "modelVersion">): JudgmentRow | null {
+    const promptVersion = canonicalVersion(binding.promptVersion);
+    const modelVersion = canonicalVersion(binding.modelVersion);
     const hits = this.rows.filter((row) => !row.stale
       && row.identity.articleId === articleId
       && row.identity.rulesetVersion === binding.rulesetVersion
-      && row.identity.promptVersion === binding.promptVersion
-      && row.identity.modelVersion === binding.modelVersion);
+      && row.identity.promptVersion === promptVersion
+      && row.identity.modelVersion === modelVersion);
     return hits.at(-1) ?? null;
   }
 }
@@ -247,6 +290,24 @@ export function mapControlledImport(item: ControlledImportItem): MappedMaterial 
     quotedText,
     gaps,
   };
+}
+
+/** 已揭盲样本的缺口，不是评分，也不能当作新的留出标签。 */
+export function unblindedStructureGaps(record: { root_text?: unknown; quote?: unknown }, raw: unknown): { gaps: string[]; scored: false } {
+  const gaps: string[] = [];
+  const root = typeof record.root_text === "string" ? record.root_text.trim() : "";
+  if (root) gaps.push("record_root_text_not_a_stored_body_until_explicit");
+  const quote = record.quote;
+  const status = quote && typeof quote === "object" && "status" in quote ? String((quote as { status?: unknown }).status ?? "") : "";
+  const quoteText = quote && typeof quote === "object" && "text" in quote && typeof (quote as { text?: unknown }).text === "string"
+    ? (quote as { text: string }).text.trim() : "";
+  if (status === "present" && quoteText) gaps.push("record_quote_not_stored_until_explicit");
+  else if (status === "not_a_quote") gaps.push("quote_not_applicable");
+  else gaps.push("quote_status_unknown");
+  const schema = raw && typeof raw === "object" && "schema" in raw ? String((raw as { schema?: unknown }).schema ?? "") : "";
+  if (schema.includes("search")) gaps.push("raw_is_search_page_snapshot");
+  gaps.push("x_post_not_attached_by_raw_import");
+  return { gaps, scored: false };
 }
 
 export type SwitchEffect = "network" | "model" | "local-delete" | "local-job" | "queue";

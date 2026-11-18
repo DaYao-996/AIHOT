@@ -15,10 +15,13 @@ import {
   INFORMATION_TYPES,
   JudgmentLedger,
   UPSTREAM_CATEGORY_PROMOTION,
+  assertThrowawayDatabase,
   assessSwitches,
+  cumulativeEvidenceHash,
   historicalBand,
   informationType,
   mapControlledImport,
+  unblindedStructureGaps,
   type JudgmentBody,
   type JudgmentIdentity,
 } from "../site/own-pipeline.ts";
@@ -100,6 +103,22 @@ test("a judgment keeps old evidence and only stales the same binding", () => {
   assert.equal(ledger.rows.length, 4);
   assert.equal(ledger.current("b", binding), null);
   assert.ok(ledger.rows.every((row) => row.body.releaseStatus === "not_licensed"));
+});
+
+test("blank prompt and model versions are one identity", () => {
+  const ledger = new JudgmentLedger();
+  const first = ledger.record(identity({ promptVersion: null, modelVersion: "  " }), body(), "t1");
+  const again = ledger.record(identity({ promptVersion: "", modelVersion: null }), body(), "t2");
+  assert.equal(again.idempotent, true);
+  assert.equal(again.row.id, first.row.id);
+  assert.equal(first.row.identity.promptVersion, "");
+  assert.equal(first.row.identity.modelVersion, "");
+  assert.equal(ledger.rows.length, 1);
+  const trimmed = ledger.record(identity({ promptVersion: " prefilter@abc ", modelVersion: null }), body(), "t3");
+  const same = ledger.record(identity({ promptVersion: "prefilter@abc", modelVersion: "" }), body(), "t4");
+  assert.equal(same.idempotent, true);
+  assert.equal(same.row.id, trimmed.row.id);
+  assert.notEqual(trimmed.row.id, first.row.id);
 });
 
 test("the same judgment identity cannot change its result, and a gap cannot become a value", () => {
@@ -259,10 +278,39 @@ test("stopping web and api does not disarm worker schedules", () => {
 
   const judgmentSql = source("database/migrations/0170_own_judgments.sql");
   assert.equal(migrationPlan(judgmentSql).kind, "transaction");
-  assert.match(judgmentSql, /UNIQUE NULLS NOT DISTINCT \(article_id, input_revision, evidence_hash, ruleset_version, prompt_version, model_version\)/);
+  assert.match(judgmentSql, /prompt_version text NOT NULL DEFAULT ''/);
+  assert.match(judgmentSql, /UNIQUE \(article_id, input_revision, evidence_hash, ruleset_version, prompt_version, model_version\)/);
+  assert.equal(judgmentSql.includes("NULLS NOT DISTINCT"), false);
   assert.match(judgmentSql, /release_status text NOT NULL DEFAULT 'not_licensed'/);
   assert.equal(/\binsert\b/i.test(judgmentSql), false);
   assert.equal(/\banalyses\b/i.test(judgmentSql), false);
+  const evidenceSql = source("database/migrations/0171_own_evidence_versions.sql");
+  assert.equal(migrationPlan(evidenceSql).kind, "transaction");
+  assert.match(evidenceSql, /PRIMARY KEY \(article_id, version\)/);
+  assert.equal(/\bupdate\b/i.test(evidenceSql), false);
+});
+
+test("throwaway database guard rejects remote and production names", () => {
+  assert.doesNotThrow(() => assertThrowawayDatabase("postgres://own_test:own_test@127.0.0.1:5432/own_pipeline_test"));
+  assert.throws(() => assertThrowawayDatabase("postgres://own_test@db.example.com:5432/own_pipeline_test"), /非本机/);
+  assert.throws(() => assertThrowawayDatabase("postgres://127.0.0.1:5432/aihot"), /非临时库/);
+  assert.throws(() => assertThrowawayDatabase("postgres://127.0.0.1:5432/private24_test"), /生产/);
+});
+
+test("evidence hash changes when a quote is added and keeps the original raw in the hash input", () => {
+  const raw = { root_text: "原件" };
+  const base = { rawVersions: [raw], bodyText: "正文", quotedText: null, xPost: null };
+  const quoted = { ...base, quotedText: "引用" };
+  assert.notEqual(cumulativeEvidenceHash(base), cumulativeEvidenceHash(quoted));
+  assert.equal(cumulativeEvidenceHash({ ...quoted, rawVersions: [raw, { extra: 1 }] }) === cumulativeEvidenceHash(quoted), false);
+  const gaps = unblindedStructureGaps(
+    { root_text: "正文", quote: { status: "present", text: "引用" } },
+    { schema: "writer046-socialdata-search-raw-v1" },
+  );
+  assert.equal(gaps.scored, false);
+  assert.ok(gaps.gaps.includes("record_quote_not_stored_until_explicit"));
+  assert.ok(gaps.gaps.includes("raw_is_search_page_snapshot"));
+  assert.equal(unblindedStructureGaps({ root_text: "正文", quote: { status: "not_a_quote" } }, {}).gaps.includes("quote_not_applicable"), true);
 });
 
 test("cost inputs stay blank where this round has no price evidence", () => {
