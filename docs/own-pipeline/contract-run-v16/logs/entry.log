@@ -1,0 +1,5 @@
+COLLECT thinking_machines_news status=ok found=14 created=2 body=2 evidence=2 detail=0 remainder=0 settled=0 settledRevised=0 reason=capped_sample_not_full_pool
+COLLECT meta_research_blog status=ok found=16 created=2 body=2 evidence=2 detail=0 remainder=0 settled=0 settledRevised=0 reason=capped_sample_not_full_pool
+COLLECT nvidia_newsroom_page status=ok found=3 created=2 body=2 evidence=2 detail=1 remainder=0 settled=0 settledRevised=0 reason=no_publication_time_not_pool
+COLLECT anthropic_news_page status=ok found=11 created=2 body=2 evidence=2 detail=2 remainder=0 settled=0 settledRevised=0 reason=capped_sample_not_full_pool
+{"ok":true,"contractPassed":false,"x":{"total":174,"daily132":132,"nonDaily":42,"fetched":0,"status":"not_run","reason":"no_free_x_api"},"disabledNotEnabled":24,"xRolesInsideNotRun":39,"connected":[{"id":"thinking_machines_news","reason":"capped_sample_not_full_pool"},{"id":"meta_research_blog","reason":"capped_sample_not_full_pool"},{"id":"nvidia_newsroom_page","reason":"no_publication_time_not_pool"},{"id":"anthropic_news_page","reason":"capped_sample_not_full_pool"}]}
