@@ -13,6 +13,7 @@ import { config } from "@aihot/backend/config";
 import { extractFromUrl, pageRules } from "@aihot/backend/content/extract";
 import { sanitizeBody, trimTrailingChrome } from "@aihot/backend/content/sanitize";
 import { unsupportedConfig } from "@aihot/backend/sources/config-keys";
+import { chartAxisParts, storedContentLink } from "@aihot/backend/sources/saved-supplements";
 import { fetchDetail, fetchWebList, fromHtml, fromMarkdown, locateArticleText } from "@aihot/backend/sources/web-list";
 import { fetchRss } from "@aihot/backend/sources/rss";
 import { fetchJsonList } from "@aihot/backend/sources/json-list";
@@ -279,6 +280,28 @@ test("a single release object is one item, and its published_at is the publicati
   assert.equal(item!.publicationTime, "2026-11-18T05:21:54.000Z");
   assert.equal((item!.raw as { timeSource: string }).timeSource, "json:published_at");
   await assert.rejects(fetchJsonList({ id: "test-json", config: { ...config, singleObject: false } } as never), /array/);
+});
+
+test("a stored content link keeps its label and absolute address, and a chart keeps its unit", () => {
+  const page = "https://example.org/blog/post";
+  const html = `<main><p>See the <a href="/paper.pdf">technical paper</a>.</p><a href="https://example.org/blog/post">this page</a><footer><a href="https://example.org/social">social</a></footer></main><script type="application/json">{"value":{"label":"Score","suffix":"%","decimals":1}}</script><mistral-block-chart>{"title":"Frontier","type":"bar","value":{"label":"Score","suffix":"%","decimals":1,"max":20},"data":[{"label":"Model","value":19.7}]}</mistral-block-chart>`;
+  const paperAt = html.indexOf("/paper.pdf");
+  const paper = storedContentLink(html, page, "See the technical paper.", { label: "technical paper", href: "/paper.pdf", absoluteUrl: "https://example.org/paper.pdf", byteOffset: paperAt });
+  assert.ok(!("skipped" in paper));
+  if (!("skipped" in paper)) {
+    assert.equal(paper.absoluteUrl, "https://example.org/paper.pdf");
+    assert.equal(paper.linkedPageRead, false);
+  }
+  const selfAt = html.indexOf("https://example.org/blog/post");
+  assert.equal("skipped" in storedContentLink(html, page, "", { label: "this page", href: "https://example.org/blog/post", absoluteUrl: page, byteOffset: selfAt }) && storedContentLink(html, page, "", { label: "this page", href: "https://example.org/blog/post", absoluteUrl: page, byteOffset: selfAt }).skipped, "指向本页，不是外链");
+  const socialAt = html.indexOf("https://example.org/social");
+  const social = storedContentLink(html, page, "the address is already https://example.org/social here", { label: "social", href: "https://example.org/social", absoluteUrl: "https://example.org/social", byteOffset: socialAt });
+  assert.equal("skipped" in social && social.skipped, "地址已经在正文里");
+  const chart = chartAxisParts(html)[0]!;
+  assert.match(chart.text, /value\.label: Score/);
+  assert.match(chart.text, /value\.suffix: %/);
+  assert.match(chart.text, /value\.decimals: 1/);
+  assert.match(chart.text, /label=Model value=19\.7/);
 });
 
 test("a long article stays the article, and the navigation and chart payload stay out", () => {

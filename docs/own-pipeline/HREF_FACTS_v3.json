@@ -1,0 +1,209 @@
+{
+  "kind": "saved_html_href_facts",
+  "didNotGet": true,
+  "didNotReadLinkedPages": true,
+  "judgmentsUnchanged": true,
+  "originalJudgmentSha256": "76aba86b49d85b94ccf2cb79da29e3078ca91554c6c494850081b358af9dcdf3",
+  "rejudgmentSha256": "be9503742c5789a120b2ac4dd21d33a13c1e251d8eb7f15fb7d1c070d68a8d60",
+  "note": "有 href 只说明保存在原始响应里。没有打开这些地址，也不表示链接页已读或可运行已验证。",
+  "items": [
+    {
+      "nn": "24",
+      "url": "https://deepmind.google/blog/introducing-alphaproof-code/",
+      "rawSha256": "7b872d33f2809084640c86bb62b25c4382857af25ac8dfea6aae8b86ccba298e",
+      "rawPath": "/tmp/v2pub/public-sample-v2/bytes/7b872d33f2809084640c86bb62b25c4382857af25ac8dfea6aae8b86ccba298e.bin",
+      "rawBytes": 154583,
+      "situation": "正文保留了名称，href 在同一份 HTML 里，抽成 body_text 时丢掉了。不是源本无链接，也不是只能靠 JS 才能看见。",
+      "anchors": [
+        {
+          "label": "formal verification artifacts",
+          "href": "https://google-deepmind.github.io/code-verification",
+          "absoluteUrl": "https://google-deepmind.github.io/code-verification",
+          "byteOffset": 114546,
+          "context": "We are open-sourcing our <a href=https://google-deepmind.github.io/code-verification rel=noopener target=_blank>formal verification artifacts</a> for community use.",
+          "inBodyText": false,
+          "labelInBodyText": true
+        },
+        {
+          "label": "Read the technical paper",
+          "href": "/documents/36/Formal_Verification_of_Signal_4.pdf",
+          "absoluteUrl": "https://deepmind.google/documents/36/Formal_Verification_of_Signal_4.pdf",
+          "byteOffset": 97041,
+          "context": "button label Read the technical paper, href=/documents/36/Formal_Verification_of_Signal_4.pdf",
+          "inBodyText": false,
+          "labelInBodyText": "正文只剩 Read the technical paper below，没有 PDF 路径",
+          "secondCopyByteOffset": 115026
+        }
+      ],
+      "notThisLink": "页脚 github 图标 href=https://github.com/google-deepmind 是社交入口，不是产物页。",
+      "repairInput": "最小补证只需把这两个 href 按原 label 附到已有正文旁。不要把它们写成已经打开或已经能跑。"
+    },
+    {
+      "nn": "25",
+      "url": "https://deepmind.google/blog/opening-the-datasets-behind-our-ai-weather-models/",
+      "rawSha256": "12d1f471f4a9a938e3f35784b224b05b4063aabed368200d0ccb286055a74f88",
+      "rawPath": "/tmp/v2pub/public-sample-v2/bytes/12d1f471f4a9a938e3f35784b224b05b4063aabed368200d0ccb286055a74f88.bin",
+      "rawBytes": 152527,
+      "situation": "「Google Cloud Storage」「Google Earth Engine」这两个词在源 HTML 里是纯文字，没有包在 <a> 里。同页另有按钮 href，抽正文时也丢掉了。文件里的 storage.googleapis.com 是图标和插图视频，不是数据集对象。没有 gs://。",
+      "plainTextNoHref": [
+        {
+          "phrase": "Google Cloud Storage",
+          "byteOffset": 119368,
+          "context": "The SatWeave and PARDIG live and historical datasets are now openly available on Google Cloud Storage."
+        },
+        {
+          "phrase": "Google Earth Engine",
+          "byteOffset": 119441,
+          "context": "PARDIG’s historical catalogs are also available in Google Earth Engine."
+        }
+      ],
+      "anchors": [
+        {
+          "label": "WeatherNext developer documentation",
+          "href": "https://developers.google.com/weathernext",
+          "absoluteUrl": "https://developers.google.com/weathernext",
+          "byteOffset": 120591,
+          "inBodyText": false
+        },
+        {
+          "label": "Access historical data and real-time",
+          "href": "https://developers.google.com/weathernext",
+          "absoluteUrl": "https://developers.google.com/weathernext",
+          "byteOffset": 120920,
+          "inBodyText": false
+        },
+        {
+          "label": "Read the PARDIG research paper",
+          "href": "https://arxiv.org/abs/2611.13941",
+          "absoluteUrl": "https://arxiv.org/abs/2611.13941",
+          "byteOffset": 121244,
+          "inBodyText": false
+        },
+        {
+          "label": "Access PARDIG historical archive",
+          "href": "https://earthengine.google.com/",
+          "absoluteUrl": "https://earthengine.google.com/",
+          "byteOffset": 121555,
+          "inBodyText": false,
+          "limit": "这是 Earth Engine 站点根，不是某一条目录的对象路径。"
+        },
+        {
+          "label": "Earth AI",
+          "href": "https://ai.google/earth-ai/",
+          "absoluteUrl": "https://ai.google/earth-ai/",
+          "byteOffset": 119505,
+          "inBodyText": false,
+          "limit": "链的是 Earth AI 组合页，不是 Earth Engine 目录。"
+        }
+      ],
+      "repairInput": "可以附上这几个按钮的原 label 和 href。不能把它们写成 GCS 对象地址，源响应里没有桶名、gs:// 或 storage.googleapis.com 上的数据集文件。"
+    },
+    {
+      "nn": "26",
+      "url": "https://mistral.ai/news/build-with-studio/",
+      "rawSha256": "ab180da801fca34eb50d653dd28275ce84a4a96e82dfd6969fdef905e4fdb7af",
+      "rawPath": "/tmp/pub-sample/public-sample-v1/bytes/ab180da801fca34eb50d653dd28275ce84a4a96e82dfd6969fdef905e4fdb7af.bin",
+      "rawBytes": 253722,
+      "situation": "Get started 六处文档和 cookbook 的绝对 href 都在保存的 HTML 里。body_text 只留下了名称。导航栏另有一个 Docs 首页链接，不属于这段起步文字。",
+      "anchors": [
+        {
+          "label": "Managed Agents documentation",
+          "href": "https://docs.mistral.ai/studio/agents/overview",
+          "absoluteUrl": "https://docs.mistral.ai/studio/agents/overview",
+          "byteOffset": 194892,
+          "inBodyText": false,
+          "labelInBodyText": true
+        },
+        {
+          "label": "Incident investigation cookbook",
+          "href": "https://docs.mistral.ai/resources/cookbooks/mistral-agents-investigation_agent-slack-sentry-investigation-agent",
+          "absoluteUrl": "https://docs.mistral.ai/resources/cookbooks/mistral-agents-investigation_agent-slack-sentry-investigation-agent",
+          "byteOffset": 195064,
+          "inBodyText": false,
+          "labelInBodyText": true
+        },
+        {
+          "label": "Workflows documentation",
+          "href": "https://docs.mistral.ai/studio/workflows/overview",
+          "absoluteUrl": "https://docs.mistral.ai/studio/workflows/overview",
+          "byteOffset": 195392,
+          "inBodyText": false,
+          "labelInBodyText": true
+        },
+        {
+          "label": "Workflow cookbooks",
+          "href": "https://docs.mistral.ai/resources/cookbooks/mistral-agents-slack_triage_workflow-slack-triage-workflow",
+          "absoluteUrl": "https://docs.mistral.ai/resources/cookbooks/mistral-agents-slack_triage_workflow-slack-triage-workflow",
+          "byteOffset": 195521,
+          "inBodyText": false,
+          "labelInBodyText": true
+        },
+        {
+          "label": "Apps documentation",
+          "href": "https://docs.mistral.ai/studio/apps/overview",
+          "absoluteUrl": "https://docs.mistral.ai/studio/apps/overview",
+          "byteOffset": 195822,
+          "inBodyText": false,
+          "labelInBodyText": true
+        },
+        {
+          "label": "Document review cookbook",
+          "href": "https://docs.mistral.ai/resources/cookbooks/mistral-agents-expert_matching_workflow-expert-matching-workflow",
+          "absoluteUrl": "https://docs.mistral.ai/resources/cookbooks/mistral-agents-expert_matching_workflow-expert-matching-workflow",
+          "byteOffset": 195983,
+          "inBodyText": false,
+          "labelInBodyText": true
+        }
+      ],
+      "adjacentNotRequested": [
+        {
+          "label": "release notes",
+          "href": "https://docs.mistral.ai/resources/release-notes",
+          "byteOffset": 196465
+        }
+      ],
+      "navNotArticle": {
+        "label": "Docs",
+        "href": "https://docs.mistral.ai",
+        "byteOffset": 50607
+      },
+      "repairInput": "最小补证是把这六个 href 附在已有 label 旁。页面内容仍未读。"
+    },
+    {
+      "nn": "19",
+      "url": "https://github.com/anthropics/claude-code/releases/tag/v2.1.323",
+      "rawSha256": "05792f8336efae6fb02c5ba2ad8a8d802ee14b6dac37f3a856dd37713df62692",
+      "rawPath": "/tmp/v2pub/public-sample-v2/bytes/05792f8336efae6fb02c5ba2ad8a8d802ee14b6dac37f3a856dd37713df62692.bin",
+      "situation": "开关地址既在 <a href> 里，也作为链接文字留在 body_text 里。入口判据不依赖被丢掉的 href。文档页没有打开。",
+      "anchors": [
+        {
+          "label": "https://code.claude.com/docs/en/code-mode",
+          "href": "https://code.claude.com/docs/en/code-mode",
+          "absoluteUrl": "https://code.claude.com/docs/en/code-mode",
+          "byteOffset": 131544,
+          "context": "see <a href=\"https://code.claude.com/docs/en/code-mode\" rel=\"nofollow\">https://code.claude.com/docs/en/code-mode</a> to turn it on",
+          "inBodyText": true,
+          "otherCopies": "同一字符串还出现在页面 meta 的 19705、20134、20736，不是另一条入口。"
+        }
+      ]
+    },
+    {
+      "nn": "01",
+      "url": "https://antigravity.google/releases?tab=hub&version=2.33.0",
+      "rawSha256": "b8954f59f47f9b6d6a5108bbd0718b692a6e2d0496fc4a907355e646201d9be0",
+      "rawPath": "/tmp/pub-sample/public-sample-v1/bytes/b8954f59f47f9b6d6a5108bbd0718b692a6e2d0496fc4a907355e646201d9be0.bin",
+      "situation": "绑定的是更新日志 markdown，不是详情壳页。SSH 步骤是正文句子：侧栏、项目菜单 SSH Host...、命令面板 Connect to SSH Host...。这段没有外链。标题上的相对链接只指向本条版本页。",
+      "anchors": [
+        {
+          "label": "v2.33.0",
+          "href": "/releases?tab=hub&version=2.33.0",
+          "absoluteUrl": "https://antigravity.google/releases?tab=hub&version=2.33.0",
+          "form": "markdown",
+          "context": "[v2.33.0](/releases?tab=hub&version=2.33.0 \"View release 2.33.0\")",
+          "byteOffset": 289,
+          "limit": "这是版本标题，不是 SSH 用法的外链。SSH 段落本身无 URL。"
+        }
+      ]
+    }
+  ]
+}
