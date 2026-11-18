@@ -19,7 +19,7 @@ node scripts/own-run.ts --step stop --schedule-dir var/schedule
 
 `--step schedule` 写下 launchd plist 和 `run-once.sh`。`loadedIntoLaunchd` 是 false，也没有调用 launchctl，所以 Mac 定时运行尚未通过。`sh var/schedule/run-once.sh` 跑当前这一轮。同一轮再跑不重复采集。`sh var/schedule/run-once.sh --new-round` 开始新的一轮，不会被上一轮的完成标记永远跳过。正在跑时再进入，退出码 75。`--step stop` 卸掉 plist 和触发脚本。再执行一次仍然退出码 0。
 
-`--step once` 串起保存原页、评分输入、文件判断、待审导出和备份恢复。`--step file` 只做模式检查，`importCompleted` 是 false，不写判断。`--step file-import` 才写文件判断；没有正文时退出码 1。`--step model` 在模型未配置时退出码 1，不发请求，不写回执。
+`--step once` 是夹具验收，串起保存原页、评分输入、文件判断、待审导出和备份恢复。它不是日常采集。日常入口是 `node scripts/own-daily.ts --step run --runtime <仅所有者可读写的配置>`。配置里有数据库地址和稳定的本机列表。调度 plist 只写这个路径，不写口令。缺少配置或权限过宽时退出码 1。`--step file` 只做模式检查，`importCompleted` 是 false，不写判断。`--step file-import` 才写判断；没有正文时退出码 1。`--step model` 在模型未配置时退出码 1，不发请求，不写回执。Mac 定时运行尚未通过。
 
 `--step bind-proof` 用同一地址的两个已完成请求并发绑定，并让第三次在提交前失败。详情行用 `attempt_id` 指向自己的请求。失败的那次不留下修订号和详情行。这不请求官网。
 

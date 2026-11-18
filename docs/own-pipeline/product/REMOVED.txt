@@ -1,4 +1,4 @@
-v2 源码包只保留能安装并跑本机回放的文件。v1 原 tar 没有改。
+v2 和 v3 源码包只保留能安装并跑本机回放或日常入口的文件。v1 和 v2 的原 tar 没有改。
 
 留下：package.json、package-lock.json、scripts、database/migrations、packages、apps、industry、site、modules、docs/own-pipeline/product（三份原页、PRIOR17.json、配置和安装说明）。
 

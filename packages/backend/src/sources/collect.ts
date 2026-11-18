@@ -144,7 +144,7 @@ export interface DetailReads {
   /** Listed entries whose page still fails with a recoverable error. */
   retries: Retries;
   /** Detail responses already fetched. Not a second request. */
-  captures: Array<{ url: string; status: number; finalUrl: string; truncated: boolean; requests: number; bytes: Buffer; sectionText: string | null }>;
+  captures: Array<{ url: string; status: number; finalUrl: string; truncated: boolean; requests: number; bytes: Buffer; sectionText: string | null; attemptId: string | null }>;
 }
 
 /**
@@ -245,6 +245,7 @@ export async function enrichDetails(candidates: CollectionCandidate[], source: S
         if (got.response) reads.captures.push({
           url: c.url, status: got.response.status, finalUrl: got.response.url, truncated: got.response.truncated,
           requests: got.response.requests, bytes: got.response.bytes, sectionText: got.body?.text ?? null,
+          attemptId: got.response.attemptId,
         });
         if (got.publishedAt) c.publishedAt = listed ? new Date(listed) : null;
         applyDetail(c, got, rules!);
@@ -508,8 +509,8 @@ export async function collectSource(sourceId: string, opts: { force?: boolean; x
       if (kept.length) await tx`DELETE FROM own_collect_retries WHERE source_id = ${sourceId} AND identity_key IN ${tx(kept)}`;
       for (const cap of reads.captures) {
         const extracted = cap.sectionText ? Buffer.byteLength(cap.sectionText) : null;
-        await tx`INSERT INTO own_detail_responses (source_id, url, http_status, response, response_sha256, truncated, extracted_bytes, extraction_note)
-          VALUES (${sourceId}, ${cap.url}, ${cap.status}, ${cap.bytes}, ${sha256(cap.bytes)}, ${cap.truncated}, ${extracted},
+        await tx`INSERT INTO own_detail_responses (source_id, url, http_status, response, response_sha256, truncated, extracted_bytes, attempt_id, extraction_note)
+          VALUES (${sourceId}, ${cap.url}, ${cap.status}, ${cap.bytes}, ${sha256(cap.bytes)}, ${cap.truncated}, ${extracted}, ${cap.attemptId},
             ${cap.truncated ? "response truncated; extracted text is not this response" : "extracted text is the readability slice of this response, not a claim the page ends there"})`;
       }
       for (const receiptId of paidReceiptIds) await completeReceipt(tx, receiptId);
